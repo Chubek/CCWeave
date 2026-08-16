@@ -10,6 +10,7 @@ add_compile_options(-Wall -Wextra)
 
 option(CCWEAVE_ENABLE_ASAN "Build with AddressSanitizer/LeakSanitizer" OFF)
 option(CCWEAVE_ENABLE_TREESITTER "Build Swaff Tree-sitter frontends" OFF)
+option(CCWEAVE_BUILD_DOCS "Build Doxygen documentation" ON)
 
 if(CCWEAVE_ENABLE_ASAN)
   add_compile_options(-fsanitize=address,undefined -fno-omit-frame-pointer -g)
@@ -53,6 +54,7 @@ add_subdirectory(executors/s7)
 add_subdirectory(oeuph)
 add_subdirectory(kliche)
 add_subdirectory(swaff)
+add_subdirectory(docs)
 add_subdirectory(tools/ccw-manifest)
 
 enable_testing()
