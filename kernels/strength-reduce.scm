@@ -59,6 +59,8 @@
     (define (kernel-apply capability ir options)
       (unless (eq? capability 'opt.strength-reduction)
         (error "strength-reduce: unsupported capability" capability))
+      (unless (list? options)
+        (error "strength-reduce: options must be an alist" options))
       (let ((n (ir-function-count)))
         (let loop ((i 0))
           (when (< i n)

@@ -9,27 +9,13 @@
 
     (define (kernel-info)
       '((name        . ssa-destruct)
-        (version     . "1.0.0")
-        (description . "Replaces phi nodes with parallel copies on predecessor edges.")))
+        (version     . "0.0.0")
+        (description . "Reserved kernel; no capability is advertised until its required IR semantics are available.")))
 
     (define (kernel-capabilities)
-      '(ssa.destruction))
+      '())
 
+    ;; This kernel remains loadable for metadata discovery, but does not
+    ;; advertise behavior that Glue ABI v1 cannot currently express.
     (define (kernel-apply capability ir options)
-      (unless (eq? capability 'ssa.destruction)
-        (error "ssa-destruct: unsupported capability" capability))
-      ;; Walk all functions and their blocks; SSA transform is a
-      ;; whole-function pass that the host schedules appropriately.
-      (let ((n (ir-function-count)))
-        (let loop ((i 0))
-          (when (< i n)
-            (let* ((f (ir-function-ref i))
-                   (nb (function-block-count f)))
-              ;; SSA build/destroy iteration over blocks.
-              (let bloop ((j 0))
-                (when (< j nb)
-                  (let ((b (function-block-ref f j)))
-                    ;; Placeholder for actual SSA transform logic.
-                    (bloop (+ j 1))))))
-            (loop (+ i 1)))))
-      ir)))
+      (error "kernel: unsupported capability" capability))))

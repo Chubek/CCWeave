@@ -9,37 +9,13 @@
 
     (define (kernel-info)
       '((name        . switch-lower)
-        (version     . "1.0.0")
-        (description . "Lowers switch instructions to jump tables or branch chains.")))
+        (version     . "0.0.0")
+        (description . "Reserved kernel; no capability is advertised until its required IR semantics are available.")))
 
     (define (kernel-capabilities)
-      '(lower.switch))
+      '())
 
-    (define (lower-block! b)
-      (let ((n (block-instr-count b)))
-        (let loop ((i 0) (changed 0))
-          (if (>= i n)
-              changed
-              (let* ((ins (block-instr-ref b i))
-                     (op (instr-opcode ins)))
-                ;; Lowering placeholder: walk instructions, lower
-                ;; unsupported opcodes to legal sequences.
-                (loop (+ i 1) changed))))))
-
-    (define (lower-function! f)
-      (let ((n (function-block-count f)))
-        (let loop ((i 0) (changed 0))
-          (if (>= i n)
-              changed
-              (loop (+ i 1)
-                    (+ changed (lower-block! (function-block-ref f i))))))))
-
+    ;; This kernel remains loadable for metadata discovery, but does not
+    ;; advertise behavior that Glue ABI v1 cannot currently express.
     (define (kernel-apply capability ir options)
-      (unless (eq? capability 'lower.switch)
-        (error "switch-lower: unsupported capability" capability))
-      (let ((n (ir-function-count)))
-        (let loop ((i 0))
-          (when (< i n)
-            (lower-function! (ir-function-ref i))
-            (loop (+ i 1)))))
-      ir)))
+      (error "kernel: unsupported capability" capability))))
