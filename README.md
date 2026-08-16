@@ -61,8 +61,3 @@ may log or reject it.
 Kernels must stay engine-agnostic: no S7-specific functions and no
 engine detection. Anything beyond `(scheme base)` and `(ccweave glue)`
 should be feature-tested with `(glue-has? 'name)`.
-
-## Design notes
-
-`AGENTS.md` describes how work proceeds in this repository; `DECISIONS.md`
-records every interpretation made where the specs were silent.
