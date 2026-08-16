@@ -33,19 +33,31 @@ set(CCWEAVE_DOCS_INPUTS
     "${CMAKE_SOURCE_DIR}/executors/s7"
     "${CMAKE_SOURCE_DIR}/oeuph"
     "${CMAKE_SOURCE_DIR}/kliche"
-    "${CMAKE_SOURCE_DIR}/swaff"
+    "${CMAKE_SOURCE_DIR}/swaff/ccw_swaff.h"
+    "${CMAKE_SOURCE_DIR}/swaff/adapters"
     "${CMAKE_SOURCE_DIR}/tools"
     "${CMAKE_SOURCE_DIR}/kernels"
     "${CMAKE_SOURCE_DIR}/stdrewrite"
     "${CMAKE_SOURCE_DIR}/docs"
 )
+# Doxygen separates INPUT paths with whitespace, while CMake stores lists
+# with semicolons. All project paths are space-free by construction.
+string(REPLACE ";" " " CCWEAVE_DOCS_INPUTS "${CCWEAVE_DOCS_INPUTS}")
 
 # Optional features
 option(CCWEAVE_DOCS_GENERATE_MAN "Generate man pages alongside HTML" ON)
-set(CCWEAVE_DOCS_GENERATE_MAN ${CCWEAVE_DOCS_GENERATE_MAN})
+if(CCWEAVE_DOCS_GENERATE_MAN)
+  set(CCWEAVE_DOCS_GENERATE_MAN YES)
+else()
+  set(CCWEAVE_DOCS_GENERATE_MAN NO)
+endif()
 
 option(CCWEAVE_DOCS_WARN_AS_ERROR "Treat Doxygen warnings as errors" OFF)
-set(CCWEAVE_DOCS_WARN_AS_ERROR ${CCWEAVE_DOCS_WARN_AS_ERROR})
+if(CCWEAVE_DOCS_WARN_AS_ERROR)
+  set(CCWEAVE_DOCS_WARN_AS_ERROR YES)
+else()
+  set(CCWEAVE_DOCS_WARN_AS_ERROR NO)
+endif()
 
 option(CCWEAVE_DOCS_HAVE_DOT "Use Graphviz dot for diagrams" OFF)
 find_package(DOT QUIET)

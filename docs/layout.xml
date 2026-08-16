@@ -90,7 +90,6 @@
     <memberdecl>
       <classes visible="no" title=""/>
       <structs visible="yes" title=""/>
-      <unions visible="yes" title=""/>
       <namespaces visible="no" title=""/>
       <defines visible="yes" title=""/>
       <typedefs visible="yes" title=""/>

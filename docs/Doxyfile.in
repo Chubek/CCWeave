@@ -37,14 +37,15 @@ SORT_MEMBER_DOCS       = NO
 SORT_BRIEF_DOCS        = NO
 ALPHABETICAL_INDEX     = YES
 
-INPUT                  = @CCWEAVE_DOCS_INPUTS@
+INPUT                  = @CCWEAVE_DOCS_INPUTS@ "@CCWEAVE_DOCS_SOURCE_ROOT@/docs/manual"
 INPUT_ENCODING         = UTF-8
 RECURSIVE              = YES
 FILE_PATTERNS          = *.h *.c *.md
 
 # Vendored code, build trees, and agent working files are never documented.
 EXCLUDE                = "@CCWEAVE_DOCS_SOURCE_ROOT@/third_party" \
-                         "@CCWEAVE_DOCS_SOURCE_ROOT@/.agents"
+                         "@CCWEAVE_DOCS_SOURCE_ROOT@/.agents" \
+                         "@CCWEAVE_DOCS_SOURCE_ROOT@/swaff/grammars"
 EXCLUDE_PATTERNS       = */build/* \
                          */build-*/* \
                          */third_party/* \
@@ -134,7 +135,6 @@ GENERATE_AUTOGEN_DEF   = NO
 HAVE_DOT               = @CCWEAVE_DOCS_HAVE_DOT@
 DOT_IMAGE_FORMAT       = svg
 INTERACTIVE_SVG        = YES
-DOT_TRANSPARENT        = YES
 DOT_MULTI_TARGETS      = YES
 DOT_GRAPH_MAX_NODES    = 80
 MAX_DOT_GRAPH_DEPTH    = 0
