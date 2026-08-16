@@ -3,7 +3,7 @@
 Each Swaff frontend pairs a Tree-sitter grammar with a lowering adapter
 in `../adapters/`. The C frontend builds the checked-in runtime and
 generated parser from `third_party/tree-sitter/` and
-`third_party/tree-sitter-c/`; no parser generation, system package, or
+`swaff/grammars/tree-sitter-c/`; no parser generation, system package, or
 network access is required.
 
 Adding a frontend means adding a grammar entry to the lock file and an

@@ -18,6 +18,7 @@ if(CCWEAVE_ENABLE_ASAN)
 endif()
 
 set(CCWEAVE_THIRD_PARTY ${CMAKE_CURRENT_SOURCE_DIR}/third_party)
+set(CCWEAVE_SWAFF_GRAMMARS ${CMAKE_CURRENT_SOURCE_DIR}/swaff/grammars)
 
 # --- vendored dependencies (pinned in third_party/VERSIONS.lock) ---
 # Vendored sources are never edited, so they are compiled without our
@@ -50,7 +51,7 @@ target_link_libraries(ccw_s7 PUBLIC Threads::Threads ${CMAKE_DL_LIBS})
 
 # --- vendored Tree-sitter runtime and C grammar ---------------------------
 # Build the checked-in generated sources directly. In particular, do not
-# add_subdirectory(third_party/tree-sitter-c): its upstream CMake project
+# add_subdirectory(swaff/grammars/tree-sitter-c): its upstream CMake project
 # may regenerate parser.c with a host `tree-sitter` CLI, violating the
 # repository's no-generation/no-fetch-at-build-time rule.
 if(CCWEAVE_ENABLE_TREESITTER)
@@ -70,10 +71,10 @@ if(CCWEAVE_ENABLE_TREESITTER)
   ccw_vendored_target(ccw_tree_sitter)
 
   add_library(ccw_tree_sitter_c STATIC
-    ${CCWEAVE_THIRD_PARTY}/tree-sitter-c/src/parser.c)
+    ${CCWEAVE_SWAFF_GRAMMARS}/tree-sitter-c/src/parser.c)
   target_include_directories(ccw_tree_sitter_c
-    PUBLIC ${CCWEAVE_THIRD_PARTY}/tree-sitter-c/bindings/c
-    PRIVATE ${CCWEAVE_THIRD_PARTY}/tree-sitter-c/src)
+    PUBLIC ${CCWEAVE_SWAFF_GRAMMARS}/tree-sitter-c/bindings/c
+    PRIVATE ${CCWEAVE_SWAFF_GRAMMARS}/tree-sitter-c/src)
   set_target_properties(ccw_tree_sitter_c PROPERTIES
     C_STANDARD 11
     C_STANDARD_REQUIRED ON
