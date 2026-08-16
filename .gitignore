@@ -1,7 +1,3 @@
-# Agent/spec working files (not part of the shipped tree)
-.agents/
-AGENTS.md
-
 # Build artifacts
 build/
 build-*/
