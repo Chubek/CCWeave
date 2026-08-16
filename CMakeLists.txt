@@ -80,6 +80,49 @@ if(CCWEAVE_ENABLE_TREESITTER)
     C_STANDARD_REQUIRED ON
     POSITION_INDEPENDENT_CODE ON)
   ccw_vendored_target(ccw_tree_sitter_c)
+
+  # --- vendored Tree-sitter OCaml grammar (three sub-languages) ----------
+  # ocaml (implementation files: .ml)
+  add_library(ccw_tree_sitter_ocaml STATIC
+    ${CCWEAVE_SWAFF_GRAMMARS}/tree-sitter-ocaml/grammars/ocaml/src/parser.c
+    ${CCWEAVE_SWAFF_GRAMMARS}/tree-sitter-ocaml/grammars/ocaml/src/scanner.c)
+  target_include_directories(ccw_tree_sitter_ocaml
+    PUBLIC ${CCWEAVE_SWAFF_GRAMMARS}/tree-sitter-ocaml/bindings/c
+    PRIVATE ${CCWEAVE_SWAFF_GRAMMARS}/tree-sitter-ocaml/grammars/ocaml/src
+    PRIVATE ${CCWEAVE_SWAFF_GRAMMARS}/tree-sitter-ocaml/common)
+  set_target_properties(ccw_tree_sitter_ocaml PROPERTIES
+    C_STANDARD 11
+    C_STANDARD_REQUIRED ON
+    POSITION_INDEPENDENT_CODE ON)
+  ccw_vendored_target(ccw_tree_sitter_ocaml)
+
+  # ocaml-interface (interface files: .mli)
+  add_library(ccw_tree_sitter_ocaml_interface STATIC
+    ${CCWEAVE_SWAFF_GRAMMARS}/tree-sitter-ocaml/grammars/interface/src/parser.c
+    ${CCWEAVE_SWAFF_GRAMMARS}/tree-sitter-ocaml/grammars/interface/src/scanner.c)
+  target_include_directories(ccw_tree_sitter_ocaml_interface
+    PUBLIC ${CCWEAVE_SWAFF_GRAMMARS}/tree-sitter-ocaml/bindings/c
+    PRIVATE ${CCWEAVE_SWAFF_GRAMMARS}/tree-sitter-ocaml/grammars/interface/src
+    PRIVATE ${CCWEAVE_SWAFF_GRAMMARS}/tree-sitter-ocaml/common)
+  set_target_properties(ccw_tree_sitter_ocaml_interface PROPERTIES
+    C_STANDARD 11
+    C_STANDARD_REQUIRED ON
+    POSITION_INDEPENDENT_CODE ON)
+  ccw_vendored_target(ccw_tree_sitter_ocaml_interface)
+
+  # ocaml-type (type expressions)
+  add_library(ccw_tree_sitter_ocaml_type STATIC
+    ${CCWEAVE_SWAFF_GRAMMARS}/tree-sitter-ocaml/grammars/type/src/parser.c
+    ${CCWEAVE_SWAFF_GRAMMARS}/tree-sitter-ocaml/grammars/type/src/scanner.c)
+  target_include_directories(ccw_tree_sitter_ocaml_type
+    PUBLIC ${CCWEAVE_SWAFF_GRAMMARS}/tree-sitter-ocaml/bindings/c
+    PRIVATE ${CCWEAVE_SWAFF_GRAMMARS}/tree-sitter-ocaml/grammars/type/src
+    PRIVATE ${CCWEAVE_SWAFF_GRAMMARS}/tree-sitter-ocaml/common)
+  set_target_properties(ccw_tree_sitter_ocaml_type PROPERTIES
+    C_STANDARD 11
+    C_STANDARD_REQUIRED ON
+    POSITION_INDEPENDENT_CODE ON)
+  ccw_vendored_target(ccw_tree_sitter_ocaml_type)
 endif()
 
 add_subdirectory(glue)

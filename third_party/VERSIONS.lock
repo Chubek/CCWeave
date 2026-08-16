@@ -9,3 +9,6 @@ klib          97a0fcb790b43b9e5da8994f4671021fec036f19  third_party/klib
 #
 tree-sitter   0.27.0 (language ABI 15)                  third_party/tree-sitter
 tree-sitter-c 0.24.1 (generated language ABI 14)        swaff/grammars/tree-sitter-c
+tree-sitter-ocaml          0.25.0 (language ABI 15)     swaff/grammars/tree-sitter-ocaml
+tree-sitter-ocaml-interface 0.25.0 (language ABI 15)    swaff/grammars/tree-sitter-ocaml/grammars/interface
+tree-sitter-ocaml-type     0.25.0 (language ABI 15)     swaff/grammars/tree-sitter-ocaml/grammars/type
