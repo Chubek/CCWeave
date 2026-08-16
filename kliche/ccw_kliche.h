@@ -41,6 +41,18 @@ ccw_node ccw_kliche_local_load(ccw_ir *ir, ccw_node blk, const char *dest,
 ccw_node ccw_kliche_branch_if(ccw_ir *ir, ccw_node blk, const char *cond_reg,
                               const char *then_block, const char *else_block);
 ccw_node ccw_kliche_jump(ccw_ir *ir, ccw_node blk, const char *target_block);
+ccw_node ccw_kliche_int_const(ccw_ir *ir, ccw_node blk, const char *dest,
+                              int64_t value);
+ccw_node ccw_kliche_unary(ccw_ir *ir, ccw_node blk, const char *opcode,
+                          const char *dest, const char *operand_reg,
+                          ccw_ir_type type);
+ccw_node ccw_kliche_binary(ccw_ir *ir, ccw_node blk, const char *opcode,
+                           const char *dest, const char *left_reg,
+                           const char *right_reg, ccw_ir_type type);
+ccw_node ccw_kliche_call(ccw_ir *ir, ccw_node blk, const char *dest,
+                         const char *callee, const char *const *arg_regs,
+                         int arg_count, ccw_ir_type result_type);
+ccw_node ccw_kliche_return(ccw_ir *ir, ccw_node blk, const char *value_reg);
 
 /* ---------- oop stereotype ----------
  * Vtable layout, object headers, and exception frames. Dispatch here is

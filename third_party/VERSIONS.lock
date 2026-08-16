@@ -7,8 +7,5 @@ s7            4.14 (2-Jan-17)                           third_party/s7
 mpc           0.9.8                                     third_party/mpc
 klib          97a0fcb790b43b9e5da8994f4671021fec036f19  third_party/klib
 #
-# Tree-sitter runtime and grammars are consumed through the system
-# toolchain when CCWEAVE_ENABLE_TREESITTER=ON (Swaff only). The pinned
-# interface is the ABI, recorded here:
-tree-sitter   ABI 14/15 runtime (>= 0.24)               system
-tree-sitter-c ABI 15                                    system
+tree-sitter   0.27.0 (language ABI 15)                  third_party/tree-sitter
+tree-sitter-c 0.24.1 (generated language ABI 14)        third_party/tree-sitter-c

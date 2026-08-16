@@ -26,6 +26,11 @@ target_compile_definitions(test_oeuph PRIVATE
 ccw_add_test(test_kliche_swaff test_kliche_swaff.c)
 target_link_libraries(test_kliche_swaff PRIVATE ccw_kliche ccw_swaff)
 
+if(CCWEAVE_ENABLE_TREESITTER)
+  ccw_add_test(test_swaff_c test_swaff_c.c)
+  target_link_libraries(test_swaff_c PRIVATE ccw_swaff)
+endif()
+
 # Manifests must regenerate identically and fail on drift (§4.2).
 add_test(NAME test_manifest_check
          COMMAND ${CMAKE_COMMAND} -E env sh

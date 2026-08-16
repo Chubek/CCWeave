@@ -15,8 +15,8 @@ Five layers plus one auxiliary engine:
 ## Build
 
 ```sh
-cmake -S . -B build                       # Swaff frontends off
-cmake -S . -B build -DCCWEAVE_ENABLE_TREESITTER=ON
+cmake -S . -B build                       # Swaff C frontend on by default
+cmake -S . -B build -DCCWEAVE_ENABLE_TREESITTER=OFF
 cmake --build build -j
 ctest --test-dir build --output-on-failure
 ```

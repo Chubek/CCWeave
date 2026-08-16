@@ -1,9 +1,10 @@
 # Swaff grammars
 
 Each Swaff frontend pairs a Tree-sitter grammar with a lowering adapter
-in `../adapters/`. Grammars are pinned in `third_party/VERSIONS.lock`;
-the C frontend resolves `tree-sitter` and `tree-sitter-c` through
-pkg-config at configure time when `CCWEAVE_ENABLE_TREESITTER=ON`.
+in `../adapters/`. The C frontend builds the checked-in runtime and
+generated parser from `third_party/tree-sitter/` and
+`third_party/tree-sitter-c/`; no parser generation, system package, or
+network access is required.
 
 Adding a frontend means adding a grammar entry to the lock file and an
 adapter that emits Kliche stereotype calls. Nothing outside

@@ -26,7 +26,10 @@ typedef struct {
     int  error_nodes;
     int  missing_nodes;
     int  recovered_subtrees;
+    int  unsupported_nodes;
     int  functions_lowered;
+    int  declarations_lowered;
+    int  statements_lowered;
     char message[256];
 } ccw_swaff_report;
 

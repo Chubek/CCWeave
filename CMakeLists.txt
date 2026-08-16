@@ -9,7 +9,7 @@ set(CMAKE_C_EXTENSIONS OFF)
 add_compile_options(-Wall -Wextra)
 
 option(CCWEAVE_ENABLE_ASAN "Build with AddressSanitizer/LeakSanitizer" OFF)
-option(CCWEAVE_ENABLE_TREESITTER "Build Swaff Tree-sitter frontends" OFF)
+option(CCWEAVE_ENABLE_TREESITTER "Build Swaff Tree-sitter frontends" ON)
 option(CCWEAVE_BUILD_DOCS "Build Doxygen documentation" ON)
 
 if(CCWEAVE_ENABLE_ASAN)
@@ -47,6 +47,39 @@ if(CCW_M_LIB)
 endif()
 find_package(Threads REQUIRED)
 target_link_libraries(ccw_s7 PUBLIC Threads::Threads ${CMAKE_DL_LIBS})
+
+# --- vendored Tree-sitter runtime and C grammar ---------------------------
+# Build the checked-in generated sources directly. In particular, do not
+# add_subdirectory(third_party/tree-sitter-c): its upstream CMake project
+# may regenerate parser.c with a host `tree-sitter` CLI, violating the
+# repository's no-generation/no-fetch-at-build-time rule.
+if(CCWEAVE_ENABLE_TREESITTER)
+  add_library(ccw_tree_sitter STATIC
+    ${CCWEAVE_THIRD_PARTY}/tree-sitter/lib/src/lib.c)
+  target_include_directories(ccw_tree_sitter
+    PUBLIC ${CCWEAVE_THIRD_PARTY}/tree-sitter/lib/include
+    PRIVATE ${CCWEAVE_THIRD_PARTY}/tree-sitter/lib/src)
+  target_compile_definitions(ccw_tree_sitter PRIVATE
+    _POSIX_C_SOURCE=200112L
+    _DEFAULT_SOURCE
+    _DARWIN_C_SOURCE)
+  set_target_properties(ccw_tree_sitter PROPERTIES
+    C_STANDARD 11
+    C_STANDARD_REQUIRED ON
+    POSITION_INDEPENDENT_CODE ON)
+  ccw_vendored_target(ccw_tree_sitter)
+
+  add_library(ccw_tree_sitter_c STATIC
+    ${CCWEAVE_THIRD_PARTY}/tree-sitter-c/src/parser.c)
+  target_include_directories(ccw_tree_sitter_c
+    PUBLIC ${CCWEAVE_THIRD_PARTY}/tree-sitter-c/bindings/c
+    PRIVATE ${CCWEAVE_THIRD_PARTY}/tree-sitter-c/src)
+  set_target_properties(ccw_tree_sitter_c PROPERTIES
+    C_STANDARD 11
+    C_STANDARD_REQUIRED ON
+    POSITION_INDEPENDENT_CODE ON)
+  ccw_vendored_target(ccw_tree_sitter_c)
+endif()
 
 add_subdirectory(glue)
 add_subdirectory(ir)
