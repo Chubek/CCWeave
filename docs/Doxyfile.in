@@ -1,0 +1,150 @@
+# Doxygen configuration for CCWeave. Configured by docs/CMakeLists.txt;
+# @VAR@ placeholders are substituted at CMake configure time. Do not run
+# doxygen against this file directly — use the `docs` build target.
+
+#---------------------------------------------------------------------------
+# Project
+#---------------------------------------------------------------------------
+PROJECT_NAME           = "@CCWEAVE_DOCS_PROJECT_NAME@"
+PROJECT_NUMBER         = "@CCWEAVE_DOCS_VERSION@"
+PROJECT_BRIEF          = "Modular compiler infrastructure: Swaff, Kliche, Weave IR, Glue, Kernels, and Oeuph"
+OUTPUT_DIRECTORY       = "@CCWEAVE_DOCS_OUTPUT_DIR@"
+CREATE_SUBDIRS         = NO
+OUTPUT_LANGUAGE        = English
+TAB_SIZE               = 4
+
+# CCWeave core is C11 (AGENTS.md: no C++ in the core).
+OPTIMIZE_OUTPUT_FOR_C  = YES
+MARKDOWN_SUPPORT       = YES
+AUTOLINK_SUPPORT       = YES
+TYPEDEF_HIDES_STRUCT   = YES
+
+# Paths are shown relative to the repository root, so page headings read
+# "glue/GlueSTD.h" rather than an absolute build-machine path.
+FULL_PATH_NAMES        = YES
+STRIP_FROM_PATH        = "@CCWEAVE_DOCS_SOURCE_ROOT@"
+STRIP_FROM_INC_PATH    = "@CCWEAVE_DOCS_SOURCE_ROOT@"
+
+#---------------------------------------------------------------------------
+# What gets documented
+#---------------------------------------------------------------------------
+# The public surface is what matters; internal headers are excluded below.
+EXTRACT_ALL            = YES
+EXTRACT_STATIC         = NO
+EXTRACT_PRIVATE        = NO
+HIDE_UNDOC_MEMBERS     = NO
+SORT_MEMBER_DOCS       = NO
+SORT_BRIEF_DOCS        = NO
+ALPHABETICAL_INDEX     = YES
+
+INPUT                  = @CCWEAVE_DOCS_INPUTS@
+INPUT_ENCODING         = UTF-8
+RECURSIVE              = YES
+FILE_PATTERNS          = *.h *.c *.md
+
+# Vendored code, build trees, and agent working files are never documented.
+EXCLUDE                = "@CCWEAVE_DOCS_SOURCE_ROOT@/third_party" \
+                         "@CCWEAVE_DOCS_SOURCE_ROOT@/.agents"
+EXCLUDE_PATTERNS       = */build/* \
+                         */build-*/* \
+                         */third_party/* \
+                         */ccw_ir_internal.h \
+                         */ccw_kliche_common.h \
+                         */ccw_s7_prelude.h \
+                         */mus-config.h
+EXCLUDE_SYMLINKS       = YES
+
+USE_MDFILE_AS_MAINPAGE = "@CCWEAVE_DOCS_SOURCE_ROOT@/docs/mainpage.md"
+EXAMPLE_PATH           = "@CCWEAVE_DOCS_SOURCE_ROOT@/kernels" \
+                         "@CCWEAVE_DOCS_SOURCE_ROOT@/stdrewrite" \
+                         "@CCWEAVE_DOCS_SOURCE_ROOT@/manifests"
+EXAMPLE_PATTERNS       = *.scm *.yaml
+EXAMPLE_RECURSIVE      = YES
+IMAGE_PATH             = "@CCWEAVE_DOCS_SOURCE_ROOT@/docs"
+
+#---------------------------------------------------------------------------
+# Preprocessing
+#---------------------------------------------------------------------------
+ENABLE_PREPROCESSING   = YES
+MACRO_EXPANSION        = YES
+EXPAND_ONLY_PREDEF     = YES
+SEARCH_INCLUDES        = YES
+INCLUDE_PATH           = "@CCWEAVE_DOCS_SOURCE_ROOT@/glue" \
+                         "@CCWEAVE_DOCS_SOURCE_ROOT@/ir"
+
+# Document the C view of the headers: hide the extern "C" guards and
+# expand the accessor signature macro so each accessor reads normally.
+PREDEFINED             = __cplusplus= \
+                         CCWEAVE_WITH_TREESITTER=1 \
+                         "ACC_SIG(name)=static ccw_status name(void *host_ctx, ccw_ir *ir, const ccw_val *args, int nargs, ccw_val *result, char **error_message)"
+
+#---------------------------------------------------------------------------
+# Source browser
+#---------------------------------------------------------------------------
+SOURCE_BROWSER         = YES
+INLINE_SOURCES         = NO
+STRIP_CODE_COMMENTS    = NO
+REFERENCED_BY_RELATION = YES
+REFERENCES_RELATION    = YES
+VERBATIM_HEADERS       = YES
+
+#---------------------------------------------------------------------------
+# Diagnostics
+#---------------------------------------------------------------------------
+QUIET                  = YES
+WARNINGS               = YES
+WARN_IF_UNDOCUMENTED   = NO
+WARN_IF_DOC_ERROR      = YES
+WARN_NO_PARAMDOC       = NO
+WARN_AS_ERROR          = @CCWEAVE_DOCS_WARN_AS_ERROR@
+WARN_LOGFILE           = "@CCWEAVE_DOCS_OUTPUT_DIR@/doxygen-warnings.log"
+
+#---------------------------------------------------------------------------
+# HTML output
+#---------------------------------------------------------------------------
+GENERATE_HTML          = YES
+HTML_OUTPUT            = html
+HTML_COLORSTYLE        = TOGGLE
+HTML_DYNAMIC_SECTIONS  = YES
+HTML_INDEX_NUM_ENTRIES = 100
+GENERATE_TREEVIEW      = YES
+FULL_SIDEBAR           = NO
+DISABLE_INDEX          = NO
+SEARCHENGINE           = YES
+LAYOUT_FILE            = "@CCWEAVE_DOCS_LAYOUT_FILE@"
+
+#---------------------------------------------------------------------------
+# Man pages (installed alongside HTML)
+#---------------------------------------------------------------------------
+GENERATE_MAN           = @CCWEAVE_DOCS_GENERATE_MAN@
+MAN_OUTPUT             = man
+MAN_EXTENSION          = .3
+MAN_LINKS              = YES
+
+# LaTeX/RTF/XML output is not part of the documented deliverable.
+GENERATE_LATEX         = NO
+GENERATE_RTF           = NO
+GENERATE_XML           = NO
+GENERATE_DOCBOOK       = NO
+GENERATE_AUTOGEN_DEF   = NO
+
+#---------------------------------------------------------------------------
+# Diagrams
+#---------------------------------------------------------------------------
+HAVE_DOT               = @CCWEAVE_DOCS_HAVE_DOT@
+DOT_IMAGE_FORMAT       = svg
+INTERACTIVE_SVG        = YES
+DOT_TRANSPARENT        = YES
+DOT_MULTI_TARGETS      = YES
+DOT_GRAPH_MAX_NODES    = 80
+MAX_DOT_GRAPH_DEPTH    = 0
+CLASS_GRAPH            = YES
+COLLABORATION_GRAPH    = YES
+GROUP_GRAPHS           = YES
+INCLUDE_GRAPH          = YES
+INCLUDED_BY_GRAPH      = YES
+DIRECTORY_GRAPH        = YES
+# Call graphs are off by default: the Glue ABI is deliberately chatty,
+# and per-accessor call graphs add noise without adding insight.
+CALL_GRAPH             = NO
+CALLER_GRAPH           = NO
