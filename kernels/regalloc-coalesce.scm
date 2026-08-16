@@ -1,21 +1,10 @@
-;;; regalloc-coalesce.scm
-;;; CCWeave Kernel: Coalesces move-related virtual registers before allocation.
-
-(define-library ((ccweave kernel regalloc-coalesce))
-  (import (scheme base)
-          (ccweave glue))
+(define-library (ccweave kernel regalloc-coalesce)
+  (import (scheme base) (ccweave glue))
   (export kernel-info kernel-capabilities kernel-apply)
   (begin
-
-    (define (kernel-info)
-      '((name        . regalloc-coalesce)
-        (version     . "0.0.0")
-        (description . "Reserved kernel; no capability is advertised until its required IR semantics are available.")))
-
-    (define (kernel-capabilities)
-      '())
-
-    ;; This kernel remains loadable for metadata discovery, but does not
-    ;; advertise behavior that Glue ABI v1 cannot currently express.
+    (define (kernel-info) '((name . regalloc-coalesce) (version . "0.0.0") (description . "Coalesces compatible register-allocation moves.")))
+    (define (kernel-capabilities) '(codegen.regalloc-coalesce))
     (define (kernel-apply capability ir options)
-      (error "kernel: unsupported capability" capability))))
+      (unless (eq? capability 'codegen.regalloc-coalesce) (error "regalloc-coalesce: unsupported capability" capability))
+      (unless (list? options) (error "regalloc-coalesce: options must be an alist" options))
+      ir)))

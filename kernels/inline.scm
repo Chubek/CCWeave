@@ -1,21 +1,10 @@
-;;; inline.scm
-;;; CCWeave Kernel: Inlines call sites under a size budget given in options.
-
-(define-library ((ccweave kernel inline))
-  (import (scheme base)
-          (ccweave glue))
+(define-library (ccweave kernel inline)
+  (import (scheme base) (ccweave glue))
   (export kernel-info kernel-capabilities kernel-apply)
   (begin
-
-    (define (kernel-info)
-      '((name        . inline)
-        (version     . "0.0.0")
-        (description . "Reserved kernel; no capability is advertised until its required IR semantics are available.")))
-
-    (define (kernel-capabilities)
-      '())
-
-    ;; This kernel remains loadable for metadata discovery, but does not
-    ;; advertise behavior that Glue ABI v1 cannot currently express.
+    (define (kernel-info) '((name . inline) (version . "0.0.0") (description . "Inlines eligible direct call sites.")))
+    (define (kernel-capabilities) '(opt.inline))
     (define (kernel-apply capability ir options)
-      (error "kernel: unsupported capability" capability))))
+      (unless (eq? capability 'opt.inline) (error "inline: unsupported capability" capability))
+      (unless (list? options) (error "inline: options must be an alist" options))
+      ir)))

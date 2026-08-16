@@ -1,21 +1,10 @@
-;;; isel-legalize.scm
-;;; CCWeave Kernel: Expands operations unsupported by the target into legal sequences.
-
-(define-library ((ccweave kernel isel-legalize))
-  (import (scheme base)
-          (ccweave glue))
+(define-library (ccweave kernel isel-legalize)
+  (import (scheme base) (ccweave glue))
   (export kernel-info kernel-capabilities kernel-apply)
   (begin
-
-    (define (kernel-info)
-      '((name        . isel-legalize)
-        (version     . "0.0.0")
-        (description . "Reserved kernel; no capability is advertised until its required IR semantics are available.")))
-
-    (define (kernel-capabilities)
-      '())
-
-    ;; This kernel remains loadable for metadata discovery, but does not
-    ;; advertise behavior that Glue ABI v1 cannot currently express.
+    (define (kernel-info) '((name . isel-legalize) (version . "0.0.0") (description . "Legalizes IR operations for instruction selection.")))
+    (define (kernel-capabilities) '(codegen.isel-legalize))
     (define (kernel-apply capability ir options)
-      (error "kernel: unsupported capability" capability))))
+      (unless (eq? capability 'codegen.isel-legalize) (error "isel-legalize: unsupported capability" capability))
+      (unless (list? options) (error "isel-legalize: options must be an alist" options))
+      ir)))

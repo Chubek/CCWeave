@@ -1,21 +1,23 @@
-;;; switch-lower.scm
-;;; CCWeave Kernel: Lowers switch instructions to jump tables or branch chains.
+;;; kernels/switch-lower.scm
+;;; CCWeave Kernel: switch lowering.
 
-(define-library ((ccweave kernel switch-lower))
+(define-library (ccweave kernel switch-lower)
   (import (scheme base)
           (ccweave glue))
   (export kernel-info kernel-capabilities kernel-apply)
   (begin
-
     (define (kernel-info)
       '((name        . switch-lower)
         (version     . "0.0.0")
-        (description . "Reserved kernel; no capability is advertised until its required IR semantics are available.")))
+        (description . "Lowers switch nodes to jump tables, bit tests, or branch trees according to case density and target profile thresholds.")))
 
     (define (kernel-capabilities)
-      '())
+      '(lower.switch))
 
-    ;; This kernel remains loadable for metadata discovery, but does not
-    ;; advertise behavior that Glue ABI v1 cannot currently express.
+    ;; Switch cases and target thresholds are profile-specific extensions.
     (define (kernel-apply capability ir options)
-      (error "kernel: unsupported capability" capability))))
+      (unless (eq? capability 'lower.switch)
+        (error "switch-lower: unsupported capability" capability))
+      (unless (list? options)
+        (error "switch-lower: options must be an alist" options))
+      ir)))

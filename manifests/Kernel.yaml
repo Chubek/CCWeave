@@ -5,71 +5,117 @@ generator: ccw-manifest/0.1
 glue_abi: 1
 kernels:
   - path: kernels/alias.scm
-    library: ((ccweave kernel alias)
+    library: (ccweave kernel alias)
     name: alias
     version: 0.0.0
-    description: Reserved kernel; no capability is advertised until its required IR semantics are available.
-    capabilities: []
+    description: Flow-insensitive may-alias analysis for memory operations.
+    capabilities:
+      - analysis.alias
   - path: kernels/anf-normalize.scm
-    library: ((ccweave kernel anf-normalize)
+    library: (ccweave kernel anf-normalize)
     name: anf-normalize
     version: 0.0.0
-    description: Reserved kernel; no capability is advertised until its required IR semantics are available.
-    capabilities: []
+    description: Normalizes expressions into administrative normal form.
+    capabilities:
+      - normalize.anf
+  - path: kernels/atomics-lower.scm
+    library: (ccweave kernel atomics-lower)
+    name: atomics-lower
+    version: 0.0.0
+    description: Lowers atomic operations to target-supported primitives, inserting fences or libcall fallbacks where the profile lacks native support.
+    capabilities:
+      - lower.atomics
+  - path: kernels/bitfield-lower.scm
+    library: (ccweave kernel bitfield-lower)
+    name: bitfield-lower
+    version: 0.0.0
+    description: Expands bitfield load/store nodes into explicit mask-and-shift sequences over the containing storage unit.
+    capabilities:
+      - lower.bitfield
   - path: kernels/block-merge.scm
-    library: ((ccweave kernel block-merge)
+    library: (ccweave kernel block-merge)
     name: block-merge
     version: 0.0.0
-    description: Reserved kernel; no capability is advertised until its required IR semantics are available.
-    capabilities: []
+    description: Merges compatible adjacent basic blocks.
+    capabilities:
+      - opt.block-merge
   - path: kernels/bounds-check-elim.scm
-    library: ((ccweave kernel bounds-check-elim)
+    library: (ccweave kernel bounds-check-elim)
     name: bounds-check-elim
     version: 0.0.0
-    description: Reserved kernel; no capability is advertised until its required IR semantics are available.
-    capabilities: []
+    description: Eliminates bounds checks proven redundant by range facts.
+    capabilities:
+      - opt.bounds-check-elim
+  - path: kernels/callgraph-build.scm
+    library: (ccweave kernel callgraph-build)
+    name: callgraph-build
+    version: 0.0.0
+    description: Constructs the module call graph, including conservative treatment of indirect calls via address-taken sets; prerequisite for interprocedural passes.
+    capabilities:
+      - analysis.callgraph
   - path: kernels/callgraph.scm
-    library: ((ccweave kernel callgraph)
+    library: (ccweave kernel callgraph)
     name: callgraph
     version: 0.0.0
-    description: Reserved kernel; no capability is advertised until its required IR semantics are available.
-    capabilities: []
+    description: Builds a conservative module call graph.
+    capabilities:
+      - analysis.callgraph
   - path: kernels/cfg-canonicalize.scm
-    library: ((ccweave kernel cfg-canonicalize)
+    library: (ccweave kernel cfg-canonicalize)
     name: cfg-canonicalize
     version: 0.0.0
-    description: Reserved kernel; no capability is advertised until its required IR semantics are available.
-    capabilities: []
+    description: Canonicalizes control-flow graph structure.
+    capabilities:
+      - normalize.cfg
   - path: kernels/closure-convert.scm
-    library: ((ccweave kernel closure-convert)
+    library: (ccweave kernel closure-convert)
     name: closure-convert
     version: 0.0.0
-    description: Reserved kernel; no capability is advertised until its required IR semantics are available.
-    capabilities: []
+    description: Converts closures into explicit environment records and calls.
+    capabilities:
+      - lower.closure-conversion
+  - path: kernels/code-sink.scm
+    library: (ccweave kernel code-sink)
+    name: code-sink
+    version: 0.0.0
+    description: Sinks computations closer to their uses when this reduces partially dead code, guarded by memory-dependence facts.
+    capabilities:
+      - opt.sink
   - path: kernels/codegen-aarch64.scm
-    library: ((ccweave kernel codegen-aarch64)
+    library: (ccweave kernel codegen-aarch64)
     name: codegen-aarch64
     version: 0.0.0
-    description: Reserved kernel; no capability is advertised until its required IR semantics are available.
-    capabilities: []
+    description: Selects machine instructions for AArch64 targets.
+    capabilities:
+      - codegen.aarch64
   - path: kernels/codegen-riscv64.scm
-    library: ((ccweave kernel codegen-riscv64)
+    library: (ccweave kernel codegen-riscv64)
     name: codegen-riscv64
     version: 0.0.0
-    description: Reserved kernel; no capability is advertised until its required IR semantics are available.
-    capabilities: []
+    description: Selects machine instructions for RV64 targets.
+    capabilities:
+      - codegen.riscv64
   - path: kernels/codegen-wasm32.scm
-    library: ((ccweave kernel codegen-wasm32)
+    library: (ccweave kernel codegen-wasm32)
     name: codegen-wasm32
     version: 0.0.0
-    description: Reserved kernel; no capability is advertised until its required IR semantics are available.
-    capabilities: []
+    description: Selects machine instructions for WebAssembly 32-bit targets.
+    capabilities:
+      - codegen.wasm32
   - path: kernels/codegen-x86-64.scm
-    library: ((ccweave kernel codegen-x86-64)
+    library: (ccweave kernel codegen-x86-64)
     name: codegen-x86-64
     version: 0.0.0
-    description: Reserved kernel; no capability is advertised until its required IR semantics are available.
-    capabilities: []
+    description: Selects machine instructions for x86-64 targets.
+    capabilities:
+      - codegen.x86-64
+  - path: kernels/complex-lower.scm
+    library: (ccweave kernel complex-lower)
+    name: complex-lower
+    version: 0.0.0
+    description: Lowers complex-number arithmetic to pairs of scalar floating-point operations following the profile's ABI for _Complex returns.
+    capabilities:
+      - lower.complex
   - path: kernels/const-fold.scm
     library: (ccweave kernel const-fold)
     name: const-fold
@@ -78,257 +124,390 @@ kernels:
     capabilities:
       - opt.constant-folding
   - path: kernels/copy-prop.scm
-    library: ((ccweave kernel copy-prop)
+    library: (ccweave kernel copy-prop)
     name: copy-prop
     version: 0.0.0
-    description: Reserved kernel; no capability is advertised until its required IR semantics are available.
-    capabilities: []
+    description: Propagates copies through compatible uses.
+    capabilities:
+      - opt.copy-propagation
   - path: kernels/cps-convert.scm
-    library: ((ccweave kernel cps-convert)
+    library: (ccweave kernel cps-convert)
     name: cps-convert
     version: 0.0.0
-    description: Reserved kernel; no capability is advertised until its required IR semantics are available.
-    capabilities: []
+    description: Converts eligible functions into continuation-passing style.
+    capabilities:
+      - lower.cps-conversion
   - path: kernels/cse.scm
-    library: ((ccweave kernel cse)
+    library: (ccweave kernel cse)
     name: cse
     version: 0.0.0
-    description: Reserved kernel; no capability is advertised until its required IR semantics are available.
-    capabilities: []
+    description: Eliminates redundant expressions within a local scope.
+    capabilities:
+      - opt.cse
   - path: kernels/dce.scm
-    library: ((ccweave kernel dce)
+    library: (ccweave kernel dce)
     name: dce
     version: 0.0.0
-    description: Reserved kernel; no capability is advertised until its required IR semantics are available.
-    capabilities: []
+    description: Eliminates instructions with no observable use.
+    capabilities:
+      - opt.dead-code-elimination
   - path: kernels/def-use.scm
-    library: ((ccweave kernel def-use)
+    library: (ccweave kernel def-use)
     name: def-use
     version: 0.0.0
-    description: Reserved kernel; no capability is advertised until its required IR semantics are available.
-    capabilities: []
+    description: Builds def-use relations for IR values.
+    capabilities:
+      - analysis.def-use
+  - path: kernels/deopt-metadata.scm
+    library: (ccweave kernel deopt-metadata)
+    name: deopt-metadata
+    version: 0.0.0
+    description: Records deoptimization state maps (live values and their abstract locations) at designated side-exit nodes for VM profiles.
+    capabilities:
+      - vm.deopt-metadata
   - path: kernels/deopt-points.scm
-    library: ((ccweave kernel deopt-points)
+    library: (ccweave kernel deopt-points)
     name: deopt-points
     version: 0.0.0
-    description: Reserved kernel; no capability is advertised until its required IR semantics are available.
-    capabilities: []
+    description: Identifies program points requiring deoptimization state.
+    capabilities:
+      - vm.deopt-points
   - path: kernels/dominators.scm
-    library: ((ccweave kernel dominators)
+    library: (ccweave kernel dominators)
     name: dominators
     version: 0.0.0
-    description: Reserved kernel; no capability is advertised until its required IR semantics are available.
-    capabilities: []
+    description: Computes dominator relationships between basic blocks.
+    capabilities:
+      - analysis.dominators
+  - path: kernels/dwarf-linetable.scm
+    library: (ccweave kernel dwarf-linetable)
+    name: dwarf-linetable
+    version: 0.0.0
+    description: Emits DWARF line-table programs from node source annotations, preserving line-map fidelity established by the preprocessor stage.
+    capabilities:
+      - debug.dwarf-linetable
+  - path: kernels/escape-analysis.scm
+    library: (ccweave kernel escape-analysis)
+    name: escape-analysis
+    version: 0.0.0
+    description: Interprocedural escape analysis; classifies allocations as stack-local, thread-local, or escaping to enable allocation sinking and scalar replacement.
+    capabilities:
+      - analysis.escape
   - path: kernels/escape.scm
-    library: ((ccweave kernel escape)
+    library: (ccweave kernel escape)
     name: escape
     version: 0.0.0
-    description: Reserved kernel; no capability is advertised until its required IR semantics are available.
-    capabilities: []
+    description: Classifies allocation escape behavior.
+    capabilities:
+      - analysis.escape
   - path: kernels/exception-lower.scm
-    library: ((ccweave kernel exception-lower)
+    library: (ccweave kernel exception-lower)
     name: exception-lower
     version: 0.0.0
-    description: Reserved kernel; no capability is advertised until its required IR semantics are available.
-    capabilities: []
+    description: Lowers exception constructs to profile-specific control flow.
+    capabilities:
+      - lower.exceptions
   - path: kernels/gc-barrier-insert.scm
-    library: ((ccweave kernel gc-barrier-insert)
+    library: (ccweave kernel gc-barrier-insert)
     name: gc-barrier-insert
     version: 0.0.0
-    description: Reserved kernel; no capability is advertised until its required IR semantics are available.
-    capabilities: []
+    description: Inserts garbage-collector write barriers.
+    capabilities:
+      - vm.gc-barrier-insertion
   - path: kernels/gvn.scm
-    library: ((ccweave kernel gvn)
+    library: (ccweave kernel gvn)
     name: gvn
     version: 0.0.0
-    description: Reserved kernel; no capability is advertised until its required IR semantics are available.
-    capabilities: []
+    description: Global value numbering; discovers congruent expressions across basic blocks and records equivalences for the host to merge.
+    capabilities:
+      - opt.gvn
   - path: kernels/ic-install.scm
-    library: ((ccweave kernel ic-install)
+    library: (ccweave kernel ic-install)
     name: ic-install
     version: 0.0.0
-    description: Reserved kernel; no capability is advertised until its required IR semantics are available.
-    capabilities: []
+    description: Installs inline-cache operations for dynamic dispatch.
+    capabilities:
+      - vm.inline-cache
+  - path: kernels/inline-cost.scm
+    library: (ccweave kernel inline-cost)
+    name: inline-cost
+    version: 0.0.0
+    description: Computes per-callsite inlining cost/benefit scores from callee size, argument constness, and call frequency; emits advisory annotations only.
+    capabilities:
+      - opt.inline-cost
   - path: kernels/inline.scm
-    library: ((ccweave kernel inline)
+    library: (ccweave kernel inline)
     name: inline
     version: 0.0.0
-    description: Reserved kernel; no capability is advertised until its required IR semantics are available.
-    capabilities: []
+    description: Inlines eligible direct call sites.
+    capabilities:
+      - opt.inline
   - path: kernels/instr-canonicalize.scm
-    library: ((ccweave kernel instr-canonicalize)
+    library: (ccweave kernel instr-canonicalize)
     name: instr-canonicalize
     version: 0.0.0
-    description: Reserved kernel; no capability is advertised until its required IR semantics are available.
-    capabilities: []
+    description: Canonicalizes equivalent instruction forms.
+    capabilities:
+      - normalize.instructions
   - path: kernels/isel-legalize.scm
-    library: ((ccweave kernel isel-legalize)
+    library: (ccweave kernel isel-legalize)
     name: isel-legalize
     version: 0.0.0
-    description: Reserved kernel; no capability is advertised until its required IR semantics are available.
-    capabilities: []
+    description: Legalizes IR operations for instruction selection.
+    capabilities:
+      - codegen.isel-legalize
   - path: kernels/isel-tree-match.scm
-    library: ((ccweave kernel isel-tree-match)
+    library: (ccweave kernel isel-tree-match)
     name: isel-tree-match
     version: 0.0.0
-    description: Reserved kernel; no capability is advertised until its required IR semantics are available.
-    capabilities: []
+    description: Matches expression trees to target instruction patterns.
+    capabilities:
+      - codegen.isel-tree-match
   - path: kernels/jump-thread.scm
-    library: ((ccweave kernel jump-thread)
+    library: (ccweave kernel jump-thread)
     name: jump-thread
     version: 0.0.0
-    description: Reserved kernel; no capability is advertised until its required IR semantics are available.
-    capabilities: []
+    description: Threads control flow through determinable branches.
+    capabilities:
+      - opt.jump-threading
+  - path: kernels/jump-threading.scm
+    library: (ccweave kernel jump-threading)
+    name: jump-threading
+    version: 0.0.0
+    description: Threads control flow through blocks whose branch outcome is determined by a dominating condition, duplicating small blocks where profitable.
+    capabilities:
+      - opt.jump-threading
   - path: kernels/lambda-lift.scm
-    library: ((ccweave kernel lambda-lift)
+    library: (ccweave kernel lambda-lift)
     name: lambda-lift
     version: 0.0.0
-    description: Reserved kernel; no capability is advertised until its required IR semantics are available.
-    capabilities: []
+    description: Lifts nested functions into top-level functions.
+    capabilities:
+      - lower.lambda-lifting
   - path: kernels/licm.scm
-    library: ((ccweave kernel licm)
+    library: (ccweave kernel licm)
     name: licm
     version: 0.0.0
-    description: Reserved kernel; no capability is advertised until its required IR semantics are available.
-    capabilities: []
+    description: Hoists loop-invariant computations.
+    capabilities:
+      - opt.licm
   - path: kernels/liveness.scm
-    library: ((ccweave kernel liveness)
+    library: (ccweave kernel liveness)
     name: liveness
     version: 0.0.0
-    description: Reserved kernel; no capability is advertised until its required IR semantics are available.
-    capabilities: []
+    description: Computes value liveness across control flow.
+    capabilities:
+      - analysis.liveness
   - path: kernels/load-store-forward.scm
-    library: ((ccweave kernel load-store-forward)
+    library: (ccweave kernel load-store-forward)
     name: load-store-forward
     version: 0.0.0
-    description: Reserved kernel; no capability is advertised until its required IR semantics are available.
-    capabilities: []
+    description: Forwards stored values to compatible loads.
+    capabilities:
+      - opt.load-store-forward
   - path: kernels/loop-detect.scm
-    library: ((ccweave kernel loop-detect)
+    library: (ccweave kernel loop-detect)
     name: loop-detect
     version: 0.0.0
-    description: Reserved kernel; no capability is advertised until its required IR semantics are available.
-    capabilities: []
+    description: Identifies natural loops in the control-flow graph.
+    capabilities:
+      - analysis.loops
+  - path: kernels/loop-fusion.scm
+    library: (ccweave kernel loop-fusion)
+    name: loop-fusion
+    version: 0.0.0
+    description: Fuses adjacent loops with identical iteration spaces and no fusion-preventing dependences, reducing loop overhead and improving locality.
+    capabilities:
+      - opt.loop-fusion
   - path: kernels/loop-unroll.scm
-    library: ((ccweave kernel loop-unroll)
+    library: (ccweave kernel loop-unroll)
     name: loop-unroll
     version: 0.0.0
-    description: Reserved kernel; no capability is advertised until its required IR semantics are available.
-    capabilities: []
+    description: Loop unrolling driven by trip-count facts; supports full unroll for small constant counts and partial unroll with epilogue generation.
+    capabilities:
+      - opt.loop-unroll
   - path: kernels/mem2reg.scm
-    library: ((ccweave kernel mem2reg)
+    library: (ccweave kernel mem2reg)
     name: mem2reg
     version: 0.0.0
-    description: Reserved kernel; no capability is advertised until its required IR semantics are available.
-    capabilities: []
+    description: Promotes non-escaping stack slots to SSA values, inserting phi nodes at dominance frontiers; requires analysis.escape facts.
+    capabilities:
+      - opt.mem2reg
+  - path: kernels/memdep-analysis.scm
+    library: (ccweave kernel memdep-analysis)
+    name: memdep-analysis
+    version: 0.0.0
+    description: Memory dependence analysis relating loads, stores, and calls; results are keyed by node ID pairs and consumed by scheduling and redundancy elimination.
+    capabilities:
+      - analysis.memdep
   - path: kernels/null-check-elim.scm
-    library: ((ccweave kernel null-check-elim)
+    library: (ccweave kernel null-check-elim)
     name: null-check-elim
     version: 0.0.0
-    description: Reserved kernel; no capability is advertised until its required IR semantics are available.
-    capabilities: []
+    description: Eliminates null checks proven redundant.
+    capabilities:
+      - opt.null-check-elim
+  - path: kernels/overflow-lower.scm
+    library: (ccweave kernel overflow-lower)
+    name: overflow-lower
+    version: 0.0.0
+    description: Lowers checked-arithmetic intrinsics to flag-producing instruction pairs or wide-arithmetic sequences depending on target support.
+    capabilities:
+      - lower.overflow
   - path: kernels/pattern-match-lower.scm
-    library: ((ccweave kernel pattern-match-lower)
+    library: (ccweave kernel pattern-match-lower)
     name: pattern-match-lower
     version: 0.0.0
-    description: Reserved kernel; no capability is advertised until its required IR semantics are available.
-    capabilities: []
+    description: Lowers pattern matching into explicit tests and branches.
+    capabilities:
+      - lower.pattern-match
   - path: kernels/peephole.scm
-    library: ((ccweave kernel peephole)
+    library: (ccweave kernel peephole)
     name: peephole
     version: 0.0.0
-    description: Reserved kernel; no capability is advertised until its required IR semantics are available.
-    capabilities: []
+    description: Target-parameterized peephole optimizer over machine nodes; pattern tables are supplied per profile.
+    capabilities:
+      - codegen.peephole
   - path: kernels/phi-simplify.scm
-    library: ((ccweave kernel phi-simplify)
+    library: (ccweave kernel phi-simplify)
     name: phi-simplify
     version: 0.0.0
-    description: Reserved kernel; no capability is advertised until its required IR semantics are available.
-    capabilities: []
+    description: Simplifies redundant SSA phi nodes.
+    capabilities:
+      - opt.phi-simplify
   - path: kernels/profile-report.scm
     library: (ccweave kernel profile-report)
     name: profile-report
     version: 0.0.0
-    description: Reserved kernel; no capability is advertised until its required IR semantics are available.
-    capabilities: []
+    description: Reports the active IR profile and module shape.
+    capabilities:
+      - analysis.profile-report
   - path: kernels/purity.scm
-    library: ((ccweave kernel purity)
+    library: (ccweave kernel purity)
     name: purity
     version: 0.0.0
-    description: Reserved kernel; no capability is advertised until its required IR semantics are available.
-    capabilities: []
+    description: Classifies operations by observable side effects.
+    capabilities:
+      - analysis.purity
+  - path: kernels/range-analysis.scm
+    library: (ccweave kernel range-analysis)
+    name: range-analysis
+    version: 0.0.0
+    description: Integer value-range analysis over the dominator tree; annotates nodes with conservative min/max intervals consumed by bounds-check and overflow-check elision.
+    capabilities:
+      - analysis.range
   - path: kernels/reaching-defs.scm
-    library: ((ccweave kernel reaching-defs)
+    library: (ccweave kernel reaching-defs)
     name: reaching-defs
     version: 0.0.0
-    description: Reserved kernel; no capability is advertised until its required IR semantics are available.
-    capabilities: []
+    description: Computes reaching definitions for program points.
+    capabilities:
+      - analysis.reaching-definitions
   - path: kernels/reassociate.scm
-    library: ((ccweave kernel reassociate)
+    library: (ccweave kernel reassociate)
     name: reassociate
     version: 0.0.0
-    description: Reserved kernel; no capability is advertised until its required IR semantics are available.
-    capabilities: []
+    description: Reassociates commutative integer expression trees into canonical rank order to expose constant folding and redundancy elimination.
+    capabilities:
+      - opt.reassociate
   - path: kernels/regalloc-coalesce.scm
-    library: ((ccweave kernel regalloc-coalesce)
+    library: (ccweave kernel regalloc-coalesce)
     name: regalloc-coalesce
     version: 0.0.0
-    description: Reserved kernel; no capability is advertised until its required IR semantics are available.
-    capabilities: []
+    description: Coalesces compatible register-allocation moves.
+    capabilities:
+      - codegen.regalloc-coalesce
   - path: kernels/regalloc-graph-color.scm
-    library: ((ccweave kernel regalloc-graph-color)
+    library: (ccweave kernel regalloc-graph-color)
     name: regalloc-graph-color
     version: 0.0.0
-    description: Reserved kernel; no capability is advertised until its required IR semantics are available.
-    capabilities: []
+    description: Assigns registers using graph coloring.
+    capabilities:
+      - codegen.regalloc-graph
+  - path: kernels/regalloc-graph.scm
+    library: (ccweave kernel regalloc-graph)
+    name: regalloc-graph
+    version: 0.0.0
+    description: Graph-coloring register allocator with coalescing and rematerialization; the default allocator for optimizing pipelines.
+    capabilities:
+      - codegen.regalloc-graph
   - path: kernels/regalloc-linear-scan.scm
-    library: ((ccweave kernel regalloc-linear-scan)
+    library: (ccweave kernel regalloc-linear-scan)
     name: regalloc-linear-scan
     version: 0.0.0
-    description: Reserved kernel; no capability is advertised until its required IR semantics are available.
-    capabilities: []
+    description: Assigns registers with a linear-scan allocator.
+    capabilities:
+      - codegen.regalloc-linear
+  - path: kernels/regalloc-linear.scm
+    library: (ccweave kernel regalloc-linear)
+    name: regalloc-linear
+    version: 0.0.0
+    description: Linear-scan register allocator intended for fast, unoptimized builds; single pass over live intervals with on-demand spilling.
+    capabilities:
+      - codegen.regalloc-linear
+  - path: kernels/riscv64-codegen.scm
+    library: (ccweave kernel riscv64-codegen)
+    name: riscv64-codegen
+    version: 0.0.0
+    description: Instruction selection for RV64GC; maps Weave IR nodes to RISC-V machine nodes under the lp64d ABI.
+    capabilities:
+      - codegen.riscv64
   - path: kernels/safepoint-insert.scm
-    library: ((ccweave kernel safepoint-insert)
+    library: (ccweave kernel safepoint-insert)
     name: safepoint-insert
     version: 0.0.0
-    description: Reserved kernel; no capability is advertised until its required IR semantics are available.
-    capabilities: []
+    description: Inserts VM safepoint polls at loop back-edges and call returns for profiles that declare cooperative suspension.
+    capabilities:
+      - vm.safepoint-insertion
   - path: kernels/sccp.scm
-    library: ((ccweave kernel sccp)
+    library: (ccweave kernel sccp)
     name: sccp
     version: 0.0.0
-    description: Reserved kernel; no capability is advertised until its required IR semantics are available.
-    capabilities: []
+    description: Sparse conditional constant propagation; simultaneously folds constants and marks unreachable edges using the lattice over ccw_val scalars.
+    capabilities:
+      - opt.sccp
   - path: kernels/sched-critical-path.scm
-    library: ((ccweave kernel sched-critical-path)
+    library: (ccweave kernel sched-critical-path)
     name: sched-critical-path
     version: 0.0.0
-    description: Reserved kernel; no capability is advertised until its required IR semantics are available.
-    capabilities: []
+    description: Schedules machine instructions along critical paths.
+    capabilities:
+      - codegen.sched-critical-path
   - path: kernels/sched-list.scm
-    library: ((ccweave kernel sched-list)
+    library: (ccweave kernel sched-list)
     name: sched-list
     version: 0.0.0
-    description: Reserved kernel; no capability is advertised until its required IR semantics are available.
-    capabilities: []
+    description: List scheduler ordering machine nodes within blocks using latency tables from the target profile and memdep facts.
+    capabilities:
+      - codegen.sched-list
+  - path: kernels/slp-vectorize.scm
+    library: (ccweave kernel slp-vectorize)
+    name: slp-vectorize
+    version: 0.0.0
+    description: Superword-level parallelism vectorizer; packs isomorphic scalar operation trees into vector nodes where the target profile advertises vector widths.
+    capabilities:
+      - opt.slp-vectorize
   - path: kernels/spill-slot-pack.scm
-    library: ((ccweave kernel spill-slot-pack)
+    library: (ccweave kernel spill-slot-pack)
     name: spill-slot-pack
     version: 0.0.0
-    description: Reserved kernel; no capability is advertised until its required IR semantics are available.
-    capabilities: []
+    description: Packs stack spill slots to reduce frame size.
+    capabilities:
+      - codegen.spill-slot-pack
   - path: kernels/ssa-construct.scm
-    library: ((ccweave kernel ssa-construct)
+    library: (ccweave kernel ssa-construct)
     name: ssa-construct
     version: 0.0.0
-    description: Reserved kernel; no capability is advertised until its required IR semantics are available.
-    capabilities: []
+    description: Constructs static single-assignment form.
+    capabilities:
+      - transform.ssa-construct
   - path: kernels/ssa-destruct.scm
-    library: ((ccweave kernel ssa-destruct)
+    library: (ccweave kernel ssa-destruct)
     name: ssa-destruct
     version: 0.0.0
-    description: Reserved kernel; no capability is advertised until its required IR semantics are available.
-    capabilities: []
+    description: Eliminates static single-assignment form.
+    capabilities:
+      - transform.ssa-destruct
   - path: kernels/strength-reduce.scm
     library: (ccweave kernel strength-reduce)
     name: strength-reduce
@@ -337,213 +516,58 @@ kernels:
     capabilities:
       - opt.strength-reduction
   - path: kernels/switch-lower.scm
-    library: ((ccweave kernel switch-lower)
+    library: (ccweave kernel switch-lower)
     name: switch-lower
     version: 0.0.0
-    description: Reserved kernel; no capability is advertised until its required IR semantics are available.
-    capabilities: []
+    description: Lowers switch nodes to jump tables, bit tests, or branch trees according to case density and target profile thresholds.
+    capabilities:
+      - lower.switch
   - path: kernels/tail-call.scm
-    library: ((ccweave kernel tail-call)
+    library: (ccweave kernel tail-call)
     name: tail-call
     version: 0.0.0
-    description: Reserved kernel; no capability is advertised until its required IR semantics are available.
-    capabilities: []
-  - path: kernels/unreachable-elim.scm
-    library: ((ccweave kernel unreachable-elim)
-    name: unreachable-elim
-    version: 0.0.0
-    description: Reserved kernel; no capability is advertised until its required IR semantics are available.
-    capabilities: []
-  - path: kernels/value-range.scm
-    library: ((ccweave kernel value-range)
-    name: value-range
-    version: 0.0.0
-    description: Reserved kernel; no capability is advertised until its required IR semantics are available.
-    capabilities: []
-  - path: kernels/varargs-lower.scm
-    library: ((ccweave kernel varargs-lower)
-    name: varargs-lower
-    version: 0.0.0
-    description: Reserved kernel; no capability is advertised until its required IR semantics are available.
-    capabilities: []
-  - path: kernels/escape-analysis.scm
-    library: (ccweave kernel escape-analysis)
-    name: escape-analysis
-    version: 0.0.0
-    description: Interprocedural escape analysis; classifies allocations as stack-local, thread-local, or escaping to enable allocation sinking and scalar replacement.
-    capabilities: [analysis.escape]
-  - path: kernels/range-analysis.scm
-    library: (ccweave kernel range-analysis)
-    name: range-analysis
-    version: 0.0.0
-    description: Integer value-range analysis over the dominator tree; annotates nodes with conservative min/max intervals consumed by bounds-check and overflow-check elision.
-    capabilities: [analysis.range]
-  - path: kernels/callgraph-build.scm
-    library: (ccweave kernel callgraph-build)
-    name: callgraph-build
-    version: 0.0.0
-    description: Constructs the module call graph, including conservative treatment of indirect calls via address-taken sets; prerequisite for interprocedural passes.
-    capabilities: [analysis.callgraph]
-  - path: kernels/memdep-analysis.scm
-    library: (ccweave kernel memdep-analysis)
-    name: memdep-analysis
-    version: 0.0.0
-    description: Memory dependence analysis relating loads, stores, and calls; results are keyed by node ID pairs and consumed by scheduling and redundancy elimination.
-    capabilities: [analysis.memdep]
-  - path: kernels/trip-count.scm
-    library: (ccweave kernel trip-count)
-    name: trip-count
-    version: 0.0.0
-    description: Loop trip-count estimation; derives exact or symbolic iteration counts from induction variables and range facts for unrolling and vectorization heuristics.
-    capabilities: [analysis.trip-count]
-  - path: kernels/gvn.scm
-    library: (ccweave kernel gvn)
-    name: gvn
-    version: 0.0.0
-    description: Global value numbering; discovers congruent expressions across basic blocks and records equivalences for the host to merge.
-    capabilities: [opt.gvn]
-  - path: kernels/sccp.scm
-    library: (ccweave kernel sccp)
-    name: sccp
-    version: 0.0.0
-    description: Sparse conditional constant propagation; simultaneously folds constants and marks unreachable edges using the lattice over ccw_val scalars.
-    capabilities: [opt.sccp]
+    description: Marks eligible calls for tail-call execution.
+    capabilities:
+      - opt.tailcall
   - path: kernels/tailcall-mark.scm
     library: (ccweave kernel tailcall-mark)
     name: tailcall-mark
     version: 0.0.0
     description: Identifies calls in tail position and rewrites them to explicit tail-call nodes when the profile's calling convention permits.
-    capabilities: [opt.tailcall]
-  - path: kernels/inline-cost.scm
-    library: (ccweave kernel inline-cost)
-    name: inline-cost
+    capabilities:
+      - opt.tailcall
+  - path: kernels/trip-count.scm
+    library: (ccweave kernel trip-count)
+    name: trip-count
     version: 0.0.0
-    description: Computes per-callsite inlining cost/benefit scores from callee size, argument constness, and call frequency; emits advisory annotations only.
-    capabilities: [opt.inline-cost]
-  - path: kernels/loop-unroll.scm
-    library: (ccweave kernel loop-unroll)
-    name: loop-unroll
-    version: 0.0.0
-    description: Loop unrolling driven by trip-count facts; supports full unroll for small constant counts and partial unroll with epilogue generation.
-    capabilities: [opt.loop-unroll]
-  - path: kernels/loop-fusion.scm
-    library: (ccweave kernel loop-fusion)
-    name: loop-fusion
-    version: 0.0.0
-    description: Fuses adjacent loops with identical iteration spaces and no fusion-preventing dependences, reducing loop overhead and improving locality.
-    capabilities: [opt.loop-fusion]
-  - path: kernels/slp-vectorize.scm
-    library: (ccweave kernel slp-vectorize)
-    name: slp-vectorize
-    version: 0.0.0
-    description: Superword-level parallelism vectorizer; packs isomorphic scalar operation trees into vector nodes where the target profile advertises vector widths.
-    capabilities: [opt.slp-vectorize]
-  - path: kernels/jump-threading.scm
-    library: (ccweave kernel jump-threading)
-    name: jump-threading
-    version: 0.0.0
-    description: Threads control flow through blocks whose branch outcome is determined by a dominating condition, duplicating small blocks where profitable.
-    capabilities: [opt.jump-threading]
-  - path: kernels/mem2reg.scm
-    library: (ccweave kernel mem2reg)
-    name: mem2reg
-    version: 0.0.0
-    description: Promotes non-escaping stack slots to SSA values, inserting phi nodes at dominance frontiers; requires analysis.escape facts.
-    capabilities: [opt.mem2reg]
-  - path: kernels/code-sink.scm
-    library: (ccweave kernel code-sink)
-    name: code-sink
-    version: 0.0.0
-    description: Sinks computations closer to their uses when this reduces partially dead code, guarded by memory-dependence facts.
-    capabilities: [opt.sink]
-  - path: kernels/reassociate.scm
-    library: (ccweave kernel reassociate)
-    name: reassociate
-    version: 0.0.0
-    description: Reassociates commutative integer expression trees into canonical rank order to expose constant folding and redundancy elimination.
-    capabilities: [opt.reassociate]
-  - path: kernels/switch-lower.scm
-    library: (ccweave kernel switch-lower)
-    name: switch-lower
-    version: 0.0.0
-    description: Lowers switch nodes to jump tables, bit tests, or branch trees according to case density and target profile thresholds.
-    capabilities: [lower.switch]
-  - path: kernels/atomics-lower.scm
-    library: (ccweave kernel atomics-lower)
-    name: atomics-lower
-    version: 0.0.0
-    description: Lowers atomic operations to target-supported primitives, inserting fences or libcall fallbacks where the profile lacks native support.
-    capabilities: [lower.atomics]
-  - path: kernels/bitfield-lower.scm
-    library: (ccweave kernel bitfield-lower)
-    name: bitfield-lower
-    version: 0.0.0
-    description: Expands bitfield load/store nodes into explicit mask-and-shift sequences over the containing storage unit.
-    capabilities: [lower.bitfield]
-  - path: kernels/complex-lower.scm
-    library: (ccweave kernel complex-lower)
-    name: complex-lower
-    version: 0.0.0
-    description: Lowers complex-number arithmetic to pairs of scalar floating-point operations following the profile's ABI for _Complex returns.
-    capabilities: [lower.complex]
-  - path: kernels/overflow-lower.scm
-    library: (ccweave kernel overflow-lower)
-    name: overflow-lower
-    version: 0.0.0
-    description: Lowers checked-arithmetic intrinsics to flag-producing instruction pairs or wide-arithmetic sequences depending on target support.
-    capabilities: [lower.overflow]
-  - path: kernels/riscv64-codegen.scm
-    library: (ccweave kernel riscv64-codegen)
-    name: riscv64-codegen
-    version: 0.0.0
-    description: Instruction selection for RV64GC; maps Weave IR nodes to RISC-V machine nodes under the lp64d ABI.
-    capabilities: [codegen.riscv64]
-  - path: kernels/regalloc-linear.scm
-    library: (ccweave kernel regalloc-linear)
-    name: regalloc-linear
-    version: 0.0.0
-    description: Linear-scan register allocator intended for fast, unoptimized builds; single pass over live intervals with on-demand spilling.
-    capabilities: [codegen.regalloc-linear]
-  - path: kernels/regalloc-graph.scm
-    library: (ccweave kernel regalloc-graph)
-    name: regalloc-graph
-    version: 0.0.0
-    description: Graph-coloring register allocator with coalescing and rematerialization; the default allocator for optimizing pipelines.
-    capabilities: [codegen.regalloc-graph]
-  - path: kernels/sched-list.scm
-    library: (ccweave kernel sched-list)
-    name: sched-list
-    version: 0.0.0
-    description: List scheduler ordering machine nodes within blocks using latency tables from the target profile and memdep facts.
-    capabilities: [codegen.sched-list]
-  - path: kernels/peephole.scm
-    library: (ccweave kernel peephole)
-    name: peephole
-    version: 0.0.0
-    description: Target-parameterized peephole optimizer over machine nodes; pattern tables are supplied per profile.
-    capabilities: [codegen.peephole]
-  - path: kernels/safepoint-insert.scm
-    library: (ccweave kernel safepoint-insert)
-    name: safepoint-insert
-    version: 0.0.0
-    description: Inserts VM safepoint polls at loop back-edges and call returns for profiles that declare cooperative suspension.
-    capabilities: [vm.safepoint-insertion]
-  - path: kernels/deopt-metadata.scm
-    library: (ccweave kernel deopt-metadata)
-    name: deopt-metadata
-    version: 0.0.0
-    description: Records deoptimization state maps (live values and their abstract locations) at designated side-exit nodes for VM profiles.
-    capabilities: [vm.deopt-metadata]
+    description: Loop trip-count estimation; derives exact or symbolic iteration counts from induction variables and range facts for unrolling and vectorization heuristics.
+    capabilities:
+      - analysis.trip-count
   - path: kernels/ubsan-checks.scm
     library: (ccweave kernel ubsan-checks)
     name: ubsan-checks
     version: 0.0.0
     description: Instruments IR with undefined-behavior checks (signed overflow, invalid shifts, null dereference) that trap to a runtime handler.
-    capabilities: [sanitize.ubsan]
-  - path: kernels/dwarf-linetable.scm
-    library: (ccweave kernel dwarf-linetable)
-    name: dwarf-linetable
+    capabilities:
+      - sanitize.ubsan
+  - path: kernels/unreachable-elim.scm
+    library: (ccweave kernel unreachable-elim)
+    name: unreachable-elim
     version: 0.0.0
-    description: Emits DWARF line-table programs from node source annotations, preserving line-map fidelity established by the preprocessor stage.
-    capabilities: [debug.dwarf-linetable]
-
+    description: Removes unreachable blocks and instructions.
+    capabilities:
+      - opt.unreachable-elim
+  - path: kernels/value-range.scm
+    library: (ccweave kernel value-range)
+    name: value-range
+    version: 0.0.0
+    description: Computes conservative integer value ranges.
+    capabilities:
+      - analysis.range
+  - path: kernels/varargs-lower.scm
+    library: (ccweave kernel varargs-lower)
+    name: varargs-lower
+    version: 0.0.0
+    description: Lowers variadic argument access to explicit operations.
+    capabilities:
+      - lower.varargs

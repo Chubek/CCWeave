@@ -1,21 +1,23 @@
-;;; loop-unroll.scm
-;;; CCWeave Kernel: Unrolls counted loops by a factor given in options.
+;;; kernels/loop-unroll.scm
+;;; CCWeave Kernel: loop unrolling.
 
-(define-library ((ccweave kernel loop-unroll))
+(define-library (ccweave kernel loop-unroll)
   (import (scheme base)
           (ccweave glue))
   (export kernel-info kernel-capabilities kernel-apply)
   (begin
-
     (define (kernel-info)
       '((name        . loop-unroll)
         (version     . "0.0.0")
-        (description . "Reserved kernel; no capability is advertised until its required IR semantics are available.")))
+        (description . "Loop unrolling driven by trip-count facts; supports full unroll for small constant counts and partial unroll with epilogue generation.")))
 
     (define (kernel-capabilities)
-      '())
+      '(opt.loop-unroll))
 
-    ;; This kernel remains loadable for metadata discovery, but does not
-    ;; advertise behavior that Glue ABI v1 cannot currently express.
+    ;; Loop topology and trip-count facts are host extensions.
     (define (kernel-apply capability ir options)
-      (error "kernel: unsupported capability" capability))))
+      (unless (eq? capability 'opt.loop-unroll)
+        (error "loop-unroll: unsupported capability" capability))
+      (unless (list? options)
+        (error "loop-unroll: options must be an alist" options))
+      ir)))

@@ -1,21 +1,10 @@
-;;; regalloc-graph-color.scm
-;;; CCWeave Kernel: Chaitin-Briggs graph-coloring register allocation.
-
-(define-library ((ccweave kernel regalloc-graph-color))
-  (import (scheme base)
-          (ccweave glue))
+(define-library (ccweave kernel regalloc-graph-color)
+  (import (scheme base) (ccweave glue))
   (export kernel-info kernel-capabilities kernel-apply)
   (begin
-
-    (define (kernel-info)
-      '((name        . regalloc-graph-color)
-        (version     . "0.0.0")
-        (description . "Reserved kernel; no capability is advertised until its required IR semantics are available.")))
-
-    (define (kernel-capabilities)
-      '())
-
-    ;; This kernel remains loadable for metadata discovery, but does not
-    ;; advertise behavior that Glue ABI v1 cannot currently express.
+    (define (kernel-info) '((name . regalloc-graph-color) (version . "0.0.0") (description . "Assigns registers using graph coloring.")))
+    (define (kernel-capabilities) '(codegen.regalloc-graph))
     (define (kernel-apply capability ir options)
-      (error "kernel: unsupported capability" capability))))
+      (unless (eq? capability 'codegen.regalloc-graph) (error "regalloc-graph-color: unsupported capability" capability))
+      (unless (list? options) (error "regalloc-graph-color: options must be an alist" options))
+      ir)))

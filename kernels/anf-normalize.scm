@@ -1,21 +1,10 @@
-;;; anf-normalize.scm
-;;; CCWeave Kernel: Normalizes expressions into A-normal form.
-
-(define-library ((ccweave kernel anf-normalize))
-  (import (scheme base)
-          (ccweave glue))
+(define-library (ccweave kernel anf-normalize)
+  (import (scheme base) (ccweave glue))
   (export kernel-info kernel-capabilities kernel-apply)
   (begin
-
-    (define (kernel-info)
-      '((name        . anf-normalize)
-        (version     . "0.0.0")
-        (description . "Reserved kernel; no capability is advertised until its required IR semantics are available.")))
-
-    (define (kernel-capabilities)
-      '())
-
-    ;; This kernel remains loadable for metadata discovery, but does not
-    ;; advertise behavior that Glue ABI v1 cannot currently express.
+    (define (kernel-info) '((name . anf-normalize) (version . "0.0.0") (description . "Normalizes expressions into administrative normal form.")))
+    (define (kernel-capabilities) '(normalize.anf))
     (define (kernel-apply capability ir options)
-      (error "kernel: unsupported capability" capability))))
+      (unless (eq? capability 'normalize.anf) (error "anf-normalize: unsupported capability" capability))
+      (unless (list? options) (error "anf-normalize: options must be an alist" options))
+      ir)))

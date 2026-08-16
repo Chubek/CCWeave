@@ -1,21 +1,10 @@
-;;; null-check-elim.scm
-;;; CCWeave Kernel: Removes null checks dominated by an equivalent earlier check.
-
-(define-library ((ccweave kernel null-check-elim))
-  (import (scheme base)
-          (ccweave glue))
+(define-library (ccweave kernel null-check-elim)
+  (import (scheme base) (ccweave glue))
   (export kernel-info kernel-capabilities kernel-apply)
   (begin
-
-    (define (kernel-info)
-      '((name        . null-check-elim)
-        (version     . "0.0.0")
-        (description . "Reserved kernel; no capability is advertised until its required IR semantics are available.")))
-
-    (define (kernel-capabilities)
-      '())
-
-    ;; This kernel remains loadable for metadata discovery, but does not
-    ;; advertise behavior that Glue ABI v1 cannot currently express.
+    (define (kernel-info) '((name . null-check-elim) (version . "0.0.0") (description . "Eliminates null checks proven redundant.")))
+    (define (kernel-capabilities) '(opt.null-check-elim))
     (define (kernel-apply capability ir options)
-      (error "kernel: unsupported capability" capability))))
+      (unless (eq? capability 'opt.null-check-elim) (error "null-check-elim: unsupported capability" capability))
+      (unless (list? options) (error "null-check-elim: options must be an alist" options))
+      ir)))

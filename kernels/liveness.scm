@@ -1,21 +1,10 @@
-;;; liveness.scm
-;;; CCWeave Kernel: Computes per-block live-in and live-out sets as annotations.
-
-(define-library ((ccweave kernel liveness))
-  (import (scheme base)
-          (ccweave glue))
+(define-library (ccweave kernel liveness)
+  (import (scheme base) (ccweave glue))
   (export kernel-info kernel-capabilities kernel-apply)
   (begin
-
-    (define (kernel-info)
-      '((name        . liveness)
-        (version     . "0.0.0")
-        (description . "Reserved kernel; no capability is advertised until its required IR semantics are available.")))
-
-    (define (kernel-capabilities)
-      '())
-
-    ;; This kernel remains loadable for metadata discovery, but does not
-    ;; advertise behavior that Glue ABI v1 cannot currently express.
+    (define (kernel-info) '((name . liveness) (version . "0.0.0") (description . "Computes value liveness across control flow.")))
+    (define (kernel-capabilities) '(analysis.liveness))
     (define (kernel-apply capability ir options)
-      (error "kernel: unsupported capability" capability))))
+      (unless (eq? capability 'analysis.liveness) (error "liveness: unsupported capability" capability))
+      (unless (list? options) (error "liveness: options must be an alist" options))
+      ir)))

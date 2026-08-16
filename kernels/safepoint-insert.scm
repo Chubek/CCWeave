@@ -1,21 +1,23 @@
-;;; safepoint-insert.scm
-;;; CCWeave Kernel: Inserts safepoints at loop back-edges and call sites in On1x modules.
+;;; kernels/safepoint-insert.scm
+;;; CCWeave Kernel: VM safepoint insertion.
 
-(define-library ((ccweave kernel safepoint-insert))
+(define-library (ccweave kernel safepoint-insert)
   (import (scheme base)
           (ccweave glue))
   (export kernel-info kernel-capabilities kernel-apply)
   (begin
-
     (define (kernel-info)
       '((name        . safepoint-insert)
         (version     . "0.0.0")
-        (description . "Reserved kernel; no capability is advertised until its required IR semantics are available.")))
+        (description . "Inserts VM safepoint polls at loop back-edges and call returns for profiles that declare cooperative suspension.")))
 
     (define (kernel-capabilities)
-      '())
+      '(vm.safepoint-insertion))
 
-    ;; This kernel remains loadable for metadata discovery, but does not
-    ;; advertise behavior that Glue ABI v1 cannot currently express.
+    ;; Safepoint conventions and control-flow edges are host extensions.
     (define (kernel-apply capability ir options)
-      (error "kernel: unsupported capability" capability))))
+      (unless (eq? capability 'vm.safepoint-insertion)
+        (error "safepoint-insert: unsupported capability" capability))
+      (unless (list? options)
+        (error "safepoint-insert: options must be an alist" options))
+      ir)))

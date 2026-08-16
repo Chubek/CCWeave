@@ -1,21 +1,10 @@
-;;; loop-detect.scm
-;;; CCWeave Kernel: Identifies natural loops, headers, and nesting depth.
-
-(define-library ((ccweave kernel loop-detect))
-  (import (scheme base)
-          (ccweave glue))
+(define-library (ccweave kernel loop-detect)
+  (import (scheme base) (ccweave glue))
   (export kernel-info kernel-capabilities kernel-apply)
   (begin
-
-    (define (kernel-info)
-      '((name        . loop-detect)
-        (version     . "0.0.0")
-        (description . "Reserved kernel; no capability is advertised until its required IR semantics are available.")))
-
-    (define (kernel-capabilities)
-      '())
-
-    ;; This kernel remains loadable for metadata discovery, but does not
-    ;; advertise behavior that Glue ABI v1 cannot currently express.
+    (define (kernel-info) '((name . loop-detect) (version . "0.0.0") (description . "Identifies natural loops in the control-flow graph.")))
+    (define (kernel-capabilities) '(analysis.loops))
     (define (kernel-apply capability ir options)
-      (error "kernel: unsupported capability" capability))))
+      (unless (eq? capability 'analysis.loops) (error "loop-detect: unsupported capability" capability))
+      (unless (list? options) (error "loop-detect: options must be an alist" options))
+      ir)))

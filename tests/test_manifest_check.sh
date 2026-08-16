@@ -16,8 +16,9 @@ cp "$ROOT"/kernels/*.scm "$WORK/kernels/" || fail "cannot stage kernels"
 
 "$TOOL" --root "$WORK" >/dev/null || fail "generation failed"
 "$TOOL" --root "$WORK" --check >/dev/null 2>&1 || fail "--check failed after generation"
-grep -q 'capabilities: \[\]' "$WORK/manifests/Kernel.yaml" ||
-    fail "empty capability sets were not emitted as YAML lists"
+if grep -q 'capabilities: \[\]' "$WORK/manifests/Kernel.yaml"; then
+    fail "implemented kernels emitted an empty capability set"
+fi
 
 # A hand edit must be detected as drift.
 echo "      - opt.hand-edited" >> "$WORK/manifests/Kernel.yaml"

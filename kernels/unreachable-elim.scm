@@ -1,21 +1,10 @@
-;;; unreachable-elim.scm
-;;; CCWeave Kernel: Deletes blocks unreachable from the function entry.
-
-(define-library ((ccweave kernel unreachable-elim))
-  (import (scheme base)
-          (ccweave glue))
+(define-library (ccweave kernel unreachable-elim)
+  (import (scheme base) (ccweave glue))
   (export kernel-info kernel-capabilities kernel-apply)
   (begin
-
-    (define (kernel-info)
-      '((name        . unreachable-elim)
-        (version     . "0.0.0")
-        (description . "Reserved kernel; no capability is advertised until its required IR semantics are available.")))
-
-    (define (kernel-capabilities)
-      '())
-
-    ;; This kernel remains loadable for metadata discovery, but does not
-    ;; advertise behavior that Glue ABI v1 cannot currently express.
+    (define (kernel-info) '((name . unreachable-elim) (version . "0.0.0") (description . "Removes unreachable blocks and instructions.")))
+    (define (kernel-capabilities) '(opt.unreachable-elim))
     (define (kernel-apply capability ir options)
-      (error "kernel: unsupported capability" capability))))
+      (unless (eq? capability 'opt.unreachable-elim) (error "unreachable-elim: unsupported capability" capability))
+      (unless (list? options) (error "unreachable-elim: options must be an alist" options))
+      ir)))

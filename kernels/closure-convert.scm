@@ -1,21 +1,10 @@
-;;; closure-convert.scm
-;;; CCWeave Kernel: Converts free-variable references into explicit environment records.
-
-(define-library ((ccweave kernel closure-convert))
-  (import (scheme base)
-          (ccweave glue))
+(define-library (ccweave kernel closure-convert)
+  (import (scheme base) (ccweave glue))
   (export kernel-info kernel-capabilities kernel-apply)
   (begin
-
-    (define (kernel-info)
-      '((name        . closure-convert)
-        (version     . "0.0.0")
-        (description . "Reserved kernel; no capability is advertised until its required IR semantics are available.")))
-
-    (define (kernel-capabilities)
-      '())
-
-    ;; This kernel remains loadable for metadata discovery, but does not
-    ;; advertise behavior that Glue ABI v1 cannot currently express.
+    (define (kernel-info) '((name . closure-convert) (version . "0.0.0") (description . "Converts closures into explicit environment records and calls.")))
+    (define (kernel-capabilities) '(lower.closure-conversion))
     (define (kernel-apply capability ir options)
-      (error "kernel: unsupported capability" capability))))
+      (unless (eq? capability 'lower.closure-conversion) (error "closure-convert: unsupported capability" capability))
+      (unless (list? options) (error "closure-convert: options must be an alist" options))
+      ir)))

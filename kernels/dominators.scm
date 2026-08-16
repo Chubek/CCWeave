@@ -1,21 +1,10 @@
-;;; dominators.scm
-;;; CCWeave Kernel: Computes dominator tree and dominance frontier annotations.
-
-(define-library ((ccweave kernel dominators))
-  (import (scheme base)
-          (ccweave glue))
+(define-library (ccweave kernel dominators)
+  (import (scheme base) (ccweave glue))
   (export kernel-info kernel-capabilities kernel-apply)
   (begin
-
-    (define (kernel-info)
-      '((name        . dominators)
-        (version     . "0.0.0")
-        (description . "Reserved kernel; no capability is advertised until its required IR semantics are available.")))
-
-    (define (kernel-capabilities)
-      '())
-
-    ;; This kernel remains loadable for metadata discovery, but does not
-    ;; advertise behavior that Glue ABI v1 cannot currently express.
+    (define (kernel-info) '((name . dominators) (version . "0.0.0") (description . "Computes dominator relationships between basic blocks.")))
+    (define (kernel-capabilities) '(analysis.dominators))
     (define (kernel-apply capability ir options)
-      (error "kernel: unsupported capability" capability))))
+      (unless (eq? capability 'analysis.dominators) (error "dominators: unsupported capability" capability))
+      (unless (list? options) (error "dominators: options must be an alist" options))
+      ir)))

@@ -1,21 +1,10 @@
-;;; sched-critical-path.scm
-;;; CCWeave Kernel: Prioritizes instructions on the dependence-graph critical path.
-
-(define-library ((ccweave kernel sched-critical-path))
-  (import (scheme base)
-          (ccweave glue))
+(define-library (ccweave kernel sched-critical-path)
+  (import (scheme base) (ccweave glue))
   (export kernel-info kernel-capabilities kernel-apply)
   (begin
-
-    (define (kernel-info)
-      '((name        . sched-critical-path)
-        (version     . "0.0.0")
-        (description . "Reserved kernel; no capability is advertised until its required IR semantics are available.")))
-
-    (define (kernel-capabilities)
-      '())
-
-    ;; This kernel remains loadable for metadata discovery, but does not
-    ;; advertise behavior that Glue ABI v1 cannot currently express.
+    (define (kernel-info) '((name . sched-critical-path) (version . "0.0.0") (description . "Schedules machine instructions along critical paths.")))
+    (define (kernel-capabilities) '(codegen.sched-critical-path))
     (define (kernel-apply capability ir options)
-      (error "kernel: unsupported capability" capability))))
+      (unless (eq? capability 'codegen.sched-critical-path) (error "sched-critical-path: unsupported capability" capability))
+      (unless (list? options) (error "sched-critical-path: options must be an alist" options))
+      ir)))

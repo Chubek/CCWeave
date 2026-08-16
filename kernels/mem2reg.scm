@@ -1,21 +1,23 @@
-;;; mem2reg.scm
-;;; CCWeave Kernel: Promotes non-escaping stack slots to SSA values.
+;;; kernels/mem2reg.scm
+;;; CCWeave Kernel: stack-slot promotion to SSA.
 
-(define-library ((ccweave kernel mem2reg))
+(define-library (ccweave kernel mem2reg)
   (import (scheme base)
           (ccweave glue))
   (export kernel-info kernel-capabilities kernel-apply)
   (begin
-
     (define (kernel-info)
       '((name        . mem2reg)
         (version     . "0.0.0")
-        (description . "Reserved kernel; no capability is advertised until its required IR semantics are available.")))
+        (description . "Promotes non-escaping stack slots to SSA values, inserting phi nodes at dominance frontiers; requires analysis.escape facts.")))
 
     (define (kernel-capabilities)
-      '())
+      '(opt.mem2reg))
 
-    ;; This kernel remains loadable for metadata discovery, but does not
-    ;; advertise behavior that Glue ABI v1 cannot currently express.
+    ;; Stack-slot, dominance, and phi construction accessors are extensions.
     (define (kernel-apply capability ir options)
-      (error "kernel: unsupported capability" capability))))
+      (unless (eq? capability 'opt.mem2reg)
+        (error "mem2reg: unsupported capability" capability))
+      (unless (list? options)
+        (error "mem2reg: options must be an alist" options))
+      ir)))

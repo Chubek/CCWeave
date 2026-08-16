@@ -1,21 +1,10 @@
-;;; licm.scm
-;;; CCWeave Kernel: Hoists loop-invariant computations to loop preheaders.
-
-(define-library ((ccweave kernel licm))
-  (import (scheme base)
-          (ccweave glue))
+(define-library (ccweave kernel licm)
+  (import (scheme base) (ccweave glue))
   (export kernel-info kernel-capabilities kernel-apply)
   (begin
-
-    (define (kernel-info)
-      '((name        . licm)
-        (version     . "0.0.0")
-        (description . "Reserved kernel; no capability is advertised until its required IR semantics are available.")))
-
-    (define (kernel-capabilities)
-      '())
-
-    ;; This kernel remains loadable for metadata discovery, but does not
-    ;; advertise behavior that Glue ABI v1 cannot currently express.
+    (define (kernel-info) '((name . licm) (version . "0.0.0") (description . "Hoists loop-invariant computations.")))
+    (define (kernel-capabilities) '(opt.licm))
     (define (kernel-apply capability ir options)
-      (error "kernel: unsupported capability" capability))))
+      (unless (eq? capability 'opt.licm) (error "licm: unsupported capability" capability))
+      (unless (list? options) (error "licm: options must be an alist" options))
+      ir)))

@@ -1,21 +1,10 @@
-;;; isel-tree-match.scm
-;;; CCWeave Kernel: Tree-pattern instruction selection over expression trees.
-
-(define-library ((ccweave kernel isel-tree-match))
-  (import (scheme base)
-          (ccweave glue))
+(define-library (ccweave kernel isel-tree-match)
+  (import (scheme base) (ccweave glue))
   (export kernel-info kernel-capabilities kernel-apply)
   (begin
-
-    (define (kernel-info)
-      '((name        . isel-tree-match)
-        (version     . "0.0.0")
-        (description . "Reserved kernel; no capability is advertised until its required IR semantics are available.")))
-
-    (define (kernel-capabilities)
-      '())
-
-    ;; This kernel remains loadable for metadata discovery, but does not
-    ;; advertise behavior that Glue ABI v1 cannot currently express.
+    (define (kernel-info) '((name . isel-tree-match) (version . "0.0.0") (description . "Matches expression trees to target instruction patterns.")))
+    (define (kernel-capabilities) '(codegen.isel-tree-match))
     (define (kernel-apply capability ir options)
-      (error "kernel: unsupported capability" capability))))
+      (unless (eq? capability 'codegen.isel-tree-match) (error "isel-tree-match: unsupported capability" capability))
+      (unless (list? options) (error "isel-tree-match: options must be an alist" options))
+      ir)))

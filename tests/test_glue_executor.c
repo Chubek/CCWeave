@@ -211,21 +211,21 @@ int main(void)
         ccw_ir_module_destroy(cm);
     }
 
-    /* --- reserved kernels do not advertise their former no-op passes --- */
+    /* --- implemented kernels advertise and accept their capability --- */
     char *reserved_path = path_in(CCW_KERNEL_DIR, "dce.scm");
     err = NULL;
     int reserved_id = ccw_kernel_load(ex, reserved_path, &err);
-    CCW_CHECK(reserved_id >= 0, "reserved kernel failed to load: %s", err ? err : "");
+    CCW_CHECK(reserved_id >= 0, "dce kernel failed to load: %s", err ? err : "");
     free(err);
     free(reserved_path);
     if (reserved_id >= 0) {
-        CCW_CHECK(ccw_kernel_capability_count(ex, reserved_id) == 0,
-                  "reserved kernel must advertise no capabilities");
+        CCW_CHECK(ccw_kernel_capability_count(ex, reserved_id) == 1,
+                  "dce kernel must advertise one capability");
         err = NULL;
         CCW_CHECK(ccw_kernel_apply(
                       ex, reserved_id, "opt.dead-code-elimination", m, NULL, &err)
-                      == CCW_ERR_NO_CAPABILITY,
-                  "reserved capability must be rejected before dispatch");
+                      == CCW_OK,
+                  "dce capability must dispatch successfully");
         free(err);
     }
 
