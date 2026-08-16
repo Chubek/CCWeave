@@ -1,0 +1,37 @@
+# CI gates: warning-clean build, full test suite, ASan run, and the
+# manifest drift check (a diff in manifests/ is a build failure).
+name: ccweave
+
+on: [push, pull_request]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Tree-sitter for Swaff
+        run: sudo apt-get update && sudo apt-get install -y libtree-sitter-dev pkg-config
+
+      - name: Configure
+        run: cmake -S . -B build -DCCWEAVE_ENABLE_TREESITTER=OFF
+
+      - name: Build (must be warning-clean)
+        run: cmake --build build -j
+
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+
+      - name: Manifest drift check
+        run: ./build/tools/ccw-manifest/ccw-manifest --check
+
+  sanitizers:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure with ASan/UBSan
+        run: cmake -S . -B build-asan -DCCWEAVE_ENABLE_ASAN=ON
+      - name: Build
+        run: cmake --build build-asan -j
+      - name: Test under sanitizers
+        run: ctest --test-dir build-asan --output-on-failure
