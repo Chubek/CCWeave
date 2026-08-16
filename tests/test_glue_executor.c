@@ -103,6 +103,119 @@ static ccw_ir *constant_module(void)
     return m;
 }
 
+static ccw_ir *copy_module(void)
+{
+    ccw_ir *m = ccw_ir_module_create("copy-sample", CCW_PROFILE_TILLY);
+    ccw_node fn = ccw_ir_function_add(m, "f", CCW_TY_I64);
+    ccw_node blk = ccw_ir_block_add(m, fn, "entry");
+
+    ccw_node copy = ccw_ir_instr_build(m, "imov", CCW_TY_I64);
+    ccw_ir_instr_set_dest(m, copy, "tmp");
+    ccw_ir_instr_add_operand(m, copy, ccw_ir_operand_reg(m, "x"));
+    ccw_ir_block_append_instr(m, blk, copy);
+
+    ccw_node add = ccw_ir_instr_build(m, "iadd", CCW_TY_I64);
+    ccw_ir_instr_set_dest(m, add, "out");
+    ccw_ir_instr_add_operand(m, add, ccw_ir_operand_reg(m, "tmp"));
+    ccw_ir_instr_add_operand(m, add, ccw_ir_operand_const_int(m, CCW_TY_I64, 1));
+    ccw_ir_block_append_instr(m, blk, add);
+    return m;
+}
+
+static ccw_ir *unreachable_module(void)
+{
+    ccw_ir *m = ccw_ir_module_create("unreachable-sample", CCW_PROFILE_TILLY);
+    ccw_node fn = ccw_ir_function_add(m, "f", CCW_TY_VOID);
+    ccw_node entry = ccw_ir_block_add(m, fn, "entry");
+    ccw_node dead = ccw_ir_block_add(m, fn, "dead");
+    ccw_node ret = ccw_ir_instr_build(m, "ret", CCW_TY_VOID);
+    ccw_ir_block_append_instr(m, entry, ret);
+    ret = ccw_ir_instr_build(m, "ret", CCW_TY_VOID);
+    ccw_ir_block_append_instr(m, dead, ret);
+    return m;
+}
+
+static ccw_ir *linear_module(void)
+{
+    ccw_ir *m = ccw_ir_module_create("linear-sample", CCW_PROFILE_TILLY);
+    ccw_node fn = ccw_ir_function_add(m, "f", CCW_TY_VOID);
+    ccw_node entry = ccw_ir_block_add(m, fn, "entry");
+    ccw_node next = ccw_ir_block_add(m, fn, "next");
+    ccw_node jump = ccw_ir_instr_build(m, "br", CCW_TY_VOID);
+    ccw_ir_instr_add_operand(m, jump, ccw_ir_operand_block(m, "next"));
+    ccw_ir_block_append_instr(m, entry, jump);
+    ccw_node ret = ccw_ir_instr_build(m, "ret", CCW_TY_VOID);
+    ccw_ir_block_append_instr(m, next, ret);
+    return m;
+}
+
+static ccw_ir *phi_module(void)
+{
+    ccw_ir *m = ccw_ir_module_create("phi-sample", CCW_PROFILE_TILLY);
+    ccw_node fn = ccw_ir_function_add(m, "f", CCW_TY_I64);
+    ccw_node blk = ccw_ir_block_add(m, fn, "entry");
+
+    ccw_node redundant = ccw_ir_instr_build(m, "phi", CCW_TY_I64);
+    ccw_ir_instr_set_dest(m, redundant, "same");
+    ccw_ir_instr_add_operand(m, redundant, ccw_ir_operand_reg(m, "x"));
+    ccw_ir_instr_add_operand(m, redundant, ccw_ir_operand_reg(m, "x"));
+    ccw_ir_block_append_instr(m, blk, redundant);
+
+    ccw_node distinct = ccw_ir_instr_build(m, "phi", CCW_TY_I64);
+    ccw_ir_instr_set_dest(m, distinct, "different");
+    ccw_ir_instr_add_operand(m, distinct, ccw_ir_operand_reg(m, "x"));
+    ccw_ir_instr_add_operand(m, distinct, ccw_ir_operand_reg(m, "y"));
+    ccw_ir_block_append_instr(m, blk, distinct);
+    return m;
+}
+
+static ccw_ir *null_check_module(void)
+{
+    ccw_ir *m = ccw_ir_module_create("null-check-sample", CCW_PROFILE_TILLY);
+    ccw_node fn = ccw_ir_function_add(m, "f", CCW_TY_VOID);
+    ccw_node blk = ccw_ir_block_add(m, fn, "entry");
+
+    for (int i = 0; i < 2; i++) {
+        ccw_node check = ccw_ir_instr_build(m, "null-check", CCW_TY_VOID);
+        ccw_ir_instr_add_operand(m, check, ccw_ir_operand_reg(m, "value"));
+        ccw_ir_block_append_instr(m, blk, check);
+    }
+    ccw_node other = ccw_ir_instr_build(m, "null-check", CCW_TY_VOID);
+    ccw_ir_instr_add_operand(m, other, ccw_ir_operand_reg(m, "other"));
+    ccw_ir_block_append_instr(m, blk, other);
+    return m;
+}
+
+static ccw_ir *tail_call_module(ccw_node *call_out)
+{
+    ccw_ir *m = ccw_ir_module_create("tail-call-sample", CCW_PROFILE_TILLY);
+    ccw_node fn = ccw_ir_function_add(m, "f", CCW_TY_I64);
+    ccw_node blk = ccw_ir_block_add(m, fn, "entry");
+
+    ccw_node call = ccw_ir_instr_build(m, "call", CCW_TY_I64);
+    ccw_ir_instr_set_dest(m, call, "result");
+    ccw_ir_instr_add_operand(m, call, ccw_ir_operand_func(m, "callee"));
+    ccw_ir_block_append_instr(m, blk, call);
+
+    ccw_node ret = ccw_ir_instr_build(m, "ret", CCW_TY_VOID);
+    ccw_ir_instr_add_operand(m, ret, ccw_ir_operand_reg(m, "result"));
+    ccw_ir_block_append_instr(m, blk, ret);
+    *call_out = call;
+    return m;
+}
+
+static ccw_ir *deopt_module(ccw_node *deopt_out)
+{
+    ccw_ir *m = ccw_ir_module_create("deopt-sample", CCW_PROFILE_ON1X);
+    ccw_node fn = ccw_ir_function_add(m, "f", CCW_TY_VOID);
+    ccw_node blk = ccw_ir_block_add(m, fn, "entry");
+    ccw_node deopt = ccw_ir_instr_build(m, "deopt", CCW_TY_VOID);
+    ccw_ir_instr_add_operand(m, deopt, ccw_ir_operand_block(m, "entry"));
+    ccw_ir_block_append_instr(m, blk, deopt);
+    *deopt_out = deopt;
+    return m;
+}
+
 int main(void)
 {
     ccw_executor *ex = ccw_executor_create();
@@ -210,6 +323,177 @@ int main(void)
             ccw_ir_instr_opcode(cm, ccw_ir_block_instr_ref(cm, cblk, 2)), "icmp.eq");
         ccw_ir_module_destroy(cm);
     }
+
+    /* --- Phase 1 kernels publish facts and rewrite scalar uses --- */
+    char *purity_path = path_in(CCW_KERNEL_DIR, "purity.scm");
+    int purity_id = ccw_kernel_load(ex, purity_path, &err);
+    CCW_CHECK(purity_id >= 0, "purity failed to load: %s", err ? err : "");
+    free(err); err = NULL;
+    free(purity_path);
+
+    char *copy_path = path_in(CCW_KERNEL_DIR, "copy-prop.scm");
+    int copy_id = ccw_kernel_load(ex, copy_path, &err);
+    CCW_CHECK(copy_id >= 0, "copy-prop failed to load: %s", err ? err : "");
+    free(err); err = NULL;
+    free(copy_path);
+
+    ccw_ir *copy_ir = copy_module();
+    ccw_node copy_fn = ccw_ir_function_ref(copy_ir, 0);
+    ccw_node copy_blk = ccw_ir_function_block_ref(copy_ir, copy_fn, 0);
+    ccw_node copy_ins = ccw_ir_block_instr_ref(copy_ir, copy_blk, 0);
+    if (purity_id >= 0) {
+        CCW_CHECK(ccw_kernel_apply(ex, purity_id, "analysis.purity", copy_ir, NULL, &err)
+                      == CCW_OK,
+                  "purity apply failed: %s", err ? err : "");
+        free(err); err = NULL;
+        CCW_CHECK_STREQ(ccw_ir_attr_lookup(
+                            copy_ir, copy_ins, "analysis.analysis.purity.side-effect?"),
+                        "false");
+    }
+    if (copy_id >= 0) {
+        CCW_CHECK(ccw_kernel_apply(ex, copy_id, "opt.copy-propagation", copy_ir, NULL, &err)
+                      == CCW_OK,
+                  "copy-prop apply failed: %s", err ? err : "");
+        free(err); err = NULL;
+        ccw_node add = ccw_ir_block_instr_ref(copy_ir, copy_blk, 1);
+        CCW_CHECK_STREQ(ccw_ir_operand_name(copy_ir, ccw_ir_instr_operand(copy_ir, add, 0)),
+                        "x");
+    }
+    ccw_ir_module_destroy(copy_ir);
+
+    char *unreachable_path = path_in(CCW_KERNEL_DIR, "unreachable-elim.scm");
+    int unreachable_id = ccw_kernel_load(ex, unreachable_path, &err);
+    CCW_CHECK(unreachable_id >= 0, "unreachable-elim failed to load: %s", err ? err : "");
+    free(err); err = NULL;
+    free(unreachable_path);
+    ccw_ir *unreachable_ir = unreachable_module();
+    if (unreachable_id >= 0) {
+        CCW_CHECK(ccw_kernel_apply(ex, unreachable_id, "opt.unreachable-elim",
+                                   unreachable_ir, NULL, &err) == CCW_OK,
+                  "unreachable-elim apply failed: %s", err ? err : "");
+        free(err); err = NULL;
+        CCW_CHECK(ccw_ir_function_block_count(
+                      unreachable_ir, ccw_ir_function_ref(unreachable_ir, 0)) == 1,
+                  "unreachable-elim must remove the detached block");
+    }
+    ccw_ir_module_destroy(unreachable_ir);
+
+    char *merge_path = path_in(CCW_KERNEL_DIR, "block-merge.scm");
+    int merge_id = ccw_kernel_load(ex, merge_path, &err);
+    CCW_CHECK(merge_id >= 0, "block-merge failed to load: %s", err ? err : "");
+    free(err); err = NULL;
+    free(merge_path);
+    ccw_ir *linear_ir = linear_module();
+    if (merge_id >= 0) {
+        CCW_CHECK(ccw_kernel_apply(ex, merge_id, "opt.block-merge",
+                                   linear_ir, NULL, &err) == CCW_OK,
+                  "block-merge apply failed: %s", err ? err : "");
+        free(err); err = NULL;
+        CCW_CHECK(ccw_ir_function_block_count(
+                      linear_ir, ccw_ir_function_ref(linear_ir, 0)) == 1,
+                  "block-merge must merge a linear block pair");
+        ccw_node entry = ccw_ir_function_block_ref(
+            linear_ir, ccw_ir_function_ref(linear_ir, 0), 0);
+        CCW_CHECK_STREQ(ccw_ir_instr_opcode(
+                            linear_ir, ccw_ir_block_instr_ref(linear_ir, entry, 0)),
+                        "ret");
+    }
+    ccw_ir_module_destroy(linear_ir);
+
+    /* --- formerly metadata-only kernels now perform conservative work --- */
+    char *cfg_path = path_in(CCW_KERNEL_DIR, "cfg-canonicalize.scm");
+    int cfg_id = ccw_kernel_load(ex, cfg_path, &err);
+    CCW_CHECK(cfg_id >= 0, "cfg-canonicalize failed to load: %s", err ? err : "");
+    free(err); err = NULL;
+    free(cfg_path);
+    linear_ir = linear_module();
+    if (cfg_id >= 0) {
+        CCW_CHECK(ccw_kernel_apply(ex, cfg_id, "normalize.cfg",
+                                   linear_ir, NULL, &err) == CCW_OK,
+                  "cfg-canonicalize apply failed: %s", err ? err : "");
+        free(err); err = NULL;
+        CCW_CHECK(ccw_ir_function_block_count(
+                      linear_ir, ccw_ir_function_ref(linear_ir, 0)) == 1,
+                  "cfg-canonicalize must collapse a linear CFG");
+    }
+    ccw_ir_module_destroy(linear_ir);
+
+    char *phi_path = path_in(CCW_KERNEL_DIR, "phi-simplify.scm");
+    int phi_id = ccw_kernel_load(ex, phi_path, &err);
+    CCW_CHECK(phi_id >= 0, "phi-simplify failed to load: %s", err ? err : "");
+    free(err); err = NULL;
+    free(phi_path);
+    ccw_ir *phi_ir = phi_module();
+    if (phi_id >= 0) {
+        CCW_CHECK(ccw_kernel_apply(ex, phi_id, "opt.phi-simplify",
+                                   phi_ir, NULL, &err) == CCW_OK,
+                  "phi-simplify apply failed: %s", err ? err : "");
+        free(err); err = NULL;
+        ccw_node phi_fn = ccw_ir_function_ref(phi_ir, 0);
+        ccw_node phi_blk = ccw_ir_function_block_ref(phi_ir, phi_fn, 0);
+        CCW_CHECK_STREQ(
+            ccw_ir_instr_opcode(phi_ir, ccw_ir_block_instr_ref(phi_ir, phi_blk, 0)),
+            "imov");
+        CCW_CHECK_STREQ(
+            ccw_ir_instr_opcode(phi_ir, ccw_ir_block_instr_ref(phi_ir, phi_blk, 1)),
+            "phi");
+    }
+    ccw_ir_module_destroy(phi_ir);
+
+    char *null_path = path_in(CCW_KERNEL_DIR, "null-check-elim.scm");
+    int null_id = ccw_kernel_load(ex, null_path, &err);
+    CCW_CHECK(null_id >= 0, "null-check-elim failed to load: %s", err ? err : "");
+    free(err); err = NULL;
+    free(null_path);
+    ccw_ir *null_ir = null_check_module();
+    if (null_id >= 0) {
+        CCW_CHECK(ccw_kernel_apply(ex, null_id, "opt.null-check-elim",
+                                   null_ir, NULL, &err) == CCW_OK,
+                  "null-check-elim apply failed: %s", err ? err : "");
+        free(err); err = NULL;
+        ccw_node null_fn = ccw_ir_function_ref(null_ir, 0);
+        ccw_node null_blk = ccw_ir_function_block_ref(null_ir, null_fn, 0);
+        CCW_CHECK(ccw_ir_block_instr_count(null_ir, null_blk) == 2,
+                  "null-check-elim must remove only the repeated SSA check");
+    }
+    ccw_ir_module_destroy(null_ir);
+
+    char *tail_path = path_in(CCW_KERNEL_DIR, "tail-call.scm");
+    int tail_id = ccw_kernel_load(ex, tail_path, &err);
+    CCW_CHECK(tail_id >= 0, "tail-call failed to load: %s", err ? err : "");
+    free(err); err = NULL;
+    free(tail_path);
+    ccw_node tail_call = 0;
+    ccw_ir *tail_ir = tail_call_module(&tail_call);
+    if (tail_id >= 0) {
+        CCW_CHECK(ccw_kernel_apply(ex, tail_id, "opt.tailcall",
+                                   tail_ir, NULL, &err) == CCW_OK,
+                  "tail-call apply failed: %s", err ? err : "");
+        free(err); err = NULL;
+        CCW_CHECK_STREQ(ccw_ir_attr_lookup(
+                            tail_ir, tail_call, "analysis.opt.tailcall.eligible?"),
+                        "true");
+    }
+    ccw_ir_module_destroy(tail_ir);
+
+    char *deopt_path = path_in(CCW_KERNEL_DIR, "deopt-points.scm");
+    int deopt_id = ccw_kernel_load(ex, deopt_path, &err);
+    CCW_CHECK(deopt_id >= 0, "deopt-points failed to load: %s", err ? err : "");
+    free(err); err = NULL;
+    free(deopt_path);
+    ccw_node deopt = 0;
+    ccw_ir *deopt_ir = deopt_module(&deopt);
+    if (deopt_id >= 0) {
+        CCW_CHECK(ccw_kernel_apply(ex, deopt_id, "vm.deopt-points",
+                                   deopt_ir, NULL, &err) == CCW_OK,
+                  "deopt-points apply failed: %s", err ? err : "");
+        free(err); err = NULL;
+        CCW_CHECK_STREQ(ccw_ir_attr_lookup(
+                            deopt_ir, deopt,
+                            "analysis.vm.deopt-points.requires-state?"),
+                        "true");
+    }
+    ccw_ir_module_destroy(deopt_ir);
 
     /* --- implemented kernels advertise and accept their capability --- */
     char *reserved_path = path_in(CCW_KERNEL_DIR, "dce.scm");

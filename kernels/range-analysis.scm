@@ -1,23 +1,21 @@
-;;; kernels/range-analysis.scm
-;;; CCWeave Kernel: integer value-range analysis.
-
 (define-library (ccweave kernel range-analysis)
-  (import (scheme base)
-          (ccweave glue))
+  (import (scheme base) (ccweave glue))
   (export kernel-info kernel-capabilities kernel-apply)
   (begin
-    (define (kernel-info)
-      '((name        . range-analysis)
-        (version     . "0.0.0")
-        (description . "Integer value-range analysis over the dominator tree; annotates nodes with conservative min/max intervals consumed by bounds-check and overflow-check elision.")))
-
-    (define (kernel-capabilities)
-      '(analysis.range))
-
-    ;; Range annotations and dominance data require host extensions.
-    (define (kernel-apply capability ir options)
-      (unless (eq? capability 'analysis.range)
-        (error "range-analysis: unsupported capability" capability))
-      (unless (list? options)
-        (error "range-analysis: options must be an alist" options))
-      ir)))
+    (define (kernel-info) '((name . range-analysis) (version . "0.1.0") (description . "Publishes exact intervals for integer constant operands.")))
+    (define (kernel-capabilities) '(analysis.range))
+    (define (kernel-apply cap ir options)
+      (unless (eq? cap 'analysis.range) (error "range-analysis: unsupported capability" cap))
+      (let f ((fi 0)) (when (< fi (ir-function-count))
+        (let b ((bi 0) (fn (ir-function-ref fi))) (when (< bi (function-block-count fn))
+          (let i ((ii 0) (blk (function-block-ref fn bi))) (when (< ii (block-instr-count blk))
+            (let o ((oi 0) (ins (block-instr-ref blk ii))) (when (< oi (instr-operand-count ins))
+              (let ((operand (instr-operand ins oi))) (when (operand-const? operand)
+                (let ((value (const-int-value operand)))
+                  (analysis-put! 'analysis.range operand 'min value)
+                  (analysis-put! 'analysis.range operand 'max value)))
+              (o (+ oi 1) ins)))
+            (i (+ ii 1) blk)))
+          (b (+ bi 1) fn)))
+        (f (+ fi 1))))
+      ir))))

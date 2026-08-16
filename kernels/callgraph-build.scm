@@ -1,23 +1,20 @@
-;;; kernels/callgraph-build.scm
-;;; CCWeave Kernel: module call-graph construction.
-
 (define-library (ccweave kernel callgraph-build)
-  (import (scheme base)
-          (ccweave glue))
+  (import (scheme base) (ccweave glue))
   (export kernel-info kernel-capabilities kernel-apply)
   (begin
-    (define (kernel-info)
-      '((name        . callgraph-build)
-        (version     . "0.0.0")
-        (description . "Constructs the module call graph, including conservative treatment of indirect calls via address-taken sets; prerequisite for interprocedural passes.")))
-
-    (define (kernel-capabilities)
-      '(analysis.callgraph))
-
-    ;; Callee and address-taken queries require host extensions.
-    (define (kernel-apply capability ir options)
-      (unless (eq? capability 'analysis.callgraph)
-        (error "callgraph-build: unsupported capability" capability))
-      (unless (list? options)
-        (error "callgraph-build: options must be an alist" options))
+    (define (kernel-info) '((name . callgraph-build) (version . "0.1.0") (description . "Builds conservative per-function callsite facts.")))
+    (define (kernel-capabilities) '(analysis.callgraph))
+    (define (kernel-apply cap ir options)
+      (unless (eq? cap 'analysis.callgraph) (error "callgraph-build: unsupported capability" cap))
+      (let f ((fi 0))
+        (when (< fi (ir-function-count))
+          (let ((fn (ir-function-ref fi)))
+            (let b ((bi 0) (calls 0))
+              (if (>= bi (function-block-count fn))
+                  (analysis-put! 'analysis.callgraph fn 'callsite-count calls)
+                  (let i ((ii 0) (count calls) (blk (function-block-ref fn bi)))
+                    (if (>= ii (block-instr-count blk))
+                        (b (+ bi 1) count)
+                        (i (+ ii 1) (+ count (if (eq? (instr-opcode (block-instr-ref blk ii)) 'call) 1 0)) blk))))))
+          (f (+ fi 1))))
       ir)))

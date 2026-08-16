@@ -2,9 +2,29 @@
   (import (scheme base) (ccweave glue))
   (export kernel-info kernel-capabilities kernel-apply)
   (begin
-    (define (kernel-info) '((name . purity) (version . "0.0.0") (description . "Classifies operations by observable side effects.")))
+    (define (kernel-info) '((name . purity) (version . "0.1.0") (description . "Classifies instructions with conservative side-effect facts.")))
     (define (kernel-capabilities) '(analysis.purity))
+
+    (define (pure-opcode? opcode)
+      (memq opcode '(imov iadd isub imul shl icmp.eq icmp.ne icmp.lt icmp.le icmp.gt icmp.ge)))
+
+    (define (classify-block! block)
+      (let loop ((index 0) (count (block-instr-count block)))
+        (when (< index count)
+          (let ((instruction (block-instr-ref block index)))
+            (analysis-put! 'analysis.purity instruction 'side-effect?
+                           (not (pure-opcode? (instr-opcode instruction))))
+            (loop (+ index 1) count)))))
+
     (define (kernel-apply capability ir options)
       (unless (eq? capability 'analysis.purity) (error "purity: unsupported capability" capability))
-      (unless (list? options) (error "purity: options must be an alist" options))
+      (unless (glue-has? 'analysis-put!) (error "purity: analysis facts are unavailable"))
+      (let functions ((function-index 0) (function-count (ir-function-count)))
+        (when (< function-index function-count)
+          (let ((function (ir-function-ref function-index)))
+            (let blocks ((block-index 0) (block-count (function-block-count function)))
+              (when (< block-index block-count)
+                (classify-block! (function-block-ref function block-index))
+                (blocks (+ block-index 1) block-count))))
+          (functions (+ function-index 1) function-count)))
       ir)))

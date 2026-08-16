@@ -1,23 +1,16 @@
-;;; kernels/inline-cost.scm
-;;; CCWeave Kernel: inlining cost analysis.
-
 (define-library (ccweave kernel inline-cost)
-  (import (scheme base)
-          (ccweave glue))
+  (import (scheme base) (ccweave glue))
   (export kernel-info kernel-capabilities kernel-apply)
   (begin
-    (define (kernel-info)
-      '((name        . inline-cost)
-        (version     . "0.0.0")
-        (description . "Computes per-callsite inlining cost/benefit scores from callee size, argument constness, and call frequency; emits advisory annotations only.")))
-
-    (define (kernel-capabilities)
-      '(opt.inline-cost))
-
-    ;; Callsite frequency and annotation storage are host extensions.
-    (define (kernel-apply capability ir options)
-      (unless (eq? capability 'opt.inline-cost)
-        (error "inline-cost: unsupported capability" capability))
-      (unless (list? options)
-        (error "inline-cost: options must be an alist" options))
+    (define (kernel-info) '((name . inline-cost) (version . "0.1.0") (description . "Publishes instruction-count inlining costs per function.")))
+    (define (kernel-capabilities) '(opt.inline-cost))
+    (define (kernel-apply cap ir options)
+      (unless (eq? cap 'opt.inline-cost) (error "inline-cost: unsupported capability" cap))
+      (let f ((fi 0)) (when (< fi (ir-function-count))
+        (let ((fn (ir-function-ref fi)))
+          (let b ((bi 0) (cost 0))
+            (if (>= bi (function-block-count fn))
+                (analysis-put! 'opt.inline-cost fn 'instruction-cost cost)
+                (b (+ bi 1) (+ cost (block-instr-count (function-block-ref fn bi)))))))
+        (f (+ fi 1))))
       ir)))

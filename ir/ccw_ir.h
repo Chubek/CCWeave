@@ -83,6 +83,8 @@ ccw_node ccw_ir_block_add(ccw_ir *ir, ccw_node fn, const char *name);
 ccw_node ccw_ir_instr_build(ccw_ir *ir, const char *opcode, ccw_ir_type type);
 ccw_status ccw_ir_instr_set_dest(ccw_ir *ir, ccw_node ins, const char *dest);
 ccw_status ccw_ir_instr_add_operand(ccw_ir *ir, ccw_node ins, ccw_node operand);
+ccw_status ccw_ir_instr_set_operand(ccw_ir *ir, ccw_node ins, int index,
+                                    ccw_node operand);
 ccw_status ccw_ir_block_append_instr(ccw_ir *ir, ccw_node blk, ccw_node ins);
 
 ccw_node ccw_ir_operand_reg(ccw_ir *ir, const char *name);
@@ -106,6 +108,12 @@ ccw_node ccw_ir_function_block_ref(const ccw_ir *ir, ccw_node fn, int idx);
 const char *ccw_ir_block_name(const ccw_ir *ir, ccw_node blk);
 int      ccw_ir_block_instr_count(const ccw_ir *ir, ccw_node blk);
 ccw_node ccw_ir_block_instr_ref(const ccw_ir *ir, ccw_node blk, int idx);
+int      ccw_ir_block_successor_count(const ccw_ir *ir, ccw_node blk);
+ccw_node ccw_ir_block_successor_ref(const ccw_ir *ir, ccw_node blk, int idx);
+int      ccw_ir_block_predecessor_count(const ccw_ir *ir, ccw_node blk);
+ccw_node ccw_ir_block_predecessor_ref(const ccw_ir *ir, ccw_node blk, int idx);
+ccw_status ccw_ir_block_delete(ccw_ir *ir, ccw_node blk);
+ccw_status ccw_ir_block_merge(ccw_ir *ir, ccw_node first, ccw_node second);
 
 const char *ccw_ir_instr_opcode(const ccw_ir *ir, ccw_node ins);
 const char *ccw_ir_instr_dest(const ccw_ir *ir, ccw_node ins);  /* NULL if none */

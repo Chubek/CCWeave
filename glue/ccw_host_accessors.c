@@ -11,6 +11,9 @@
 static ccw_edit_hook g_edit_hook = NULL;
 static void         *g_edit_hook_data = NULL;
 
+static bool edit_allowed(ccw_ir *ir, ccw_edit_kind kind,
+                         ccw_node target, ccw_node incoming);
+
 void ccw_host_set_edit_hook(ccw_edit_hook hook, void *user_data)
 {
     g_edit_hook = hook;
@@ -51,6 +54,13 @@ static bool arg_symbol(const ccw_val *v, const char **out)
     return true;
 }
 
+static bool arg_string(const ccw_val *v, const char **out)
+{
+    if (v->type != CCW_T_STRING && v->type != CCW_T_SYMBOL) return false;
+    *out = v->as.s;
+    return true;
+}
+
 #define ACC_SIG(name)                                                   \
     static ccw_status name(void *host_ctx, ccw_ir *ir,                  \
                            const ccw_val *args, int nargs,              \
@@ -74,7 +84,12 @@ ACC_SIG(acc_glue_has)
         "block-instr-count", "block-instr-ref", "instr-opcode",
         "instr-operand-count", "instr-operand", "operand-const?",
         "const-int-value", "instr-build", "instr-replace!",
-        "instr-insert-before!", "instr-delete!", "const-int-build"
+        "instr-insert-before!", "instr-delete!", "const-int-build",
+        "node-kind", "operand-kind", "operand-name", "instr-dest",
+        "instr-set-dest!", "operand-reg-build", "instr-set-operand!",
+        "analysis-put!", "block-succ-count", "block-succ-ref",
+        "block-pred-count", "block-pred-ref", "block-delete!"
+        ,"block-merge!"
     };
     bool found = false;
     for (size_t i = 0; i < sizeof(core) / sizeof(core[0]); i++)
@@ -175,6 +190,81 @@ ACC_SIG(acc_block_instr_ref)
     return CCW_OK;
 }
 
+ACC_SIG(acc_block_succ_count)
+{
+    (void)host_ctx;
+    ccw_node block = 0;
+    if (nargs != 1 || !arg_node(&args[0], &block) ||
+        ccw_ir_node_kind(ir, block) != CCW_NODE_BLOCK)
+        return acc_fail(error_message, "expects one block node");
+    *result = ccw_int(ccw_ir_block_successor_count(ir, block));
+    return CCW_OK;
+}
+
+ACC_SIG(acc_block_succ_ref)
+{
+    (void)host_ctx;
+    ccw_node block = 0;
+    int index = 0;
+    if (nargs != 2 || !arg_node(&args[0], &block) || !arg_index(&args[1], &index))
+        return acc_fail(error_message, "expects a block node and an index");
+    ccw_node successor = ccw_ir_block_successor_ref(ir, block, index);
+    if (successor == 0) return acc_fail(error_message, "successor index out of range");
+    *result = ccw_node_val(successor);
+    return CCW_OK;
+}
+
+ACC_SIG(acc_block_pred_count)
+{
+    (void)host_ctx;
+    ccw_node block = 0;
+    if (nargs != 1 || !arg_node(&args[0], &block) ||
+        ccw_ir_node_kind(ir, block) != CCW_NODE_BLOCK)
+        return acc_fail(error_message, "expects one block node");
+    *result = ccw_int(ccw_ir_block_predecessor_count(ir, block));
+    return CCW_OK;
+}
+
+ACC_SIG(acc_block_pred_ref)
+{
+    (void)host_ctx;
+    ccw_node block = 0;
+    int index = 0;
+    if (nargs != 2 || !arg_node(&args[0], &block) || !arg_index(&args[1], &index))
+        return acc_fail(error_message, "expects a block node and an index");
+    ccw_node predecessor = ccw_ir_block_predecessor_ref(ir, block, index);
+    if (predecessor == 0) return acc_fail(error_message, "predecessor index out of range");
+    *result = ccw_node_val(predecessor);
+    return CCW_OK;
+}
+
+ACC_SIG(acc_block_delete)
+{
+    (void)host_ctx;
+    ccw_node block = 0;
+    if (nargs != 1 || !arg_node(&args[0], &block))
+        return acc_fail(error_message, "expects one block node");
+    if (!edit_allowed(ir, CCW_EDIT_BLOCK_DELETE, block, 0))
+        return acc_fail(error_message, "edit rejected by host");
+    if (ccw_ir_block_delete(ir, block) != CCW_OK)
+        return acc_fail(error_message, "block deletion requires no predecessors");
+    *result = ccw_nil();
+    return CCW_OK;
+}
+
+ACC_SIG(acc_block_merge)
+{
+    (void)host_ctx;
+    ccw_node first = 0, second = 0;
+    if (nargs != 2 || !arg_node(&args[0], &first) || !arg_node(&args[1], &second))
+        return acc_fail(error_message, "expects two block nodes");
+    if (!edit_allowed(ir, CCW_EDIT_BLOCK_DELETE, first, second) ||
+        ccw_ir_block_merge(ir, first, second) != CCW_OK)
+        return acc_fail(error_message, "blocks are not linearly mergeable");
+    *result = ccw_nil();
+    return CCW_OK;
+}
+
 /* ---------- inspection ---------- */
 
 ACC_SIG(acc_instr_opcode)
@@ -234,6 +324,153 @@ ACC_SIG(acc_const_int_value)
     if (ccw_ir_const_int_value(ir, n, &value) != CCW_OK)
         return acc_fail(error_message, "operand is not an integer constant");
     *result = ccw_int(value);
+    return CCW_OK;
+}
+
+/* ---------- approved extension set: Phase 1 ---------- */
+
+static const char *node_kind_name(ccw_node_kind kind)
+{
+    switch (kind) {
+    case CCW_NODE_FUNCTION: return "function";
+    case CCW_NODE_BLOCK: return "block";
+    case CCW_NODE_INSTR: return "instr";
+    case CCW_NODE_OPERAND: return "operand";
+    default: return "dead";
+    }
+}
+
+static const char *operand_kind_name(ccw_operand_kind kind)
+{
+    switch (kind) {
+    case CCW_OPND_REG: return "reg";
+    case CCW_OPND_CONST_INT: return "const-int";
+    case CCW_OPND_CONST_FLOAT: return "const-float";
+    case CCW_OPND_FUNC: return "func";
+    case CCW_OPND_BLOCK: return "block";
+    default: return "unknown";
+    }
+}
+
+ACC_SIG(acc_node_kind)
+{
+    (void)host_ctx;
+    ccw_node node = 0;
+    if (nargs != 1 || !arg_node(&args[0], &node))
+        return acc_fail(error_message, "expects one node");
+    if (ccw_ir_node_kind(ir, node) == CCW_NODE_DEAD)
+        return acc_fail(error_message, "unknown node");
+    *result = ccw_symbol(node_kind_name(ccw_ir_node_kind(ir, node)));
+    return CCW_OK;
+}
+
+ACC_SIG(acc_operand_kind)
+{
+    (void)host_ctx;
+    ccw_node node = 0;
+    if (nargs != 1 || !arg_node(&args[0], &node))
+        return acc_fail(error_message, "expects one operand node");
+    if (ccw_ir_node_kind(ir, node) != CCW_NODE_OPERAND)
+        return acc_fail(error_message, "not an operand node");
+    *result = ccw_symbol(operand_kind_name(ccw_ir_operand_kind(ir, node)));
+    return CCW_OK;
+}
+
+ACC_SIG(acc_operand_name)
+{
+    (void)host_ctx;
+    ccw_node node = 0;
+    if (nargs != 1 || !arg_node(&args[0], &node))
+        return acc_fail(error_message, "expects one operand node");
+    const char *name = ccw_ir_operand_name(ir, node);
+    *result = name ? ccw_string(name) : ccw_nil();
+    return CCW_OK;
+}
+
+ACC_SIG(acc_instr_dest)
+{
+    (void)host_ctx;
+    ccw_node ins = 0;
+    if (nargs != 1 || !arg_node(&args[0], &ins))
+        return acc_fail(error_message, "expects one instruction node");
+    const char *dest = ccw_ir_instr_dest(ir, ins);
+    if (ccw_ir_node_kind(ir, ins) != CCW_NODE_INSTR)
+        return acc_fail(error_message, "not an instruction node");
+    *result = dest ? ccw_string(dest) : ccw_nil();
+    return CCW_OK;
+}
+
+ACC_SIG(acc_instr_set_dest)
+{
+    (void)host_ctx;
+    ccw_node ins = 0;
+    const char *name = NULL;
+    if (nargs != 2 || !arg_node(&args[0], &ins) || !arg_string(&args[1], &name))
+        return acc_fail(error_message, "expects an instruction node and a name");
+    if (ccw_ir_instr_set_dest(ir, ins, name) != CCW_OK)
+        return acc_fail(error_message, "could not set instruction destination");
+    *result = ccw_nil();
+    return CCW_OK;
+}
+
+ACC_SIG(acc_operand_reg_build)
+{
+    (void)host_ctx;
+    const char *name = NULL;
+    if (nargs != 1 || !arg_string(&args[0], &name))
+        return acc_fail(error_message, "expects one register name");
+    ccw_node node = ccw_ir_operand_reg(ir, name);
+    if (node == 0) return acc_fail(error_message, "could not build register operand");
+    *result = ccw_node_val(node);
+    return CCW_OK;
+}
+
+ACC_SIG(acc_instr_set_operand)
+{
+    (void)host_ctx;
+    ccw_node ins = 0, operand = 0;
+    int index = 0;
+    if (nargs != 3 || !arg_node(&args[0], &ins) || !arg_index(&args[1], &index) ||
+        !arg_node(&args[2], &operand))
+        return acc_fail(error_message, "expects an instruction node, index, and operand");
+    if (ccw_ir_instr_set_operand(ir, ins, index, operand) != CCW_OK)
+        return acc_fail(error_message, "invalid instruction operand");
+    *result = ccw_nil();
+    return CCW_OK;
+}
+
+static bool fact_value_text(const ccw_val *value, char *text, size_t size)
+{
+    switch (value->type) {
+    case CCW_T_NIL: return snprintf(text, size, "nil") > 0;
+    case CCW_T_BOOL: return snprintf(text, size, "%s", value->as.b ? "true" : "false") > 0;
+    case CCW_T_INT: return snprintf(text, size, "%lld", (long long)value->as.i) > 0;
+    case CCW_T_FLOAT: return snprintf(text, size, "%.17g", value->as.f) > 0;
+    case CCW_T_STRING:
+    case CCW_T_SYMBOL: return snprintf(text, size, "%s", value->as.s) > 0;
+    case CCW_T_NODE: return snprintf(text, size, "%llu", (unsigned long long)value->as.node) > 0;
+    }
+    return false;
+}
+
+ACC_SIG(acc_analysis_put)
+{
+    (void)host_ctx;
+    const char *capability = NULL, *key = NULL;
+    ccw_node subject = 0;
+    char attr_key[512], value[256];
+    if (nargs != 4 || !arg_symbol(&args[0], &capability) ||
+        !arg_node(&args[1], &subject) || !arg_symbol(&args[2], &key))
+        return acc_fail(error_message, "expects capability, subject, key, and scalar value");
+    if (ccw_ir_node_kind(ir, subject) == CCW_NODE_DEAD ||
+        !fact_value_text(&args[3], value, sizeof(value)))
+        return acc_fail(error_message, "invalid analysis fact");
+    if (snprintf(attr_key, sizeof(attr_key), "analysis.%s.%s", capability, key) >=
+        (int)sizeof(attr_key))
+        return acc_fail(error_message, "analysis fact key is too long");
+    if (ccw_ir_attr_set(ir, subject, attr_key, value) != CCW_OK)
+        return acc_fail(error_message, "could not store analysis fact");
+    *result = ccw_nil();
     return CCW_OK;
 }
 
@@ -347,11 +584,25 @@ ccw_status ccw_host_register_core_accessors(ccw_executor *ex)
         { "function-block-ref",   2,  2, acc_function_block_ref },
         { "block-instr-count",    1,  1, acc_block_instr_count },
         { "block-instr-ref",      2,  2, acc_block_instr_ref },
+        { "block-succ-count",     1,  1, acc_block_succ_count },
+        { "block-succ-ref",       2,  2, acc_block_succ_ref },
+        { "block-pred-count",     1,  1, acc_block_pred_count },
+        { "block-pred-ref",       2,  2, acc_block_pred_ref },
+        { "block-delete!",        1,  1, acc_block_delete },
+        { "block-merge!",         2,  2, acc_block_merge },
         { "instr-opcode",         1,  1, acc_instr_opcode },
         { "instr-operand-count",  1,  1, acc_instr_operand_count },
         { "instr-operand",        2,  2, acc_instr_operand },
         { "operand-const?",       1,  1, acc_operand_const },
         { "const-int-value",      1,  1, acc_const_int_value },
+        { "node-kind",            1,  1, acc_node_kind },
+        { "operand-kind",         1,  1, acc_operand_kind },
+        { "operand-name",         1,  1, acc_operand_name },
+        { "instr-dest",           1,  1, acc_instr_dest },
+        { "instr-set-dest!",      2,  2, acc_instr_set_dest },
+        { "operand-reg-build",    1,  1, acc_operand_reg_build },
+        { "instr-set-operand!",   3,  3, acc_instr_set_operand },
+        { "analysis-put!",        4,  4, acc_analysis_put },
         { "instr-build",          1, -1, acc_instr_build },
         { "instr-replace!",       2,  2, acc_instr_replace },
         { "instr-insert-before!", 2,  2, acc_instr_insert_before },

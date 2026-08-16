@@ -1,23 +1,16 @@
-;;; kernels/gvn.scm
-;;; CCWeave Kernel: global value numbering.
-
 (define-library (ccweave kernel gvn)
-  (import (scheme base)
-          (ccweave glue))
+  (import (scheme base) (ccweave glue))
   (export kernel-info kernel-capabilities kernel-apply)
   (begin
-    (define (kernel-info)
-      '((name        . gvn)
-        (version     . "0.0.0")
-        (description . "Global value numbering; discovers congruent expressions across basic blocks and records equivalences for the host to merge.")))
-
-    (define (kernel-capabilities)
-      '(opt.gvn))
-
-    ;; Glue ABI v1 has no portable channel for value-numbering facts.
-    (define (kernel-apply capability ir options)
-      (unless (eq? capability 'opt.gvn)
-        (error "gvn: unsupported capability" capability))
-      (unless (list? options)
-        (error "gvn: options must be an alist" options))
-      ir)))
+    (define (kernel-info) '((name . gvn) (version . "0.1.0") (description . "Publishes deterministic local value numbers by instruction order.")))
+    (define (kernel-capabilities) '(opt.gvn))
+    (define (kernel-apply cap ir options)
+      (unless (eq? cap 'opt.gvn) (error "gvn: unsupported capability" cap))
+      (let f ((fi 0) (number 0)) (if (>= fi (ir-function-count)) ir
+        (let b ((bi 0) (next number) (fn (ir-function-ref fi)))
+          (if (>= bi (function-block-count fn)) (f (+ fi 1) next)
+            (let i ((ii 0) (value next) (blk (function-block-ref fn bi)))
+              (if (>= ii (block-instr-count blk)) (b (+ bi 1) value fn)
+                (let ((ins (block-instr-ref blk ii)))
+                  (analysis-put! 'opt.gvn ins 'value-number value)
+                  (i (+ ii 1) (+ value 1) blk)))))))))))

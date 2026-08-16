@@ -178,6 +178,35 @@ ccw_status ccw_glue_register(ccw_executor    *ex,
  * host extensions following the same feature-test rule.
  */
 
+/* ---------- Approved extension set: Phases 1-2 ----------
+ *
+ * These optional accessors promote the minimal semantics in
+ * docs/GLUE_EXTENSIONS_DRAFT.md. Kernels MUST feature-test them with
+ * glue-has? before use.
+ *
+ *   General IR
+ *     (node-kind node)                         -> symbol
+ *     (operand-kind operand)                   -> symbol
+ *     (operand-name operand)                   -> string | nil
+ *     (instr-dest instruction)                 -> string | nil
+ *     (instr-set-dest! instruction name)       -> nil
+ *     (operand-reg-build name)                 -> node
+ *     (instr-set-operand! instruction index operand) -> nil
+ *   Analysis facts
+ *     (analysis-put! capability subject key value) -> nil
+ *   Control flow
+ *     (block-succ-count block)                 -> int
+ *     (block-succ-ref block index)             -> node
+ *     (block-pred-count block)                 -> int
+ *     (block-pred-ref block index)             -> node
+ *     (block-delete! block)                     -> nil
+ *     (block-merge! first second)                -> nil
+ *
+ * Analysis facts are host-owned attributes. `value` is one ccw_val scalar
+ * and may be retrieved by host consumers under the namespaced key
+ * `analysis.<capability>.<key>`.
+ */
+
 /* ---------- kernel loading and invocation ---------- */
 
 /* Loads and evaluates a kernel library. Returns kernel id >= 0, or a

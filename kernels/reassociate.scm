@@ -1,23 +1,21 @@
-;;; kernels/reassociate.scm
-;;; CCWeave Kernel: integer expression reassociation.
-
 (define-library (ccweave kernel reassociate)
-  (import (scheme base)
-          (ccweave glue))
+  (import (scheme base) (ccweave glue))
   (export kernel-info kernel-capabilities kernel-apply)
   (begin
-    (define (kernel-info)
-      '((name        . reassociate)
-        (version     . "0.0.0")
-        (description . "Reassociates commutative integer expression trees into canonical rank order to expose constant folding and redundancy elimination.")))
-
-    (define (kernel-capabilities)
-      '(opt.reassociate))
-
-    ;; Def-use ranks needed for safe reassociation are host extensions.
-    (define (kernel-apply capability ir options)
-      (unless (eq? capability 'opt.reassociate)
-        (error "reassociate: unsupported capability" capability))
-      (unless (list? options)
-        (error "reassociate: options must be an alist" options))
-      ir)))
+    (define (kernel-info) '((name . reassociate) (version . "0.1.0") (description . "Canonicalizes commutative integer operands by moving constants right.")))
+    (define (kernel-capabilities) '(opt.reassociate))
+    (define (kernel-apply cap ir options)
+      (unless (eq? cap 'opt.reassociate) (error "reassociate: unsupported capability" cap))
+      (let f ((fi 0)) (when (< fi (ir-function-count))
+        (let b ((bi 0) (fn (ir-function-ref fi))) (when (< bi (function-block-count fn))
+          (let i ((ii 0) (blk (function-block-ref fn bi))) (when (< ii (block-instr-count blk))
+            (let ((ins (block-instr-ref blk ii)))
+              (when (and (memq (instr-opcode ins) '(iadd imul)) (= (instr-operand-count ins) 2))
+                (let ((a (instr-operand ins 0)) (b (instr-operand ins 1)))
+                  (when (and (operand-const? a) (not (operand-const? b)))
+                    (let ((new (instr-build (instr-opcode ins) b a)) (dest (instr-dest ins)))
+                      (when dest (instr-set-dest! new dest)) (instr-replace! ins new)))))
+            (i (+ ii 1) blk)))
+          (b (+ bi 1) fn)))
+        (f (+ fi 1))))
+      ir))))

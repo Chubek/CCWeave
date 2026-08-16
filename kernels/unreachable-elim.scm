@@ -2,9 +2,60 @@
   (import (scheme base) (ccweave glue))
   (export kernel-info kernel-capabilities kernel-apply)
   (begin
-    (define (kernel-info) '((name . unreachable-elim) (version . "0.0.0") (description . "Removes unreachable blocks and instructions.")))
+    (define (kernel-info)
+      '((name . unreachable-elim) (version . "0.1.0")
+        (description . "Removes CFG blocks unreachable from each function entry.")))
     (define (kernel-capabilities) '(opt.unreachable-elim))
+
+    (define (member-node? node nodes) (if (memv node nodes) #t #f))
+
+    (define (blocks-of function)
+      (let loop ((index 0) (result '()) (count (function-block-count function)))
+        (if (>= index count)
+            (reverse result)
+            (loop (+ index 1) (cons (function-block-ref function index) result) count))))
+
+    (define (successors block)
+      (let loop ((index 0) (result '()) (count (block-succ-count block)))
+        (if (>= index count)
+            result
+            (loop (+ index 1) (cons (block-succ-ref block index) result) count))))
+
+    (define (reachable-from entry)
+      (let loop ((work (list entry)) (seen '()))
+        (if (null? work)
+            seen
+            (let ((block (car work)))
+              (if (member-node? block seen)
+                  (loop (cdr work) seen)
+                  (loop (append (cdr work) (successors block))
+                        (cons block seen)))))))
+
+    (define (delete-one! function reachable entry)
+      (let loop ((blocks (blocks-of function)))
+        (if (null? blocks)
+            #f
+            (let ((block (car blocks)))
+              (if (and (not (= block entry))
+                       (not (member-node? block reachable))
+                       (= (block-pred-count block) 0))
+                  (begin (block-delete! block) #t)
+                  (loop (cdr blocks)))))))
+
+    (define (eliminate-function! function)
+      (let ((blocks (blocks-of function)))
+        (unless (null? blocks)
+          (let ((entry (car blocks)) (reachable (reachable-from (car blocks))))
+            (let loop ()
+              (when (delete-one! function reachable entry) (loop)))))))
+
     (define (kernel-apply capability ir options)
-      (unless (eq? capability 'opt.unreachable-elim) (error "unreachable-elim: unsupported capability" capability))
-      (unless (list? options) (error "unreachable-elim: options must be an alist" options))
+      (unless (eq? capability 'opt.unreachable-elim)
+        (error "unreachable-elim: unsupported capability" capability))
+      (unless (and (glue-has? 'block-succ-count) (glue-has? 'block-delete!))
+        (error "unreachable-elim: Phase 3 accessors are unavailable"))
+      (let loop ((index 0) (count (ir-function-count)))
+        (when (< index count)
+          (eliminate-function! (ir-function-ref index))
+          (loop (+ index 1) count)))
       ir)))

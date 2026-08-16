@@ -331,6 +331,18 @@ ccw_status ccw_ir_instr_add_operand(ccw_ir *ir, ccw_node ins, ccw_node operand)
     return CCW_OK;
 }
 
+ccw_status ccw_ir_instr_set_operand(ccw_ir *ir, ccw_node ins, int index,
+                                    ccw_node operand)
+{
+    ccw_ir_node *instruction = ccw_ir_node_get_kind(ir, ins, CCW_NODE_INSTR);
+    ccw_ir_node *new_operand = ccw_ir_node_get_kind(ir, operand, CCW_NODE_OPERAND);
+    if (instruction == NULL || new_operand == NULL ||
+        index < 0 || index >= instruction->children.count)
+        return CCW_ERR_TYPE;
+    instruction->children.items[index] = operand;
+    return CCW_OK;
+}
+
 ccw_status ccw_ir_block_append_instr(ccw_ir *ir, ccw_node blk, ccw_node ins)
 {
     ccw_ir_node *b = ccw_ir_node_get_kind(ir, blk, CCW_NODE_BLOCK);
@@ -464,6 +476,154 @@ ccw_node ccw_ir_block_instr_ref(const ccw_ir *ir, ccw_node blk, int idx)
     ccw_ir_node *n = ccw_ir_node_get_kind(ir, blk, CCW_NODE_BLOCK);
     if (n == NULL || idx < 0 || idx >= n->children.count) return 0;
     return n->children.items[idx];
+}
+
+static ccw_node ccw_ir_block_target(const ccw_ir *ir, ccw_node function,
+                                    const char *name)
+{
+    ccw_ir_node *fn = ccw_ir_node_get_kind(ir, function, CCW_NODE_FUNCTION);
+    if (fn == NULL || name == NULL) return 0;
+    for (int i = 0; i < fn->children.count; i++) {
+        ccw_node block = fn->children.items[i];
+        const char *block_name = ccw_ir_block_name(ir, block);
+        if (block_name != NULL && strcmp(block_name, name) == 0) return block;
+    }
+    return 0;
+}
+
+static int ccw_ir_block_successors(const ccw_ir *ir, ccw_node blk,
+                                   ccw_node *out, int capacity)
+{
+    ccw_ir_node *block = ccw_ir_node_get_kind(ir, blk, CCW_NODE_BLOCK);
+    if (block == NULL || block->children.count == 0) return 0;
+    ccw_ir_node *instruction = NULL;
+    for (int index = block->children.count - 1; index >= 0; index--) {
+        ccw_ir_node *candidate = ccw_ir_node_get_kind(
+            ir, block->children.items[index], CCW_NODE_INSTR);
+        if (candidate == NULL) continue;
+        for (int operand_index = 0; operand_index < candidate->children.count;
+             operand_index++) {
+            if (ccw_ir_operand_kind(ir, candidate->children.items[operand_index]) ==
+                CCW_OPND_BLOCK) {
+                instruction = candidate;
+                break;
+            }
+        }
+        if (instruction != NULL) break;
+    }
+    if (instruction == NULL) return 0;
+    int count = 0;
+    for (int i = 0; i < instruction->children.count; i++) {
+        ccw_node operand = instruction->children.items[i];
+        if (ccw_ir_operand_kind(ir, operand) != CCW_OPND_BLOCK) continue;
+        ccw_node target = ccw_ir_block_target(ir, block->parent,
+                                              ccw_ir_operand_name(ir, operand));
+        if (target == 0) continue;
+        bool duplicate = false;
+        for (int j = 0; j < count; j++)
+            if (out != NULL && j < capacity && out[j] == target) {
+                duplicate = true;
+                break;
+            }
+        if (!duplicate) {
+            if (out != NULL && count < capacity) out[count] = target;
+            count++;
+        }
+    }
+    return count;
+}
+
+int ccw_ir_block_successor_count(const ccw_ir *ir, ccw_node blk)
+{
+    return ccw_ir_block_successors(ir, blk, NULL, 0);
+}
+
+ccw_node ccw_ir_block_successor_ref(const ccw_ir *ir, ccw_node blk, int idx)
+{
+    ccw_node successors[16];
+    int count = ccw_ir_block_successors(
+        ir, blk, successors, (int)(sizeof(successors) / sizeof(successors[0])));
+    return idx >= 0 && idx < count &&
+           idx < (int)(sizeof(successors) / sizeof(successors[0]))
+        ? successors[idx] : 0;
+}
+
+int ccw_ir_block_predecessor_count(const ccw_ir *ir, ccw_node blk)
+{
+    ccw_ir_node *block = ccw_ir_node_get_kind(ir, blk, CCW_NODE_BLOCK);
+    ccw_ir_node *function = block ? ccw_ir_node_get_kind(ir, block->parent, CCW_NODE_FUNCTION)
+                                  : NULL;
+    if (function == NULL) return 0;
+    int count = 0;
+    for (int i = 0; i < function->children.count; i++) {
+        ccw_node candidate = function->children.items[i];
+        for (int j = 0; j < ccw_ir_block_successor_count(ir, candidate); j++)
+            if (ccw_ir_block_successor_ref(ir, candidate, j) == blk) count++;
+    }
+    return count;
+}
+
+ccw_node ccw_ir_block_predecessor_ref(const ccw_ir *ir, ccw_node blk, int idx)
+{
+    ccw_ir_node *block = ccw_ir_node_get_kind(ir, blk, CCW_NODE_BLOCK);
+    ccw_ir_node *function = block ? ccw_ir_node_get_kind(ir, block->parent, CCW_NODE_FUNCTION)
+                                  : NULL;
+    if (function == NULL || idx < 0) return 0;
+    int found = 0;
+    for (int i = 0; i < function->children.count; i++) {
+        ccw_node candidate = function->children.items[i];
+        for (int j = 0; j < ccw_ir_block_successor_count(ir, candidate); j++) {
+            if (ccw_ir_block_successor_ref(ir, candidate, j) == blk && found++ == idx)
+                return candidate;
+        }
+    }
+    return 0;
+}
+
+ccw_status ccw_ir_block_delete(ccw_ir *ir, ccw_node blk)
+{
+    ccw_ir_node *block = ccw_ir_node_get_kind(ir, blk, CCW_NODE_BLOCK);
+    ccw_ir_node *function = block
+        ? ccw_ir_node_get_kind(ir, block->parent, CCW_NODE_FUNCTION) : NULL;
+    if (block == NULL || function == NULL || ccw_ir_block_predecessor_count(ir, blk) != 0)
+        return CCW_ERR_TYPE;
+    int index = ccw_node_vec_index_of(&function->children, blk);
+    if (index < 0) return CCW_ERR_TYPE;
+    for (int i = 0; i < block->children.count; i++) {
+        ccw_ir_node *instruction = ccw_ir_node_get(ir, block->children.items[i]);
+        if (instruction != NULL) {
+            instruction->attached = false;
+            instruction->kind = CCW_NODE_DEAD;
+        }
+    }
+    ccw_node_vec_remove_at(&function->children, index);
+    block->kind = CCW_NODE_DEAD;
+    return CCW_OK;
+}
+
+ccw_status ccw_ir_block_merge(ccw_ir *ir, ccw_node first, ccw_node second)
+{
+    ccw_ir_node *a = ccw_ir_node_get_kind(ir, first, CCW_NODE_BLOCK);
+    ccw_ir_node *b = ccw_ir_node_get_kind(ir, second, CCW_NODE_BLOCK);
+    if (a == NULL || b == NULL || a->parent != b->parent ||
+        ccw_ir_block_successor_count(ir, first) != 1 ||
+        ccw_ir_block_successor_ref(ir, first, 0) != second ||
+        ccw_ir_block_predecessor_count(ir, second) != 1)
+        return CCW_ERR_TYPE;
+    if (a->children.count > 0) {
+        ccw_ir_node *jump = ccw_ir_node_get(ir, a->children.items[a->children.count - 1]);
+        if (jump != NULL) { jump->attached = false; jump->kind = CCW_NODE_DEAD; }
+        a->children.count--;
+    }
+    for (int i = 0; i < b->children.count; i++) {
+        ccw_ir_node *ins = ccw_ir_node_get(ir, b->children.items[i]);
+        if (ins != NULL) ins->parent = first;
+        ccw_node_vec_push(&a->children, b->children.items[i]);
+    }
+    ccw_ir_node *fn = ccw_ir_node_get_kind(ir, a->parent, CCW_NODE_FUNCTION);
+    ccw_node_vec_remove_at(&fn->children, ccw_node_vec_index_of(&fn->children, second));
+    b->kind = CCW_NODE_DEAD;
+    return CCW_OK;
 }
 
 const char *ccw_ir_instr_opcode(const ccw_ir *ir, ccw_node ins)

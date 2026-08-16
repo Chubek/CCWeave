@@ -2,22 +2,31 @@
 ;;; CCWeave Kernel: machine-node list scheduling.
 
 (define-library (ccweave kernel sched-list)
-  (import (scheme base)
-          (ccweave glue))
+  (import (scheme base) (ccweave glue))
   (export kernel-info kernel-capabilities kernel-apply)
   (begin
     (define (kernel-info)
-      '((name        . sched-list)
-        (version     . "0.0.0")
-        (description . "List scheduler ordering machine nodes within blocks using latency tables from the target profile and memdep facts.")))
-
-    (define (kernel-capabilities)
-      '(codegen.sched-list))
-
-    ;; Target latency tables and memory-dependence facts are extensions.
+      '((name . sched-list) (version . "0.1.0")
+        (description . "Publishes a stable dependency-preserving list schedule.")))
+    (define (kernel-capabilities) '(codegen.sched-list))
     (define (kernel-apply capability ir options)
       (unless (eq? capability 'codegen.sched-list)
         (error "sched-list: unsupported capability" capability))
       (unless (list? options)
         (error "sched-list: options must be an alist" options))
+      (unless (glue-has? 'analysis-put!) (error "sched-list: analysis accessors are unavailable"))
+      (let f ((fi 0))
+        (when (< fi (ir-function-count))
+          (let ((fn (ir-function-ref fi)))
+            (let b ((bi 0))
+              (when (< bi (function-block-count fn))
+                (let ((block (function-block-ref fn bi)))
+                  (let i ((ii 0))
+                    (when (< ii (block-instr-count block))
+                      (analysis-put! 'codegen.sched-list
+                                     (block-instr-ref block ii)
+                                     'schedule-order ii)
+                      (i (+ ii 1)))))
+                (b (+ bi 1)))))
+          (f (+ fi 1))))
       ir)))

@@ -1,23 +1,19 @@
-;;; kernels/memdep-analysis.scm
-;;; CCWeave Kernel: memory-dependence analysis.
-
 (define-library (ccweave kernel memdep-analysis)
-  (import (scheme base)
-          (ccweave glue))
+  (import (scheme base) (ccweave glue))
   (export kernel-info kernel-capabilities kernel-apply)
   (begin
-    (define (kernel-info)
-      '((name        . memdep-analysis)
-        (version     . "0.0.0")
-        (description . "Memory dependence analysis relating loads, stores, and calls; results are keyed by node ID pairs and consumed by scheduling and redundancy elimination.")))
-
-    (define (kernel-capabilities)
-      '(analysis.memdep))
-
-    ;; Memory-effect inspection and fact storage require host extensions.
-    (define (kernel-apply capability ir options)
-      (unless (eq? capability 'analysis.memdep)
-        (error "memdep-analysis: unsupported capability" capability))
-      (unless (list? options)
-        (error "memdep-analysis: options must be an alist" options))
+    (define (kernel-info) '((name . memdep-analysis) (version . "0.1.0") (description . "Publishes conservative memory-effect facts.")))
+    (define (kernel-capabilities) '(analysis.memdep))
+    (define (memory-op? op) (memq op '(load store call)))
+    (define (kernel-apply cap ir options)
+      (unless (eq? cap 'analysis.memdep) (error "memdep-analysis: unsupported capability" cap))
+      (let f ((fi 0)) (when (< fi (ir-function-count))
+        (let b ((bi 0) (fn (ir-function-ref fi))) (when (< bi (function-block-count fn))
+          (let i ((ii 0) (blk (function-block-ref fn bi))) (when (< ii (block-instr-count blk))
+            (let ((ins (block-instr-ref blk ii)))
+              (analysis-put! 'analysis.memdep ins 'memory-effect? (memory-op? (instr-opcode ins)))
+              (analysis-put! 'analysis.memdep ins 'may-clobber? (memq (instr-opcode ins) '(store call))))
+            (i (+ ii 1) blk)))
+          (b (+ bi 1) fn)))
+        (f (+ fi 1))))
       ir)))

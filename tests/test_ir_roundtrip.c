@@ -80,6 +80,15 @@ int main(void)
     ccw_tilly_build_reloc(tilly, tblk, "r0", "global_table", 16);
     ccw_tilly_set_link_section(tilly, tfn, ".text.hot");
     ccw_tilly_set_layout(tilly, "dense");
+    ccw_node tnext = ccw_ir_function_block_ref(tilly, tfn, 1);
+    CCW_CHECK(ccw_ir_block_successor_count(tilly, tblk) == 1,
+              "entry block must have one CFG successor");
+    CCW_CHECK(ccw_ir_block_successor_ref(tilly, tblk, 0) == tnext,
+              "entry successor must resolve its block target");
+    CCW_CHECK(ccw_ir_block_predecessor_count(tilly, tnext) == 1,
+              "next block must have one CFG predecessor");
+    CCW_CHECK(ccw_ir_block_predecessor_ref(tilly, tnext, 0) == tblk,
+              "next predecessor must be entry");
     char *err = NULL;
     CCW_CHECK(ccw_ir_validate(tilly, &err) == CCW_OK,
               "tilly module must validate: %s", err ? err : "");
