@@ -4,8 +4,6 @@
 generator: ccw-manifest/0.1
 glue_abi: 1
 capabilities:
-  analysis.module-shape:
-    - kernels/profile-report.scm
   opt.constant-folding:
     - kernels/const-fold.scm
   opt.strength-reduction:

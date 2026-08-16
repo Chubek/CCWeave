@@ -192,9 +192,13 @@ static char *render_kernel_yaml(const kernel_entry *entries, int count)
         sb_add(&s, "    version: %s\n", entries[i].version ? entries[i].version : "");
         sb_add(&s, "    description: %s\n",
                entries[i].description ? entries[i].description : "");
-        sb_add(&s, "    capabilities:\n");
-        for (int j = 0; j < entries[i].cap_count; j++)
-            sb_add(&s, "      - %s\n", entries[i].caps[j]);
+        if (entries[i].cap_count == 0) {
+            sb_add(&s, "    capabilities: []\n");
+        } else {
+            sb_add(&s, "    capabilities:\n");
+            for (int j = 0; j < entries[i].cap_count; j++)
+                sb_add(&s, "      - %s\n", entries[i].caps[j]);
+        }
     }
     return s.buf ? s.buf : dup_str("");
 }

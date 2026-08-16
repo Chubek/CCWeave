@@ -35,7 +35,8 @@ static char *run_once(ccw_oeuph_budget budget, ccw_cost_model model,
                       ccw_oeuph_stats *stats)
 {
     char path[512];
-    snprintf(path, sizeof(path), "%s/strength-reduction.scm", CCW_STDREWRITE_DIR);
+    snprintf(path, sizeof(path), "%s/arith/strength-reduction/rules.scm",
+             CCW_STDREWRITE_DIR);
     char *err = NULL;
     ccw_oeuph_ruleset *rs = ccw_oeuph_ruleset_load(path, &err);
     if (rs == NULL) {
@@ -56,15 +57,16 @@ int main(void)
 {
     /* --- rulesets declare a name and load their rules --- */
     char path[512];
-    snprintf(path, sizeof(path), "%s/arith-identities.scm", CCW_STDREWRITE_DIR);
+    snprintf(path, sizeof(path), "%s/arith/identity/rules.scm",
+             CCW_STDREWRITE_DIR);
     char *err = NULL;
     ccw_oeuph_ruleset *arith = ccw_oeuph_ruleset_load(path, &err);
     CCW_CHECK(arith != NULL, "arith ruleset failed to load: %s", err ? err : "");
     free(err);
     if (arith != NULL) {
-        CCW_CHECK_STREQ(ccw_oeuph_ruleset_name(arith), "arith.identities");
-        CCW_CHECK(ccw_oeuph_ruleset_size(arith) == 6,
-                  "expected 6 rules, got %d", ccw_oeuph_ruleset_size(arith));
+        CCW_CHECK_STREQ(ccw_oeuph_ruleset_name(arith), "arith.identity");
+        CCW_CHECK(ccw_oeuph_ruleset_size(arith) == 18,
+                  "expected 18 rules, got %d", ccw_oeuph_ruleset_size(arith));
         ccw_oeuph_ruleset_destroy(arith);
     }
 

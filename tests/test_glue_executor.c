@@ -74,6 +74,35 @@ static ccw_ir *sample_module(void)
     return m;
 }
 
+/* Constant folding must preserve zero and refuse results outside ccw_val's
+ * signed 64-bit integer boundary. */
+static ccw_ir *constant_module(void)
+{
+    ccw_ir *m = ccw_ir_module_create("constant-sample", CCW_PROFILE_TILLY);
+    ccw_node fn = ccw_ir_function_add(m, "f", CCW_TY_I64);
+    ccw_node blk = ccw_ir_block_add(m, fn, "entry");
+
+    ccw_node zero = ccw_ir_instr_build(m, "isub", CCW_TY_I64);
+    ccw_ir_instr_set_dest(m, zero, "zero");
+    ccw_ir_instr_add_operand(m, zero, ccw_ir_operand_const_int(m, CCW_TY_I64, 7));
+    ccw_ir_instr_add_operand(m, zero, ccw_ir_operand_const_int(m, CCW_TY_I64, 7));
+    ccw_ir_block_append_instr(m, blk, zero);
+
+    ccw_node overflow = ccw_ir_instr_build(m, "iadd", CCW_TY_I64);
+    ccw_ir_instr_set_dest(m, overflow, "overflow");
+    ccw_ir_instr_add_operand(
+        m, overflow, ccw_ir_operand_const_int(m, CCW_TY_I64, INT64_MAX));
+    ccw_ir_instr_add_operand(m, overflow, ccw_ir_operand_const_int(m, CCW_TY_I64, 1));
+    ccw_ir_block_append_instr(m, blk, overflow);
+
+    ccw_node unrelated = ccw_ir_instr_build(m, "icmp.eq", CCW_TY_I1);
+    ccw_ir_instr_set_dest(m, unrelated, "same");
+    ccw_ir_instr_add_operand(m, unrelated, ccw_ir_operand_const_int(m, CCW_TY_I64, 1));
+    ccw_ir_instr_add_operand(m, unrelated, ccw_ir_operand_const_int(m, CCW_TY_I64, 1));
+    ccw_ir_block_append_instr(m, blk, unrelated);
+    return m;
+}
+
 int main(void)
 {
     ccw_executor *ex = ccw_executor_create();
@@ -149,6 +178,56 @@ int main(void)
 
     CCW_CHECK_STREQ(ccw_ir_instr_opcode(m, ccw_ir_block_instr_ref(m, blk, 1)), "imul");
     CCW_CHECK_STREQ(ccw_ir_instr_opcode(m, ccw_ir_block_instr_ref(m, blk, 2)), "imul");
+
+    /* --- constant folding handles zero and the ABI integer boundary --- */
+    char *const_path = path_in(CCW_KERNEL_DIR, "const-fold.scm");
+    err = NULL;
+    int const_id = ccw_kernel_load(ex, const_path, &err);
+    CCW_CHECK(const_id >= 0, "const-fold failed to load: %s", err ? err : "");
+    free(err);
+    free(const_path);
+    if (const_id >= 0) {
+        ccw_ir *cm = constant_module();
+        err = NULL;
+        CCW_CHECK(ccw_kernel_apply(ex, const_id, "opt.constant-folding", cm, NULL, &err)
+                      == CCW_OK,
+                  "const-fold apply failed: %s", err ? err : "");
+        free(err);
+
+        ccw_node cfn = ccw_ir_function_ref(cm, 0);
+        ccw_node cblk = ccw_ir_function_block_ref(cm, cfn, 0);
+        ccw_node folded = ccw_ir_block_instr_ref(cm, cblk, 0);
+        int64_t folded_value = -1;
+        CCW_CHECK_STREQ(ccw_ir_instr_opcode(cm, folded), "imov");
+        CCW_CHECK(ccw_ir_const_int_value(
+                      cm, ccw_ir_instr_operand(cm, folded, 0), &folded_value)
+                      == CCW_OK
+                      && folded_value == 0,
+                  "constant result zero must be folded");
+        CCW_CHECK_STREQ(
+            ccw_ir_instr_opcode(cm, ccw_ir_block_instr_ref(cm, cblk, 1)), "iadd");
+        CCW_CHECK_STREQ(
+            ccw_ir_instr_opcode(cm, ccw_ir_block_instr_ref(cm, cblk, 2)), "icmp.eq");
+        ccw_ir_module_destroy(cm);
+    }
+
+    /* --- reserved kernels do not advertise their former no-op passes --- */
+    char *reserved_path = path_in(CCW_KERNEL_DIR, "dce.scm");
+    err = NULL;
+    int reserved_id = ccw_kernel_load(ex, reserved_path, &err);
+    CCW_CHECK(reserved_id >= 0, "reserved kernel failed to load: %s", err ? err : "");
+    free(err);
+    free(reserved_path);
+    if (reserved_id >= 0) {
+        CCW_CHECK(ccw_kernel_capability_count(ex, reserved_id) == 0,
+                  "reserved kernel must advertise no capabilities");
+        err = NULL;
+        CCW_CHECK(ccw_kernel_apply(
+                      ex, reserved_id, "opt.dead-code-elimination", m, NULL, &err)
+                      == CCW_ERR_NO_CAPABILITY,
+                  "reserved capability must be rejected before dispatch");
+        free(err);
+    }
 
     /* --- accessor arity violation raises in Scheme --- */
     char *arity_path = path_in(CCW_FIXTURE_DIR, "bad-arity-kernel.scm");
