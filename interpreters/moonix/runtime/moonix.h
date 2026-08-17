@@ -8,7 +8,6 @@
 #ifndef MOONIX_H
 #define MOONIX_H
 
-#include "lua.h"
 #include "ccw_ir.h"
 
 #include <stddef.h>
@@ -23,6 +22,29 @@ extern "C" {
 #define MOONIX_BYTECODE_VERSION 1
 
 typedef struct moonix_state moonix_state;
+typedef struct moonix_lua_state lua_State;
+
+#define LUA_MULTRET (-1)
+#define LUA_VERSION_RELEASE "5.5-compatible"
+
+int moonix_lua_gettop(const lua_State *);
+void moonix_lua_settop(lua_State *, int);
+void moonix_lua_pop(lua_State *, int);
+void moonix_lua_getglobal(lua_State *, const char *);
+int moonix_lua_isinteger(const lua_State *, int);
+long long moonix_lua_tointeger(const lua_State *, int);
+int moonix_lua_toboolean(const lua_State *, int);
+const char *moonix_lua_tostring(const lua_State *, int);
+void moonix_lua_insert(lua_State *, int);
+#define lua_gettop moonix_lua_gettop
+#define lua_settop moonix_lua_settop
+#define lua_pop moonix_lua_pop
+#define lua_getglobal moonix_lua_getglobal
+#define lua_isinteger moonix_lua_isinteger
+#define lua_tointeger moonix_lua_tointeger
+#define lua_toboolean moonix_lua_toboolean
+#define lua_tostring moonix_lua_tostring
+#define lua_insert moonix_lua_insert
 
 typedef enum {
     MOONIX_TIER_T0 = 0,
@@ -61,6 +83,8 @@ moonix_state *moonix_newstate(const moonix_options *options);
 void moonix_close(moonix_state *state);
 
 lua_State *moonix_lua_state(moonix_state *state);
+moonix_status moonix_compile(moonix_state *, const char *, size_t,
+                             const char *, moonix_chunk *);
 const char *moonix_last_error(const moonix_state *state);
 const char *moonix_status_string(moonix_status status);
 

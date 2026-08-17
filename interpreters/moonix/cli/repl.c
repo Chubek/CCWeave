@@ -59,11 +59,13 @@ static moonix_status load_expression(moonix_state *state,
                                      size_t source_len)
 {
     static const char prefix[] = "return ";
-    static const char suffix[] = ";";
     const size_t prefix_len = sizeof(prefix) - 1u;
-    const size_t suffix_len = sizeof(suffix) - 1u;
+    const size_t suffix_len = 0u;
     char *expression;
     moonix_status status;
+
+    if (memchr(source, '=', source_len) != NULL)
+        return MOONIX_ERR_SYNTAX;
 
     if (source_len > SIZE_MAX - prefix_len - suffix_len - 1u)
         return MOONIX_ERR_OOM;
@@ -71,7 +73,7 @@ static moonix_status load_expression(moonix_state *state,
     if (expression == NULL) return MOONIX_ERR_OOM;
     memcpy(expression, prefix, prefix_len);
     memcpy(expression + prefix_len, source, source_len);
-    memcpy(expression + prefix_len + source_len, suffix, suffix_len + 1u);
+    expression[prefix_len + source_len] = '\0';
     status = moonix_load_buffer(state, expression,
                                 prefix_len + source_len + suffix_len,
                                 "=stdin");

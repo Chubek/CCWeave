@@ -1,8 +1,6 @@
 #include "moonix.h"
 #include "ccw_test.h"
 
-#include "lua.h"
-
 #include <string.h>
 
 static moonix_state *new_state(moonix_tier tier)

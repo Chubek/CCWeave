@@ -2,7 +2,7 @@ add_executable(test_moonix_runtime test_moonix_runtime.c)
 target_include_directories(test_moonix_runtime PRIVATE
   ${CMAKE_SOURCE_DIR}/tests
   ${CMAKE_SOURCE_DIR}/interpreters/moonix/runtime
-  ${CMAKE_SOURCE_DIR}/third_party/lua)
+  )
 target_link_libraries(test_moonix_runtime PRIVATE moonix_lib)
 add_test(NAME moonix-runtime COMMAND test_moonix_runtime)
 
