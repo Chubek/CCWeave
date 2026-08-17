@@ -14,6 +14,12 @@ test "$output" = "42"
 output=$(printf '%s\n' 'answer = 40' 'answer + 2' | "$moonix")
 test "$output" = "42"
 
+local_warning="${TMPDIR:-/tmp}/moonix-cli-local.err"
+output=$(printf '%s\n' 'local foo = 1' 'foo' | "$moonix" 2>"$local_warning")
+test "$output" = "nil"
+grep -q "locals do not survive across lines in interactive mode" "$local_warning"
+rm -f "$local_warning"
+
 output=$(printf '%s\n' \
   'do' \
   '  local total = 0' \

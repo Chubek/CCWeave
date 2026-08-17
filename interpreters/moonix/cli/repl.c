@@ -41,6 +41,19 @@ static int error_is_incomplete(const moonix_state *state)
                   MOONIX_REPL_EOF_MARKER) == 0;
 }
 
+static void warn_if_ephemeral_local(const char *source)
+{
+    static const char keyword[] = "local";
+    const size_t keyword_len = sizeof(keyword) - 1u;
+
+    source += strspn(source, " \t");
+    if (strncmp(source, keyword, keyword_len) == 0 &&
+        (source[keyword_len] == ' ' || source[keyword_len] == '\t')) {
+        fputs("warning: locals do not survive across lines in interactive mode\n",
+              stderr);
+    }
+}
+
 static moonix_status load_expression(moonix_state *state,
                                      const char *source,
                                      size_t source_len)
@@ -148,6 +161,8 @@ int moonix_repl(moonix_state *state)
                 }
             }
 
+            if (first_line)
+                warn_if_ephemeral_local(source);
             status = moonix_load_buffer(state, source, source_len, "=stdin");
             if (status == MOONIX_ERR_SYNTAX && error_is_incomplete(state)) {
                 first_line = 0;
