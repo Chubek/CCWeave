@@ -16,6 +16,11 @@ cp "$ROOT"/kernels/*.scm "$WORK/kernels/" || fail "cannot stage kernels"
 
 "$TOOL" --root "$WORK" >/dev/null || fail "generation failed"
 "$TOOL" --root "$WORK" --check >/dev/null 2>&1 || fail "--check failed after generation"
+test -f "$WORK/manifests/CephyrProfile.schema.json" ||
+    fail "Cephyr profile schema was not generated"
+grep -q '"title": "Cephyr Profile v1"' \
+    "$WORK/manifests/CephyrProfile.schema.json" ||
+    fail "Cephyr profile schema has the wrong identity"
 if grep -q 'capabilities: \[\]' "$WORK/manifests/Kernel.yaml"; then
     fail "implemented kernels emitted an empty capability set"
 fi
@@ -30,7 +35,14 @@ fi
 "$TOOL" --root "$WORK" >/dev/null || fail "regeneration failed"
 "$TOOL" --root "$WORK" --check >/dev/null 2>&1 || fail "--check failed after regeneration"
 
+# A hand edit to the generated schema must also be detected as drift.
+printf '\n' >> "$WORK/manifests/CephyrProfile.schema.json"
+if "$TOOL" --root "$WORK" --check >/dev/null 2>&1; then
+    fail "--check passed despite a hand-edited Cephyr profile schema"
+fi
+
 # A missing manifest is drift, not a pass.
+"$TOOL" --root "$WORK" >/dev/null || fail "regeneration failed"
 rm -f "$WORK/manifests/Capabilities.yaml"
 if "$TOOL" --root "$WORK" --check >/dev/null 2>&1; then
     fail "--check passed with a missing manifest"

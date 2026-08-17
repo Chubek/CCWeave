@@ -28,8 +28,6 @@ include_paths:
   - include
 defines:
   - TEST_PROFILE
-rewrites:
-  - arith.*
 commands:
   - name: check
     command: "true"

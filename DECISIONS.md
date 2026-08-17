@@ -1,5 +1,15 @@
 # Decisions
 
+## 2026-08-17 — Cephyr profile schema is a generated shared-data-model artifact
+
+`manifests/CephyrProfile.schema.json` uses JSON Schema Draft 2020-12 to
+describe the common object model accepted from `CEPHYR.yaml` and
+`CEPHYR.toml`. It captures driver-level validity constraints in addition to
+field types, including profile version 1, kernel selector exclusivity,
+capability syntax, and the choice between `sched_script` and a non-empty
+explicit kernel/rewrite plan. `ccw-manifest` generates and checks the schema
+alongside the kernel manifests so it is never hand-edited.
+
 ## 2026-08-17 — Moonix v0.1 tier admission uses the available Sched boundary
 
 D-0020 through D-0024 are accepted. Moonix emits versioned bytecode from the

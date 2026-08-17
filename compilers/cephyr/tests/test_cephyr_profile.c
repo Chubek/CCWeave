@@ -42,7 +42,7 @@ static void test_yaml(void)
     assert(profile.library_path_count == 1);
     assert(profile.library_count == 1);
     assert(profile.pic && !profile.pie && !profile.shared);
-    assert(profile.rewrite_count == 1);
+    assert(profile.rewrite_count == 0);
     assert(profile.command_count == 1);
     assert(strcmp(profile.sched_script,
                   "compilers/cephyr/sched/O1.lua") == 0);
