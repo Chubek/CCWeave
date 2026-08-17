@@ -40,6 +40,12 @@ target_link_libraries(test_oeuph PRIVATE ccw_oeuph)
 target_compile_definitions(test_oeuph PRIVATE
   CCW_STDREWRITE_DIR="${CMAKE_SOURCE_DIR}/stdrewrite")
 
+ccw_add_test(test_sched test_sched.c)
+target_link_libraries(test_sched PRIVATE ccw_sched)
+target_compile_definitions(test_sched PRIVATE
+  CCW_MANIFEST_DIR="${CMAKE_SOURCE_DIR}/manifests"
+  CCW_SCHED_FIXTURE="${CMAKE_CURRENT_SOURCE_DIR}/fixtures/sched-basic.lua")
+
 ccw_add_test(test_kliche_swaff test_kliche_swaff.c)
 target_link_libraries(test_kliche_swaff PRIVATE ccw_kliche ccw_swaff)
 

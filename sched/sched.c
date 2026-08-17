@@ -1,0 +1,241 @@
+#define _POSIX_C_SOURCE 200809L
+#include "sched.h"
+#include <ctype.h>
+#include <limits.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+enum { NODE_KERNEL = 1, NODE_REWRITE = 2, NODE_BARRIER = 3 };
+typedef struct { char *name, *path; char **caps; size_t nc, cc; } kernel;
+typedef struct { char *name; } ruleset;
+typedef struct { unsigned id, kind; char *name; char **members; size_t nm; } node;
+typedef struct { unsigned from, to; } edge;
+struct ccw_sched { char *name, *manifest_dir; kernel *kernels; size_t nk, ck; ruleset *rules; size_t nr, cr; node *nodes; size_t nn, cn; edge *edges; size_t ne, ce; int sealed; };
+struct ccw_plan { char *text; };
+
+static void fail(ccw_sched_error *e, int code, const char *message) {
+  if (e) { e->code = code; snprintf(e->message, sizeof(e->message), "%s", message); }
+}
+static char *xstrdup(const char *s) { return s ? strdup(s) : NULL; }
+static int reserve(void **p, size_t *capacity, size_t need, size_t item_size) {
+  size_t n; void *q;
+  if (need <= *capacity) return 1;
+  n = *capacity ? *capacity * 2 : 16; while (n < need) n *= 2;
+  q = realloc(*p, n * item_size); if (!q) return 0; *p = q; *capacity = n; return 1;
+}
+static char *strip(char *s) {
+  char *end;
+  while (isspace((unsigned char)*s)) ++s;
+  end = s + strlen(s); while (end > s && isspace((unsigned char)end[-1])) --end; *end = '\0';
+  return s;
+}
+static int clean_scalar(const char *s) {
+  return s && *s && !strchr(s, '\n') && !strchr(s, '\r') && !strchr(s, ',');
+}
+static int add_cap(kernel *k, const char *cap) {
+  if (!reserve((void **)&k->caps, &k->cc, k->nc + 1, sizeof(*k->caps))) return 0;
+  k->caps[k->nc++] = xstrdup(cap); return k->caps[k->nc - 1] != NULL;
+}
+static int finish_kernel(ccw_sched *s, kernel *pending) {
+  if (!pending->name) return 1;
+  if (!pending->path || !clean_scalar(pending->name)) return 0;
+  if (!reserve((void **)&s->kernels, &s->ck, s->nk + 1, sizeof(*s->kernels))) return 0;
+  s->kernels[s->nk++] = *pending; memset(pending, 0, sizeof(*pending)); return 1;
+}
+static int load_kernels(ccw_sched *s, ccw_sched_error *e) {
+  char file[1024], line[2048]; FILE *f; kernel current = {0}; int in_caps = 0;
+  snprintf(file, sizeof(file), "%s/Kernel.yaml", s->manifest_dir);
+  f = fopen(file, "r"); if (!f) { fail(e, 2, "cannot read Kernel.yaml"); return 0; }
+  while (fgets(line, sizeof(line), f)) {
+    char *p = strip(line);
+    if (!strncmp(p, "- path:", 7)) {
+      if (!finish_kernel(s, &current)) goto bad;
+      current.path = xstrdup(strip(p + 7)); in_caps = 0;
+    } else if (current.path && !strncmp(p, "name:", 5)) current.name = xstrdup(strip(p + 5));
+    else if (current.path && !strcmp(p, "capabilities:")) in_caps = 1;
+    else if (in_caps && !strncmp(p, "- ", 2)) { if (!add_cap(&current, strip(p + 2))) goto bad; }
+    else if (*p && p[0] != '#') in_caps = 0;
+  }
+  if (!finish_kernel(s, &current)) goto bad;
+  fclose(f); if (!s->nk) { fail(e, 2, "Kernel.yaml has no kernels"); return 0; } return 1;
+bad:
+  fclose(f); free(current.name); free(current.path); for (size_t i = 0; i < current.nc; ++i) free(current.caps[i]); free(current.caps);
+  fail(e, 2, "malformed Kernel.yaml"); return 0;
+}
+static int load_rules(ccw_sched *s, ccw_sched_error *e) {
+  char file[1024], line[2048]; FILE *f; char *name = NULL;
+  snprintf(file, sizeof(file), "%s/Stdrewrite.yaml", s->manifest_dir);
+  f = fopen(file, "r"); if (!f) { fail(e, 2, "cannot read Stdrewrite.yaml"); return 0; }
+  while (fgets(line, sizeof(line), f)) {
+    char *p = strip(line);
+    if (!strncmp(p, "- path:", 7)) { free(name); name = NULL; }
+    else if (!strncmp(p, "name:", 5)) {
+      name = xstrdup(strip(p + 5)); if (!name || !clean_scalar(name) || !reserve((void **)&s->rules, &s->cr, s->nr + 1, sizeof(*s->rules))) goto bad;
+      s->rules[s->nr++].name = name; name = NULL;
+    }
+  }
+  free(name); fclose(f); return s->nr != 0;
+bad: free(name); fclose(f); fail(e, 2, "malformed Stdrewrite.yaml"); return 0;
+}
+static int has_cap(const kernel *k, const char *cap) {
+  for (size_t i = 0; i < k->nc; ++i) if (!strcmp(k->caps[i], cap)) return 1;
+  return 0;
+}
+static int wildcard(const char *pattern, const char *text) {
+  if (!*pattern) return !*text;
+  if (*pattern == '*') return wildcard(pattern + 1, text) || (*text && wildcard(pattern, text + 1));
+  return *text && *pattern == *text && wildcard(pattern + 1, text + 1);
+}
+static int can_mutate(ccw_sched *s, ccw_sched_error *e) {
+  if (!s || s->sealed) { fail(e, 3, "scheduler is sealed"); return 0; } return 1;
+}
+static int add_edge_raw(ccw_sched *s, unsigned from, unsigned to) {
+  for (size_t i = 0; i < s->ne; ++i) if (s->edges[i].from == from && s->edges[i].to == to) return 1;
+  if (!reserve((void **)&s->edges, &s->ce, s->ne + 1, sizeof(*s->edges))) return 0;
+  s->edges[s->ne++] = (edge){from, to}; return 1;
+}
+static int add_node(ccw_sched *s, unsigned kind, const char *name, char **members, size_t nm, uint32_t *out, ccw_sched_error *e) {
+  node *n;
+  if (!can_mutate(s, e) || !clean_scalar(name) || !reserve((void **)&s->nodes, &s->cn, s->nn + 1, sizeof(*s->nodes))) { fail(e, 1, "out of memory or invalid node name"); return 0; }
+  n = &s->nodes[s->nn]; memset(n, 0, sizeof(*n)); n->id = (unsigned)s->nn + 1; n->kind = kind; n->name = xstrdup(name); n->members = members; n->nm = nm;
+  if (!n->name) { fail(e, 1, "out of memory"); return 0; }
+  if (kind != NODE_BARRIER) for (size_t i = 0; i < s->nn; ++i) if (s->nodes[i].kind == NODE_BARRIER && !add_edge_raw(s, s->nodes[i].id, n->id)) { fail(e, 1, "out of memory"); return 0; }
+  ++s->nn; *out = n->id; return 1;
+}
+static char **copy_strings(char **items, size_t n) {
+  char **copy = calloc(n ? n : 1, sizeof(*copy));
+  if (!copy) return NULL;
+  for (size_t i = 0; i < n; ++i) {
+    copy[i] = xstrdup(items[i]);
+    if (!copy[i]) { while (i) free(copy[--i]); free(copy); return NULL; }
+  }
+  return copy;
+}
+
+ccw_sched *ccw_sched_new(const char *name, const char *manifest_dir, ccw_sched_error *e) {
+  ccw_sched *s;
+  if (!clean_scalar(name)) { fail(e, 1, "invalid pipeline name"); return NULL; }
+  s = calloc(1, sizeof(*s)); if (!s) { fail(e, 1, "out of memory"); return NULL; }
+  s->name = xstrdup(name); s->manifest_dir = xstrdup(manifest_dir ? manifest_dir : "manifests");
+  if (!s->name || !s->manifest_dir || !load_kernels(s, e) || !load_rules(s, e)) { ccw_sched_free(s); return NULL; }
+  return s;
+}
+void ccw_sched_free(ccw_sched *s) {
+  if (!s) return;
+  for (size_t i=0;i<s->nk;i++) { free(s->kernels[i].name); free(s->kernels[i].path); for(size_t j=0;j<s->kernels[i].nc;j++) free(s->kernels[i].caps[j]); free(s->kernels[i].caps); }
+  for (size_t i=0;i<s->nr;i++) free(s->rules[i].name);
+  for (size_t i=0;i<s->nn;i++) { free(s->nodes[i].name); for(size_t j=0;j<s->nodes[i].nm;j++) free(s->nodes[i].members[j]); free(s->nodes[i].members); }
+  free(s->kernels); free(s->rules); free(s->nodes); free(s->edges); free(s->name); free(s->manifest_dir); free(s);
+}
+int ccw_sched_require_kernel(ccw_sched *s, const char *name, uint32_t *out, ccw_sched_error *e) {
+  if (!s || !name || !out) { fail(e, 1, "invalid require"); return 0; }
+  for (size_t i=0;i<s->nk;i++) if (!strcmp(s->kernels[i].name,name)) {
+    char **caps = copy_strings(s->kernels[i].caps, s->kernels[i].nc);
+    if (!caps) { fail(e,1,"out of memory"); return 0; }
+    return add_node(s,NODE_KERNEL,name,caps,s->kernels[i].nc,out,e);
+  }
+  fail(e, 4, "kernel is absent from Kernel.yaml"); return 0;
+}
+int ccw_sched_require_capability(ccw_sched *s, const char *cap, const char *prefer, uint32_t *out, ccw_sched_error *e) {
+  const kernel *match = NULL; size_t found = 0;
+  if (!s || !cap || !out) { fail(e, 1, "invalid capability query"); return 0; }
+  for(size_t i=0;i<s->nk;i++) if(has_cap(&s->kernels[i],cap)) { if(prefer && !strcmp(prefer,s->kernels[i].name)) match=&s->kernels[i]; ++found; if(!match)match=&s->kernels[i]; }
+  if (!found) { fail(e,4,"capability is absent from Kernel.yaml"); return 0; }
+  if (prefer && (!match || strcmp(match->name,prefer))) { fail(e,4,"preferred kernel does not provide capability"); return 0; }
+  if (!prefer && found != 1) { fail(e,4,"capability is ambiguous; supply prefer"); return 0; }
+  {
+    char **caps = copy_strings(match->caps, match->nc);
+    if (!caps) { fail(e,1,"out of memory"); return 0; }
+    return add_node(s,NODE_KERNEL,match->name,caps,match->nc,out,e);
+  }
+}
+int ccw_sched_probe_capability(ccw_sched *s,const char *cap,const char *prefer,uint32_t *out) { ccw_sched_error e; return ccw_sched_require_capability(s,cap,prefer,out,&e); }
+int ccw_sched_rewrite(ccw_sched *s,const char *pattern,uint32_t *out,ccw_sched_error *e) {
+  char **members=NULL; size_t n=0,cap=0;
+  if(!s||!pattern||!out||!can_mutate(s,e)){free(members);return 0;}
+  for(size_t i=0;i<s->nr;i++) if(wildcard(pattern,s->rules[i].name)) { if(!reserve((void**)&members,&cap,n+1,sizeof(*members))){fail(e,1,"out of memory");goto no;} members[n++]=xstrdup(s->rules[i].name); }
+  if(!n){fail(e,4,"rewrite pattern matched no rulesets");goto no;}
+  if(!add_node(s,NODE_REWRITE,pattern,members,n,out,e)) goto no;
+  return 1;
+no: for(size_t i=0;i<n;i++)free(members[i]);free(members);return 0;
+}
+int ccw_sched_edge(ccw_sched *s,uint32_t a,uint32_t b,ccw_sched_error *e) {
+  if(!can_mutate(s,e)||!a||!b||a>s->nn||b>s->nn){fail(e,5,"edge references a node outside this plan");return 0;}
+  if(!add_edge_raw(s,a,b)){fail(e,1,"out of memory");return 0;}return 1;
+}
+int ccw_sched_barrier(ccw_sched *s,const char *label,uint32_t *out,ccw_sched_error *e) {
+  unsigned id; if(!add_node(s,NODE_BARRIER,label?label:"barrier",NULL,0,out,e))return 0; id=*out;
+  for(unsigned i=1;i<id;i++) {
+    if(!add_edge_raw(s,i,id)) { fail(e,1,"out of memory"); return 0; }
+  }
+  return 1;
+}
+static int acyclic(const ccw_sched *s) {
+  unsigned *in=calloc(s->nn,sizeof(*in)), seen=0; if(!in)return 0;
+  for(size_t i=0;i<s->ne;i++)++in[s->edges[i].to-1];
+  for(;;){unsigned id=0;for(size_t i=0;i<s->nn;i++)if(in[i]==0){id=(unsigned)i+1;in[i]=UINT_MAX;break;}if(!id)break;++seen;for(size_t j=0;j<s->ne;j++)if(s->edges[j].from==id&&in[s->edges[j].to-1]!=UINT_MAX)--in[s->edges[j].to-1];}
+  free(in);return seen==s->nn;
+}
+int ccw_sched_seal(ccw_sched *s,ccw_plan **out,ccw_sched_error *e) {
+  size_t z=128,o; char *t; int useful=0;
+  if(!can_mutate(s,e)||!out) return 0;
+  for(size_t i=0;i<s->nn;i++) if(s->nodes[i].kind!=NODE_BARRIER) useful=1;
+  if(!useful||!acyclic(s)){fail(e,6,useful?"plan contains a cycle":"plan contains no work nodes");return 0;}
+  for(size_t i=0;i<s->nn;i++){z+=strlen(s->nodes[i].name)+32;for(size_t j=0;j<s->nodes[i].nm;j++)z+=strlen(s->nodes[i].members[j])+1;}z+=s->ne*32;
+  t=malloc(z);if(!t){fail(e,1,"out of memory");return 0;}o=(size_t)snprintf(t,z,"CCW-SCHED-PLAN 1\nname %s\n",s->name);
+  for(size_t i=0;i<s->nn;i++){node*n=&s->nodes[i];o+=(size_t)snprintf(t+o,z-o,"node %u %u %s",n->id,n->kind,n->name);for(size_t j=0;j<n->nm;j++)o+=(size_t)snprintf(t+o,z-o," %s",n->members[j]);o+=(size_t)snprintf(t+o,z-o,"\n");}
+  for(size_t i=0;i<s->ne;i++)o+=(size_t)snprintf(t+o,z-o,"edge %u %u\n",s->edges[i].from,s->edges[i].to);
+  *out=malloc(sizeof(**out));if(!*out){free(t);fail(e,1,"out of memory");return 0;}(*out)->text=t;s->sealed=1;return 1;
+}
+void ccw_plan_free(ccw_plan *p){if(p){free(p->text);free(p);}}
+const char *ccw_plan_text(const ccw_plan *p){return p?p->text:"";}
+ccw_plan *ccw_plan_from_text(const char *text){ccw_plan*p=malloc(sizeof(*p));if(p)p->text=xstrdup(text?text:"");return p;}
+int ccw_plan_write(const ccw_plan*p,const char*path,ccw_sched_error*e){FILE*f;if(!p||!path){fail(e,1,"invalid plan path");return 0;}f=fopen(path,"wb");if(!f){fail(e,7,"cannot write plan");return 0;}if(fputs(p->text,f)<0||fclose(f)){fail(e,7,"cannot write plan");return 0;}return 1;}
+/* SHA-256 keeps release-pinned plan hashes portable without a host dependency. */
+static unsigned rotr(unsigned x, unsigned n) { return (x >> n) | (x << (32 - n)); }
+static void sha256_block(unsigned state[8], const unsigned char block[64]) {
+  static const unsigned k[64]={0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2}; unsigned w[64],a,b,c,d,e,f,g,h,t1,t2;
+  for(unsigned i=0;i<16;i++)w[i]=((unsigned)block[i*4]<<24)|((unsigned)block[i*4+1]<<16)|((unsigned)block[i*4+2]<<8)|block[i*4+3];
+  for(unsigned i=16;i<64;i++){unsigned s0=rotr(w[i-15],7)^rotr(w[i-15],18)^(w[i-15]>>3),s1=rotr(w[i-2],17)^rotr(w[i-2],19)^(w[i-2]>>10);w[i]=w[i-16]+s0+w[i-7]+s1;}
+  a=state[0];b=state[1];c=state[2];d=state[3];e=state[4];f=state[5];g=state[6];h=state[7];
+  for(unsigned i=0;i<64;i++){unsigned s1=rotr(e,6)^rotr(e,11)^rotr(e,25),ch=(e&f)^((~e)&g),s0=rotr(a,2)^rotr(a,13)^rotr(a,22),maj=(a&b)^(a&c)^(b&c);t1=h+s1+ch+k[i]+w[i];t2=s0+maj;h=g;g=f;f=e;e=d+t1;d=c;c=b;b=a;a=t1+t2;}
+  state[0]+=a;state[1]+=b;state[2]+=c;state[3]+=d;state[4]+=e;state[5]+=f;state[6]+=g;state[7]+=h;
+}
+int ccw_plan_hash(const ccw_plan*p,char out[65]) {
+  unsigned state[8]={0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19};unsigned char block[64];size_t n,full,i;uint64_t bits;
+  if(!p||!out) return 0;
+  n=strlen(p->text); full=n/64;
+  for(i=0;i<full;i++) sha256_block(state,(const unsigned char*)p->text+i*64);
+  n-=full*64; memset(block,0,sizeof(block)); memcpy(block,p->text+full*64,n); block[n]=0x80;
+  if(n>=56){sha256_block(state,block);memset(block,0,sizeof(block));}
+  bits=(uint64_t)strlen(p->text)*8;
+  for(i=0;i<8;i++) block[63-i]=(unsigned char)(bits>>(i*8));
+  sha256_block(state,block);
+  for(i=0;i<8;i++) sprintf(out+i*8,"%08x",state[i]);
+  out[64]=0; return 1;
+}
+int ccw_plan_check(const char *path,const char *dir,ccw_sched_error *e) {
+  FILE*f;char line[4096];ccw_sched*s;int ok=1;
+  f=fopen(path,"r");if(!f){fail(e,7,"cannot read plan");return 0;}if(!fgets(line,sizeof line,f)||strcmp(line,"CCW-SCHED-PLAN 1\n")){fclose(f);fail(e,8,"invalid plan header");return 0;}
+  s=ccw_sched_new("check",dir,e);if(!s){fclose(f);return 0;}
+  while(fgets(line,sizeof line,f)) {
+    char kind[16], name[2048]; unsigned id,type;
+    if (sscanf(line,"node %u %u %2047s",&id,&type,name)==3) {
+      char *members = strstr(line, name); size_t index;
+      if (!members) { ok = 0; continue; }
+      members += strlen(name);
+      if(type==NODE_KERNEL) {
+        for(index=0;index<s->nk&&strcmp(s->kernels[index].name,name);index++);
+        if(index==s->nk) ok=0;
+        while(ok && *members) { char cap[512]; if(sscanf(members," %511s",cap)!=1)break; if(!has_cap(&s->kernels[index],cap))ok=0; members=strchr(members+1,' '); if(!members)break; }
+      } else if(type==NODE_REWRITE) {
+        while(ok && *members) { char rule[512]; size_t r; if(sscanf(members," %511s",rule)!=1)break; for(r=0;r<s->nr&&strcmp(s->rules[r].name,rule);r++);if(r==s->nr)ok=0;members=strchr(members+1,' ');if(!members)break; }
+      } else if(type!=NODE_BARRIER) ok=0;
+    } else if (sscanf(line, "%15s", kind) != 1 ||
+               (strcmp(kind, "name") && strcmp(kind, "edge"))) {
+      ok = 0;
+    }
+  }
+  fclose(f);ccw_sched_free(s);if(!ok)fail(e,8,"plan is invalidated by manifest drift");return ok;
+}

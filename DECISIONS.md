@@ -1,5 +1,14 @@
 # Decisions
 
+## 2026-08-17 — Sched v0.1 open items
+
+D-0016 is accepted: Lua 5.5 is Sched's sole scripting surface. D-0017 is
+accepted: plan artifacts record their selected kernel and ruleset names and
+are re-validated against current manifests; they are never silently
+re-resolved. D-0018 is accepted: scripts own analysis-to-consumer dependency
+edges in v0.1. The planner intentionally has no IR access or inferred
+semantic dependencies.
+
 ## 2026-08-17 — Initial OCaml frontend subset
 
 The OCaml Swaff adapter lowers the source forms that have an unambiguous
