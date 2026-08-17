@@ -4,7 +4,7 @@
 generator: ccw-manifest/0.1
 glue_abi: 1
 rule_format: 1
-total_rules: 293
+total_rules: 307
 rulesets:
   - path: stdrewrite/arith/identity/
     name: arith.identity
@@ -89,6 +89,13 @@ rulesets:
     semantics: equivalence
     side_conditions: true
     rules: 10
+    profiles: [core]
+  - path: stdrewrite/power/
+    name: power.consumption
+    description: Low-toggle bitwise identities and small integer strength reductions for lower-work implementations.
+    semantics: equivalence
+    side_conditions: false
+    rules: 14
     profiles: [core]
   - path: stdrewrite/cmp/canonical/
     name: cmp.canonical

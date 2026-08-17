@@ -31,12 +31,13 @@ static ccw_ir *sample(void)
     return m;
 }
 
-static char *run_once(ccw_oeuph_budget budget, ccw_cost_model model,
+static char *run_once(const char *ruleset_dir, ccw_oeuph_budget budget,
+                      ccw_cost_model model,
                       ccw_oeuph_stats *stats)
 {
     char path[512];
-    snprintf(path, sizeof(path), "%s/arith/strength-reduction/rules.scm",
-             CCW_STDREWRITE_DIR);
+    snprintf(path, sizeof(path), "%s/%s/rules.scm",
+             CCW_STDREWRITE_DIR, ruleset_dir);
     char *err = NULL;
     ccw_oeuph_ruleset *rs = ccw_oeuph_ruleset_load(path, &err);
     if (rs == NULL) {
@@ -70,11 +71,26 @@ int main(void)
         ccw_oeuph_ruleset_destroy(arith);
     }
 
+    /* --- power-oriented rules are a loadable, named ruleset --- */
+    snprintf(path, sizeof(path), "%s/power/rules.scm", CCW_STDREWRITE_DIR);
+    err = NULL;
+    ccw_oeuph_ruleset *power = ccw_oeuph_ruleset_load(path, &err);
+    CCW_CHECK(power != NULL, "power ruleset failed to load: %s", err ? err : "");
+    free(err);
+    if (power != NULL) {
+        CCW_CHECK_STREQ(ccw_oeuph_ruleset_name(power), "power.consumption");
+        CCW_CHECK(ccw_oeuph_ruleset_size(power) == 14,
+                  "expected 14 power rules, got %d", ccw_oeuph_ruleset_size(power));
+        ccw_oeuph_ruleset_destroy(power);
+    }
+
     /* --- determinism: same seed + budget => byte-identical extraction --- */
     ccw_oeuph_budget budget = ccw_oeuph_default_budget();
     ccw_oeuph_stats s1, s2;
-    char *a = run_once(budget, CCW_COST_PERFORMANCE, &s1);
-    char *b = run_once(budget, CCW_COST_PERFORMANCE, &s2);
+    char *a = run_once("arith/strength-reduction", budget,
+                       CCW_COST_PERFORMANCE, &s1);
+    char *b = run_once("arith/strength-reduction", budget,
+                       CCW_COST_PERFORMANCE, &s2);
     CCW_CHECK(a != NULL && b != NULL && strcmp(a, b) == 0,
               "extraction must be reproducible across runs");
 
@@ -91,11 +107,21 @@ int main(void)
     free(a);
     free(b);
 
+    /* --- power rules perform the same low-work extraction --- */
+    ccw_oeuph_stats power_stats;
+    char *power_text = run_once("power", budget, CCW_COST_PERFORMANCE,
+                                &power_stats);
+    CCW_CHECK(power_text != NULL && strstr(power_text, "shl") != NULL,
+              "power rules must prefer a shift for imul by eight");
+    CCW_CHECK_STREQ(power_stats.ruleset, "power.consumption");
+    free(power_text);
+
     /* --- budgets halt saturation --- */
     ccw_oeuph_budget tiny = ccw_oeuph_default_budget();
     tiny.max_iterations = 1;
     ccw_oeuph_stats s3;
-    char *c = run_once(tiny, CCW_COST_PERFORMANCE, &s3);
+    char *c = run_once("arith/strength-reduction", tiny,
+                       CCW_COST_PERFORMANCE, &s3);
     CCW_CHECK(!s3.saturated, "a one-iteration budget must stop saturation");
     CCW_CHECK_STREQ(s3.budget_hit, "iterations");
     free(c);
@@ -103,14 +129,16 @@ int main(void)
     ccw_oeuph_budget narrow = ccw_oeuph_default_budget();
     narrow.max_nodes = 2;
     ccw_oeuph_stats s4;
-    char *d = run_once(narrow, CCW_COST_PERFORMANCE, &s4);
+    char *d = run_once("arith/strength-reduction", narrow,
+                       CCW_COST_PERFORMANCE, &s4);
     CCW_CHECK(!s4.saturated, "a two-node budget must stop saturation");
     CCW_CHECK_STREQ(s4.budget_hit, "nodes");
     free(d);
 
     /* --- normalization uses the same rules, a different cost model --- */
     ccw_oeuph_stats s5;
-    char *e = run_once(budget, CCW_COST_CANONICAL, &s5);
+    char *e = run_once("arith/strength-reduction", budget,
+                       CCW_COST_CANONICAL, &s5);
     CCW_CHECK(e != NULL, "normalization run failed");
     free(e);
 
