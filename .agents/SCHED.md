@@ -1,6 +1,6 @@
 # Sched Subsystem Overview
 
-This document specifies the Sched subsystem, implemented in the `sched` directory. The job of Sched is to provide a *scheduler* and *orchestrator* for mixing kernels (under `kernels`) and rewriters (under `stdrewrite`) using Lua (provided under `third_party/lua`), using a DAG. Using the Sched subsystem, compilers and interpreters can create DAGs made up of kernels and rewriters, and make use of them.
+This document specifies the Sched subsystem, implemented in the `sched` directory. The job of Sched is to provide a *scheduler* and *orchestrator* for mixing kernels (under `kernels`) and rewriters (under `stdrewrite`) using Lua 5.5 (provided under `third_party/lua`), using a DAG. Using the Sched subsystem, compilers and interpreters can create DAGs made up of kernels and rewriters, and make use of them.
 
 The Sched subsystem can optionally *probe* kernels and rewriters for capabilities and features, so it can create the DAG based on the feature and/or capability instead of hard-wiring specific kernels/rewriters.
 
@@ -8,7 +8,7 @@ This document is **normative**. Key words MUST, MUST NOT, SHOULD, and MAY are to
 
 ## 1. Position in the stack
 
-Sched is **host-side** code (C11, same conformance rules as the Cephyr host per `AGENTS.md`) embedding **Lua 5.4**. Sched itself never touches IR:
+Sched is **host-side** code (C11, same conformance rules as the Cephyr host per `AGENTS.md`) embedding **Lua 5.5**. Sched itself never touches IR:
 
 - Kernels remain R7RS Scheme libraries invoked through the GlueSTD ABI v1. All IR crosses the boundary as `uint64_t` node IDs (0 = nil), and all structural mutation remains builder-based (`instr-build`, `instr-replace!`, ...).
 - Rewriters remain Stdrewrite rulesets, subject to the equivalence-only rule (D-0007).
@@ -29,13 +29,13 @@ A Sched script therefore cannot violate IR invariants; the worst a malformed scr
 ```
 sched/
   sched.c  sched.h        -- planner core, DAG validation, plan serialization
-  sched_lua.c             -- Lua 5.4 embedding and the `sched` table
+  sched_lua.c             -- Lua 5.5 embedding and the `sched` table
   sched_probe.c           -- manifest-backed probing
   plans/                  -- serialized plans (generated; ignored per .gitignore)
 ```
 ## 4. The Lua environment
 
-Scripts run in a **sandboxed** Lua 5.4 state:
+Scripts run in a **sandboxed** Lua 5.5 state:
 
 - Lua is provided under `third_party/lua`. It must be added to the build machinery.
 - Available: base library minus `dofile`/`loadfile`/`load`, plus `string`, `table`, `math` (with `math.random` removed).
@@ -65,7 +65,7 @@ All resolution is performed **exclusively** against the generated manifests (`Ke
 
 Nodes with no path between them are **unordered**, and the host MAY run them concurrently. Two unordered nodes that both mutate IR are legal — the ABI's host-interposition point serializes builder transactions — but a plan checker SHOULD warn when unordered mutating nodes share a capability domain.
 
-### 5.4 Sealing
+### 5.5 Sealing
 
 - `S:seal()` — validates and freezes the plan; the script MUST return its result. After sealing, all mutating methods on `S` error. Validation enforces: acyclicity, all edges refer to nodes of this plan, at least one non-barrier node, and no dangling probe handles (a `nil` from `probe` passed to `edge` is an error at the `edge` call, not at seal time).
 
@@ -120,7 +120,7 @@ return S:seal()
 
 ## 9. Open items / candidate decisions
 
-- **D-0016 (proposed)** — Lua 5.4 as the sole scripting surface for Sched; no alternative frontends.
+- **D-0016 (proposed)** — Lua 5.5 as the sole scripting surface for Sched; no alternative frontends.
 - **D-0017 (proposed)** — plans are re-validated, never re-resolved: manifest drift invalidates a sealed plan.
 - **D-0018 (proposed)** — dependence edges between analyses and their consumers (e.g. `analysis.escape` → `mem2reg`) are the script author's responsibility in v0.1. If `Capabilities.yaml` gains a `requires:` field, `seal()` SHOULD auto-insert these edges and this section will be revised.
 `
