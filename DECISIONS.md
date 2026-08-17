@@ -1,5 +1,13 @@
 # Decisions
 
+## 2026-08-17 — Sched lookup indexes use klib khash
+
+Sched uses the pinned `third_party/klib/khash.h` implementation for manifest
+name/capability/ruleset indexes and duplicate-edge detection.  The plan
+artifact hash remains SHA-256 because `khash` is a hash-table implementation,
+not a cryptographic digest, and the scheduler specification requires a
+portable 256-bit plan hash.
+
 ## 2026-08-17 — Sched v0.1 open items
 
 D-0016 is accepted: Lua 5.5 is Sched's sole scripting surface. D-0017 is

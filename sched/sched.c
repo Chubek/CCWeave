@@ -1,5 +1,6 @@
 #define _POSIX_C_SOURCE 200809L
 #include "sched.h"
+#include "khash.h"
 #include <ctype.h>
 #include <limits.h>
 #include <stdio.h>
@@ -11,7 +12,26 @@ typedef struct { char *name, *path; char **caps; size_t nc, cc; } kernel;
 typedef struct { char *name; } ruleset;
 typedef struct { unsigned id, kind; char *name; char **members; size_t nm; } node;
 typedef struct { unsigned from, to; } edge;
-struct ccw_sched { char *name, *manifest_dir; kernel *kernels; size_t nk, ck; ruleset *rules; size_t nr, cr; node *nodes; size_t nn, cn; edge *edges; size_t ne, ce; int sealed; };
+typedef struct { size_t *items, n, c; } kernel_matches;
+
+/* SCHED §5.2: indexes accelerate manifest resolution; arrays preserve order. */
+KHASH_MAP_INIT_STR(sched_kernel_by_name, size_t)
+KHASH_MAP_INIT_STR(sched_capability_index, kernel_matches)
+KHASH_MAP_INIT_STR(sched_ruleset_by_name, size_t)
+KHASH_MAP_INIT_INT64(sched_edge_set, char)
+
+struct ccw_sched {
+  char *name, *manifest_dir;
+  kernel *kernels; size_t nk, ck;
+  ruleset *rules; size_t nr, cr;
+  node *nodes; size_t nn, cn;
+  edge *edges; size_t ne, ce;
+  khash_t(sched_kernel_by_name) *kernel_by_name;
+  khash_t(sched_capability_index) *capability_index;
+  khash_t(sched_ruleset_by_name) *ruleset_by_name;
+  khash_t(sched_edge_set) *edge_set;
+  int sealed;
+};
 struct ccw_plan { char *text; };
 
 static void fail(ccw_sched_error *e, int code, const char *message) {
@@ -37,11 +57,49 @@ static int add_cap(kernel *k, const char *cap) {
   if (!reserve((void **)&k->caps, &k->cc, k->nc + 1, sizeof(*k->caps))) return 0;
   k->caps[k->nc++] = xstrdup(cap); return k->caps[k->nc - 1] != NULL;
 }
+static int append_kernel_match(kernel_matches *matches, size_t kernel_index) {
+  size_t i;
+  for (i = 0; i < matches->n; ++i) if (matches->items[i] == kernel_index) return 1;
+  if (!reserve((void **)&matches->items, &matches->c, matches->n + 1, sizeof(*matches->items))) return 0;
+  matches->items[matches->n++] = kernel_index;
+  return 1;
+}
+static int index_kernel(ccw_sched *s, size_t kernel_index) {
+  kernel *k = &s->kernels[kernel_index];
+  khint_t slot;
+  int ret;
+  slot = kh_put(sched_kernel_by_name, s->kernel_by_name, k->name, &ret);
+  if (ret < 0) return 0;
+  if (ret != 0) kh_value(s->kernel_by_name, slot) = kernel_index;
+  for (size_t i = 0; i < k->nc; ++i) {
+    slot = kh_get(sched_capability_index, s->capability_index, k->caps[i]);
+    if (slot == kh_end(s->capability_index)) {
+      slot = kh_put(sched_capability_index, s->capability_index, k->caps[i], &ret);
+      if (ret < 0) return 0;
+      if (ret != 0) kh_value(s->capability_index, slot) = (kernel_matches){0};
+    }
+    if (!append_kernel_match(&kh_value(s->capability_index, slot), kernel_index)) return 0;
+  }
+  return 1;
+}
+static int index_ruleset(ccw_sched *s, size_t ruleset_index) {
+  khint_t slot;
+  int ret;
+  slot = kh_put(sched_ruleset_by_name, s->ruleset_by_name,
+                s->rules[ruleset_index].name, &ret);
+  if (ret < 0) return 0;
+  if (ret != 0) kh_value(s->ruleset_by_name, slot) = ruleset_index;
+  return 1;
+}
 static int finish_kernel(ccw_sched *s, kernel *pending) {
+  size_t index;
   if (!pending->name) return 1;
   if (!pending->path || !clean_scalar(pending->name)) return 0;
   if (!reserve((void **)&s->kernels, &s->ck, s->nk + 1, sizeof(*s->kernels))) return 0;
-  s->kernels[s->nk++] = *pending; memset(pending, 0, sizeof(*pending)); return 1;
+  index = s->nk;
+  s->kernels[s->nk++] = *pending;
+  memset(pending, 0, sizeof(*pending));
+  return index_kernel(s, index);
 }
 static int load_kernels(ccw_sched *s, ccw_sched_error *e) {
   char file[1024], line[2048]; FILE *f; kernel current = {0}; int in_caps = 0;
@@ -72,7 +130,10 @@ static int load_rules(ccw_sched *s, ccw_sched_error *e) {
     if (!strncmp(p, "- path:", 7)) { free(name); name = NULL; }
     else if (!strncmp(p, "name:", 5)) {
       name = xstrdup(strip(p + 5)); if (!name || !clean_scalar(name) || !reserve((void **)&s->rules, &s->cr, s->nr + 1, sizeof(*s->rules))) goto bad;
-      s->rules[s->nr++].name = name; name = NULL;
+      s->rules[s->nr].name = name;
+      name = NULL;
+      ++s->nr;
+      if (!index_ruleset(s, s->nr - 1)) goto bad;
     }
   }
   free(name); fclose(f); return s->nr != 0;
@@ -91,8 +152,17 @@ static int can_mutate(ccw_sched *s, ccw_sched_error *e) {
   if (!s || s->sealed) { fail(e, 3, "scheduler is sealed"); return 0; } return 1;
 }
 static int add_edge_raw(ccw_sched *s, unsigned from, unsigned to) {
-  for (size_t i = 0; i < s->ne; ++i) if (s->edges[i].from == from && s->edges[i].to == to) return 1;
+  khint64_t key = ((khint64_t)from << 32) | (khint64_t)to;
+  khint_t slot;
+  int ret;
+  if (!s->edge_set) return 0;
+  slot = kh_get(sched_edge_set, s->edge_set, key);
+  if (slot != kh_end(s->edge_set)) return 1;
   if (!reserve((void **)&s->edges, &s->ce, s->ne + 1, sizeof(*s->edges))) return 0;
+  slot = kh_put(sched_edge_set, s->edge_set, key, &ret);
+  if (ret < 0) return 0;
+  if (ret == 0) return 1;
+  kh_value(s->edge_set, slot) = 1;
   s->edges[s->ne++] = (edge){from, to}; return 1;
 }
 static int add_node(ccw_sched *s, unsigned kind, const char *name, char **members, size_t nm, uint32_t *out, ccw_sched_error *e) {
@@ -118,7 +188,19 @@ ccw_sched *ccw_sched_new(const char *name, const char *manifest_dir, ccw_sched_e
   if (!clean_scalar(name)) { fail(e, 1, "invalid pipeline name"); return NULL; }
   s = calloc(1, sizeof(*s)); if (!s) { fail(e, 1, "out of memory"); return NULL; }
   s->name = xstrdup(name); s->manifest_dir = xstrdup(manifest_dir ? manifest_dir : "manifests");
-  if (!s->name || !s->manifest_dir || !load_kernels(s, e) || !load_rules(s, e)) { ccw_sched_free(s); return NULL; }
+  s->kernel_by_name = kh_init(sched_kernel_by_name);
+  s->capability_index = kh_init(sched_capability_index);
+  s->ruleset_by_name = kh_init(sched_ruleset_by_name);
+  s->edge_set = kh_init(sched_edge_set);
+  if (!s->name || !s->manifest_dir || !s->kernel_by_name ||
+      !s->capability_index || !s->ruleset_by_name || !s->edge_set ||
+      !load_kernels(s, e) || !load_rules(s, e)) {
+    if (!s->name || !s->manifest_dir || !s->kernel_by_name ||
+        !s->capability_index || !s->ruleset_by_name || !s->edge_set)
+      fail(e, 1, "out of memory");
+    ccw_sched_free(s);
+    return NULL;
+  }
   return s;
 }
 void ccw_sched_free(ccw_sched *s) {
@@ -126,21 +208,43 @@ void ccw_sched_free(ccw_sched *s) {
   for (size_t i=0;i<s->nk;i++) { free(s->kernels[i].name); free(s->kernels[i].path); for(size_t j=0;j<s->kernels[i].nc;j++) free(s->kernels[i].caps[j]); free(s->kernels[i].caps); }
   for (size_t i=0;i<s->nr;i++) free(s->rules[i].name);
   for (size_t i=0;i<s->nn;i++) { free(s->nodes[i].name); for(size_t j=0;j<s->nodes[i].nm;j++) free(s->nodes[i].members[j]); free(s->nodes[i].members); }
+  if (s->capability_index) {
+    for (khint_t i = kh_begin(s->capability_index); i != kh_end(s->capability_index); ++i)
+      if (kh_exist(s->capability_index, i)) free(kh_value(s->capability_index, i).items);
+  }
+  kh_destroy(sched_kernel_by_name, s->kernel_by_name);
+  kh_destroy(sched_capability_index, s->capability_index);
+  kh_destroy(sched_ruleset_by_name, s->ruleset_by_name);
+  kh_destroy(sched_edge_set, s->edge_set);
   free(s->kernels); free(s->rules); free(s->nodes); free(s->edges); free(s->name); free(s->manifest_dir); free(s);
 }
 int ccw_sched_require_kernel(ccw_sched *s, const char *name, uint32_t *out, ccw_sched_error *e) {
-  if (!s || !name || !out) { fail(e, 1, "invalid require"); return 0; }
-  for (size_t i=0;i<s->nk;i++) if (!strcmp(s->kernels[i].name,name)) {
-    char **caps = copy_strings(s->kernels[i].caps, s->kernels[i].nc);
+  khint_t slot;
+  size_t index;
+  if (!s || !name || !out || !s->kernel_by_name) { fail(e, 1, "invalid require"); return 0; }
+  slot = kh_get(sched_kernel_by_name, s->kernel_by_name, name);
+  if (slot != kh_end(s->kernel_by_name)) {
+    index = kh_value(s->kernel_by_name, slot);
+    char **caps = copy_strings(s->kernels[index].caps, s->kernels[index].nc);
     if (!caps) { fail(e,1,"out of memory"); return 0; }
-    return add_node(s,NODE_KERNEL,name,caps,s->kernels[i].nc,out,e);
+    return add_node(s,NODE_KERNEL,s->kernels[index].name,caps,s->kernels[index].nc,out,e);
   }
   fail(e, 4, "kernel is absent from Kernel.yaml"); return 0;
 }
 int ccw_sched_require_capability(ccw_sched *s, const char *cap, const char *prefer, uint32_t *out, ccw_sched_error *e) {
-  const kernel *match = NULL; size_t found = 0;
-  if (!s || !cap || !out) { fail(e, 1, "invalid capability query"); return 0; }
-  for(size_t i=0;i<s->nk;i++) if(has_cap(&s->kernels[i],cap)) { if(prefer && !strcmp(prefer,s->kernels[i].name)) match=&s->kernels[i]; ++found; if(!match)match=&s->kernels[i]; }
+  const kernel *match = NULL;
+  khint_t slot;
+  kernel_matches *matches;
+  size_t found, i;
+  if (!s || !cap || !out || !s->capability_index) { fail(e, 1, "invalid capability query"); return 0; }
+  slot = kh_get(sched_capability_index, s->capability_index, cap);
+  if (slot == kh_end(s->capability_index)) { fail(e,4,"capability is absent from Kernel.yaml"); return 0; }
+  matches = &kh_value(s->capability_index, slot);
+  found = matches->n;
+  for (i = 0; i < found; ++i) {
+    const kernel *candidate = &s->kernels[matches->items[i]];
+    if (!match || (prefer && !strcmp(prefer, candidate->name))) match = candidate;
+  }
   if (!found) { fail(e,4,"capability is absent from Kernel.yaml"); return 0; }
   if (prefer && (!match || strcmp(match->name,prefer))) { fail(e,4,"preferred kernel does not provide capability"); return 0; }
   if (!prefer && found != 1) { fail(e,4,"capability is ambiguous; supply prefer"); return 0; }
@@ -226,11 +330,18 @@ int ccw_plan_check(const char *path,const char *dir,ccw_sched_error *e) {
       if (!members) { ok = 0; continue; }
       members += strlen(name);
       if(type==NODE_KERNEL) {
-        for(index=0;index<s->nk&&strcmp(s->kernels[index].name,name);index++);
-        if(index==s->nk) ok=0;
+        khint_t slot = kh_get(sched_kernel_by_name, s->kernel_by_name, name);
+        if (slot == kh_end(s->kernel_by_name)) ok=0;
+        else index = kh_value(s->kernel_by_name, slot);
         while(ok && *members) { char cap[512]; if(sscanf(members," %511s",cap)!=1)break; if(!has_cap(&s->kernels[index],cap))ok=0; members=strchr(members+1,' '); if(!members)break; }
       } else if(type==NODE_REWRITE) {
-        while(ok && *members) { char rule[512]; size_t r; if(sscanf(members," %511s",rule)!=1)break; for(r=0;r<s->nr&&strcmp(s->rules[r].name,rule);r++);if(r==s->nr)ok=0;members=strchr(members+1,' ');if(!members)break; }
+        while(ok && *members) {
+          char rule[512];
+          if (sscanf(members, " %511s", rule) != 1) break;
+          if (kh_get(sched_ruleset_by_name, s->ruleset_by_name, rule) == kh_end(s->ruleset_by_name)) ok = 0;
+          members = strchr(members + 1, ' ');
+          if (!members) break;
+        }
       } else if(type!=NODE_BARRIER) ok=0;
     } else if (sscanf(line, "%15s", kind) != 1 ||
                (strcmp(kind, "name") && strcmp(kind, "edge"))) {

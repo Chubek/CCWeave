@@ -34,7 +34,10 @@ if(CCW_M_LIB)
   target_link_libraries(ccw_lua PUBLIC ${CCW_M_LIB})
 endif()
 add_library(ccw_sched STATIC sched.c sched_lua.c)
-target_include_directories(ccw_sched PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_SOURCE_DIR}/third_party/lua)
+target_include_directories(ccw_sched PUBLIC
+  ${CMAKE_CURRENT_SOURCE_DIR}
+  ${CMAKE_SOURCE_DIR}/third_party/lua
+  ${CMAKE_SOURCE_DIR}/third_party/klib)
 target_link_libraries(ccw_sched PUBLIC ccw_lua)
 add_executable(ccw-sched ccw_sched.c)
 target_link_libraries(ccw-sched PRIVATE ccw_sched)
