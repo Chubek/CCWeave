@@ -10,6 +10,7 @@
 
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdio.h>
 #include <stdint.h>
 
 #ifdef __cplusplus
@@ -187,6 +188,7 @@ struct cephyr_ast_node {
 cephyr_ast_node *cephyr_ast_node_alloc(cephyr_ast_node_kind kind);
 void             cephyr_ast_node_free(cephyr_ast_node *node);
 void             cephyr_ast_free_recursive(cephyr_ast_node *node);
+void             cephyr_type_free(cephyr_type *t);
 
 /* Dump the typed AST to a file (for debugging/golden tests). */
 void cephyr_ast_dump(FILE *out, const cephyr_ast_node *root);

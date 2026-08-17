@@ -5,34 +5,46 @@
  * preprocessed token stream. A line map is built so diagnostics always
  * report original source locations. */
 
+#define _POSIX_C_SOURCE 200809L
+
 #include "cephyr_cpp.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
+#include "kstring.h"
+#include "kvec.h"
+
 /* ucpp internal headers. We compile ucpp with STAND_ALONE undefined. */
 #include "../../../third_party/ucpp/mem.h"
 #include "../../../third_party/ucpp/cpp.h"
 #include "../../../third_party/ucpp/tune.h"
+#include "../../../third_party/ucpp/ucppi.h"
 
 /* ---------- line-map builder ---------- */
 
 typedef struct {
-    cephyr_line_map_entry *entries;
-    int                     count;
-    int                     capacity;
-    char                  **filenames;
-    int                     filename_count;
-    int                     filename_capacity;
+    kvec_t(cephyr_line_map_entry) entries;
+    kvec_t(char *)          filenames;
     int                     current_line;  /* 1-based, in output */
     int                     source_line;   /* 1-based, in current source file */
     int                     source_idx;    /* index into filenames[] */
 } line_map_builder;
 
+static char *cephyr_cpp_strdup(const char *s)
+{
+    if (!s) return NULL;
+    size_t n = strlen(s) + 1u;
+    char *copy = malloc(n);
+    if (copy) memcpy(copy, s, n);
+    return copy;
+}
+
 static void lmb_init(line_map_builder *lmb)
 {
-    memset(lmb, 0, sizeof(*lmb));
+    kv_init(lmb->entries);
+    kv_init(lmb->filenames);
     lmb->current_line = 1;
     lmb->source_line = 1;
     lmb->source_idx = -1;
@@ -40,37 +52,29 @@ static void lmb_init(line_map_builder *lmb)
 
 static void lmb_add_file(line_map_builder *lmb, const char *filename)
 {
-    if (lmb->filename_count >= lmb->filename_capacity) {
-        lmb->filename_capacity = lmb->filename_capacity ? lmb->filename_capacity * 2 : 8;
-        lmb->filenames = realloc(lmb->filenames,
-                                 (size_t)lmb->filename_capacity * sizeof(char *));
-    }
-    lmb->filenames[lmb->filename_count] = strdup(filename);
-    lmb->source_idx = lmb->filename_count;
-    lmb->filename_count++;
+    kv_push(char *, lmb->filenames, cephyr_cpp_strdup(filename));
+    lmb->source_idx = (int)kv_size(lmb->filenames) - 1;
 }
 
 static void lmb_add_entry(line_map_builder *lmb, int output_line,
                           int source_line, int source_idx)
 {
-    if (lmb->count >= lmb->capacity) {
-        lmb->capacity = lmb->capacity ? lmb->capacity * 2 : 256;
-        lmb->entries = realloc(lmb->entries,
-                               (size_t)lmb->capacity * sizeof(cephyr_line_map_entry));
-    }
-    cephyr_line_map_entry *e = &lmb->entries[lmb->count++];
-    e->source_file   = (source_idx >= 0) ? lmb->filenames[source_idx] : "<builtin>";
-    e->source_line   = source_line;
-    e->source_column = 1;
-    e->output_line   = output_line;
+    cephyr_line_map_entry entry = {
+        .source_file = cephyr_cpp_strdup(
+            (source_idx >= 0) ? lmb->filenames.a[source_idx] : "<builtin>"),
+        .source_line = source_line,
+        .source_column = 1,
+        .output_line = output_line
+    };
+    kv_push(cephyr_line_map_entry, lmb->entries, entry);
 }
 
 static void lmb_free(line_map_builder *lmb)
 {
-    free(lmb->entries);
-    for (int i = 0; i < lmb->filename_count; i++)
-        free(lmb->filenames[i]);
-    free(lmb->filenames);
+    for (size_t i = 0; i < kv_size(lmb->filenames); i++)
+        free(kv_A(lmb->filenames, i));
+    kv_destroy(lmb->filenames);
+    kv_destroy(lmb->entries);
 }
 
 /* ---------- preprocessor wrapper ---------- */
@@ -95,15 +99,25 @@ cephyr_cpp_result cephyr_cpp_preprocess(const char *source_text,
     init_tables(1);
 
     /* Step 4: set include paths */
-    init_include_path(include_path_count);
-    for (int i = 0; i < include_path_count; i++)
-        add_include_path(strdup(include_paths[i]));
+    char **ucpp_include_paths = NULL;
+    if (include_path_count > 0) {
+        ucpp_include_paths = calloc((size_t)include_path_count + 1u,
+                                    sizeof(*ucpp_include_paths));
+        if (!ucpp_include_paths) {
+            result.error_message = cephyr_cpp_strdup("out of memory");
+            return result;
+        }
+        for (int i = 0; i < include_path_count; i++)
+            ucpp_include_paths[i] = (char *)include_paths[i];
+    }
+    init_include_path(ucpp_include_paths);
+    free(ucpp_include_paths);
 
     /* Step 5: dependencies */
     emit_dependencies = 0;
 
     /* Step 6: set the source filename */
-    set_init_filename(source_name, 0);
+    set_init_filename((char *)(source_name ? source_name : "<input>"), 0);
 
     /* Step 7: initialise lexer */
     struct lexer_state ls;
@@ -114,7 +128,8 @@ cephyr_cpp_result cephyr_cpp_preprocess(const char *source_text,
     /* Step 8: feed source text through a temporary file */
     FILE *tmpf = tmpfile();
     if (!tmpf) {
-        result.error_message = strdup("failed to create temporary file for preprocessor");
+        result.error_message = cephyr_cpp_strdup(
+            "failed to create temporary file for preprocessor");
         return result;
     }
     fwrite(source_text, 1, source_len, tmpf);
@@ -122,110 +137,89 @@ cephyr_cpp_result cephyr_cpp_preprocess(const char *source_text,
     ls.input = tmpf;
 
     /* Step 9: collect output */
-    char *output = NULL;
-    size_t output_len = 0;
-    size_t output_cap = 0;
+    kstring_t output = { 0, 0, NULL };
     line_map_builder lmb;
     lmb_init(&lmb);
     lmb_add_file(&lmb, source_name ? source_name : "<input>");
+    enter_file(&ls, ls.flags);
 
     /* Step 10: tokenize */
     int tok;
+    int status;
     int add_newline = 0;
 
-    while ((tok = next_token(&ls)) != CPPERR) {
+    while ((status = lex(&ls)) < CPPERR_EOF) {
+        if (status >= CPPERR) continue;
+        tok = ls.ctok->type;
         if (tok == NEWLINE) {
             lmb.current_line++;
-            lmb.source_line++;
             if (add_newline) {
-                if (output_len + 2 > output_cap) {
-                    output_cap = output_cap ? output_cap * 2 : 4096;
-                    output = realloc(output, output_cap);
-                }
-                output[output_len++] = '\n';
+                (void)kputc('\n', &output);
             }
             add_newline = 0;
         } else if (tok == CONTEXT) {
-            /* #line directive or file change */
-            lmb_add_entry(&lmb, lmb.current_line, lmb.source_line, lmb.source_idx);
-            /* The lexer state has the new file/line info */
+            /* #line directive or file change. */
+            lmb_add_file(&lmb, ls.ctok->name ? ls.ctok->name : "<builtin>");
+            lmb.source_line = (int)ls.ctok->line;
             add_newline = 0;
         } else if (tok == COMMENT) {
             /* Replace comments with a single space */
-            if (output_len > 0 && output[output_len - 1] != ' ' &&
-                output[output_len - 1] != '\n') {
-                if (output_len + 1 > output_cap) {
-                    output_cap = output_cap ? output_cap * 2 : 4096;
-                    output = realloc(output, output_cap);
-                }
-                output[output_len++] = ' ';
+            if (output.l > 0 && output.s[output.l - 1] != ' ' &&
+                output.s[output.l - 1] != '\n') {
+                (void)kputc(' ', &output);
             }
         } else if (tok == NONE) {
             /* Whitespace — collapse to single space */
-            if (output_len > 0 && output[output_len - 1] != ' ' &&
-                output[output_len - 1] != '\n') {
-                if (output_len + 1 > output_cap) {
-                    output_cap = output_cap ? output_cap * 2 : 4096;
-                    output = realloc(output, output_cap);
-                }
-                output[output_len++] = ' ';
+            if (output.l > 0 && output.s[output.l - 1] != ' ' &&
+                output.s[output.l - 1] != '\n') {
+                (void)kputc(' ', &output);
             }
         } else {
             /* Emit the token text */
-            const char *token_text = token_name(&ls);
+            const char *token_text = token_name(ls.ctok);
             if (token_text) {
+                if (output.l == 0 || output.s[output.l - 1] == '\n')
+                    lmb_add_entry(&lmb, lmb.current_line, (int)ls.ctok->line,
+                                  lmb.source_idx);
                 size_t tlen = strlen(token_text);
-                if (output_len + tlen + 2 > output_cap) {
-                    output_cap = output_cap ? output_cap * 2 : 4096;
-                    if (output_cap < output_len + tlen + 2)
-                        output_cap = output_len + tlen + 4096;
-                    output = realloc(output, output_cap);
-                }
-                if (output_len > 0 && output[output_len - 1] != ' ' &&
-                    output[output_len - 1] != '\n' &&
-                    output[output_len - 1] != '(' &&
-                    output[output_len - 1] != '[' &&
-                    output[output_len - 1] != '{' &&
+                if (output.l > 0 && output.s[output.l - 1] != ' ' &&
+                    output.s[output.l - 1] != '\n' &&
+                    output.s[output.l - 1] != '(' &&
+                    output.s[output.l - 1] != '[' &&
+                    output.s[output.l - 1] != '{' &&
                     *token_text != ')' && *token_text != ']' &&
                     *token_text != '}' && *token_text != ',' &&
                     *token_text != ';') {
-                    output[output_len++] = ' ';
+                    (void)kputc(' ', &output);
                 }
-                memcpy(output + output_len, token_text, tlen);
-                output_len += tlen;
+                (void)kputsn(token_text, (int)tlen, &output);
             }
             add_newline = 1;
         }
     }
 
     /* Add final newline */
-    if (output_len > 0 && output[output_len - 1] != '\n') {
-        if (output_len + 1 > output_cap) {
-            output_cap = output_cap ? output_cap * 2 : 4096;
-            output = realloc(output, output_cap);
-        }
-        output[output_len++] = '\n';
+    if (output.l > 0 && output.s[output.l - 1] != '\n') {
+        (void)kputc('\n', &output);
     }
 
-    /* Null-terminate */
-    if (output_len + 1 > output_cap) {
-        output_cap = output_len + 1;
-        output = realloc(output, output_cap);
+    /* kstring maintains a trailing NUL; make an empty result NUL-terminated. */
+    if (output.s == NULL) {
+        (void)ks_resize(&output, 1);
+        if (output.s) output.s[0] = '\0';
     }
-    output[output_len] = '\0';
 
     /* Cleanup */
-    fclose(tmpf);
-    wipe_assertions();
-    wipe_defines();
+    free_lexer_state(&ls);
+    wipeout();
 
     /* Build result */
-    result.text = output;
-    result.text_len = output_len;
-    result.entries = lmb.entries;
-    result.line_map_count = lmb.count;
-    lmb.entries = NULL; /* ownership transferred */
-    lmb.count = 0;
+    result.text_len = output.l;
+    result.text = ks_release(&output);
+    result.line_map = lmb.entries.a;
+    result.line_map_count = (int)lmb.entries.n;
+    lmb.entries.a = NULL; /* ownership transferred */
+    lmb.entries.n = lmb.entries.m = 0;
     lmb_free(&lmb);
 
     return result;
@@ -235,6 +229,8 @@ void cephyr_cpp_result_free(cephyr_cpp_result *res)
 {
     if (!res) return;
     free(res->text);
+    for (int i = 0; i < res->line_map_count; i++)
+        free((char *)res->line_map[i].source_file);
     free(res->line_map);
     free(res->error_message);
     memset(res, 0, sizeof(*res));
@@ -264,7 +260,8 @@ char *cephyr_cpp_external(const char *source_path,
                           char **error_message)
 {
     if (!cpp_command) {
-        if (error_message) *error_message = strdup("no external preprocessor command set");
+        if (error_message)
+            *error_message = cephyr_cpp_strdup("no external preprocessor command set");
         return NULL;
     }
 
@@ -279,45 +276,35 @@ char *cephyr_cpp_external(const char *source_path,
         if (error_message) {
             char buf[512];
             snprintf(buf, sizeof(buf), "failed to run external preprocessor: %s", cpp_command);
-            *error_message = strdup(buf);
+            *error_message = cephyr_cpp_strdup(buf);
         }
         return NULL;
     }
 
     /* Read all output */
-    char *output = NULL;
-    size_t output_len = 0;
-    size_t output_cap = 0;
+    kstring_t output = { 0, 0, NULL };
     char buf[4096];
     size_t n;
     while ((n = fread(buf, 1, sizeof(buf), pipe)) > 0) {
-        if (output_len + n + 1 > output_cap) {
-            output_cap = output_cap ? output_cap * 2 : 4096;
-            if (output_cap < output_len + n + 1)
-                output_cap = output_len + n + 1;
-            output = realloc(output, output_cap);
+        if (kputsn(buf, (int)n, &output) == EOF) {
+            free(output.s);
+            (void)pclose(pipe);
+            if (error_message)
+                *error_message = cephyr_cpp_strdup("out of memory");
+            return NULL;
         }
-        memcpy(output + output_len, buf, n);
-        output_len += n;
     }
 
     int status = pclose(pipe);
     if (status != 0) {
-        free(output);
+        free(output.s);
         if (error_message) {
             char buf[512];
             snprintf(buf, sizeof(buf), "external preprocessor exited with status %d", status);
-            *error_message = strdup(buf);
+            *error_message = cephyr_cpp_strdup(buf);
         }
         return NULL;
     }
 
-    if (output) {
-        if (output_len + 1 > output_cap) {
-            output_cap = output_len + 1;
-            output = realloc(output, output_cap);
-        }
-        output[output_len] = '\0';
-    }
-    return output;
+    return ks_release(&output);
 }

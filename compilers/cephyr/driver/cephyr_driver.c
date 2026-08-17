@@ -4,6 +4,8 @@
  * orchestration. Ties together: preprocessor → Swaff C frontend →
  * sema → lowering → Sched plan execution. */
 
+#define _POSIX_C_SOURCE 200809L
+
 #include "cephyr_driver.h"
 
 #include <stdio.h>
@@ -21,6 +23,15 @@
 #include "../../../swaff/ccw_swaff.h"
 #include "../../../ir/ccw_ir.h"
 #include "../../../sched/sched.h"
+
+static char *cephyr_driver_strdup(const char *s)
+{
+    if (!s) return NULL;
+    size_t n = strlen(s) + 1u;
+    char *copy = malloc(n);
+    if (copy) memcpy(copy, s, n);
+    return copy;
+}
 
 /* ---------- default options ---------- */
 
@@ -50,7 +61,7 @@ const char *cephyr_discover_assembler(const char *target_triple)
                 if (len > 0 && buf[len - 1] == '\n') buf[len - 1] = '\0';
                 int status = pclose(fp);
                 if (status == 0) {
-                    return strdup(buf);
+                    return cephyr_driver_strdup(buf);
                 }
             } else {
                 pclose(fp);
@@ -74,7 +85,7 @@ const char *cephyr_discover_linker(const char *target_triple)
                 if (len > 0 && buf[len - 1] == '\n') buf[len - 1] = '\0';
                 int status = pclose(fp);
                 if (status == 0) {
-                    return strdup(buf);
+                    return cephyr_driver_strdup(buf);
                 }
             } else {
                 pclose(fp);
@@ -168,7 +179,7 @@ static cephyr_result run_sched_plan(ccw_ir *ir, const cephyr_options *opts)
     memset(&err, 0, sizeof(err));
     ccw_plan *plan = NULL;
     int rc = ccw_sched_run_script(script_path, "manifests", &plan, &err);
-    if (rc != 0) {
+    if (rc == 0) {
         fprintf(stderr, "cephyr: sched error: %s\n", err.message);
         return CEPHYR_ERR_SCHED;
     }

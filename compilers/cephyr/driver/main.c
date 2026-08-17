@@ -22,6 +22,25 @@
 #include <string.h>
 
 #include "cephyr_driver.h"
+#include "ketopt.h"
+#include "kvec.h"
+
+enum {
+    CEPHYR_OPT_EMIT_IR = 256,
+    CEPHYR_OPT_TARGET,
+    CEPHYR_OPT_CPP,
+    CEPHYR_OPT_HELP,
+    CEPHYR_OPT_VERSION
+};
+
+static const ko_longopt_t cephyr_long_options[] = {
+    { "emit-ir", ko_no_argument,       CEPHYR_OPT_EMIT_IR },
+    { "target",  ko_required_argument, CEPHYR_OPT_TARGET },
+    { "cpp",     ko_required_argument, CEPHYR_OPT_CPP },
+    { "help",    ko_no_argument,       CEPHYR_OPT_HELP },
+    { "version", ko_no_argument,       CEPHYR_OPT_VERSION },
+    { NULL,      0,                    0 }
+};
 
 static void print_help(const char *prog)
 {
@@ -52,70 +71,110 @@ int main(int argc, char **argv)
     cephyr_options opts;
     memset(&opts, 0, sizeof(opts));
     opts.opt_level = CEPHYR_O0;
-    const char *source_path = NULL;
+    kvec_t(const char *) include_paths;
+    kvec_t(const char *) defines;
+    kv_init(include_paths);
+    kv_init(defines);
 
-    /* Parse arguments */
-    for (int i = 1; i < argc; i++) {
-        if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
-            print_help(argv[0]);
-            return 0;
-        }
-        if (strcmp(argv[i], "--version") == 0 || strcmp(argv[i], "-V") == 0) {
-            print_version();
-            return 0;
-        }
-        if (strcmp(argv[i], "-o") == 0 && i + 1 < argc) {
-            opts.output_path = argv[++i];
-        } else if (strcmp(argv[i], "-O0") == 0) {
-            opts.opt_level = CEPHYR_O0;
-        } else if (strcmp(argv[i], "-O1") == 0) {
-            opts.opt_level = CEPHYR_O1;
-        } else if (strcmp(argv[i], "-O2") == 0) {
-            opts.opt_level = CEPHYR_O2;
-        } else if (strcmp(argv[i], "-I") == 0 && i + 1 < argc) {
-            /* Add include path — we'd need a dynamic array, simplified for v0.1 */
-            opts.include_paths = realloc((void *)opts.include_paths,
-                                         (size_t)(opts.include_path_count + 1) * sizeof(char *));
-            ((const char **)opts.include_paths)[opts.include_path_count++] = argv[++i];
-        } else if (strcmp(argv[i], "-D") == 0 && i + 1 < argc) {
-            opts.defines = realloc((void *)opts.defines,
-                                   (size_t)(opts.define_count + 1) * sizeof(char *));
-            ((const char **)opts.defines)[opts.define_count++] = argv[++i];
-        } else if (strcmp(argv[i], "-S") == 0) {
-            /* -S: emit assembly, stop after compilation */
-            /* (already the default for v0.1) */
-        } else if (strcmp(argv[i], "-E") == 0) {
+    const char *source_path = NULL;
+    int exit_code = 1;
+    ketopt_t parser = KETOPT_INIT;
+    int opt;
+
+    /* Klib's ketopt handles short/long options and keeps collection storage
+     * in Klib vectors until compilation has consumed it. */
+    while ((opt = ketopt(&parser, argc, argv, 1, "o:I:D:O:SEchV",
+                         cephyr_long_options)) != -1) {
+        switch (opt) {
+        case 'o':
+            opts.output_path = parser.arg;
+            break;
+        case 'I':
+            kv_push(const char *, include_paths, parser.arg);
+            break;
+        case 'D':
+            kv_push(const char *, defines, parser.arg);
+            break;
+        case 'O':
+            if (!parser.arg || strcmp(parser.arg, "0") == 0)
+                opts.opt_level = CEPHYR_O0;
+            else if (strcmp(parser.arg, "1") == 0)
+                opts.opt_level = CEPHYR_O1;
+            else if (strcmp(parser.arg, "2") == 0)
+                opts.opt_level = CEPHYR_O2;
+            else {
+                fprintf(stderr, "cephyr: invalid optimization level '-O%s'\n",
+                        parser.arg ? parser.arg : "");
+                goto cleanup;
+            }
+            break;
+        case 'S':
+        case 'c':
+            /* -S/-c are accepted; v0.1 already stops before system linking. */
+            break;
+        case 'E':
             fprintf(stderr, "cephyr: -E (preprocess only) not yet implemented\n");
-            return 1;
-        } else if (strcmp(argv[i], "--emit-ir") == 0) {
+            goto cleanup;
+        case 'h':
+        case CEPHYR_OPT_HELP:
+            print_help(argv[0]);
+            exit_code = 0;
+            goto cleanup;
+        case 'V':
+        case CEPHYR_OPT_VERSION:
+            print_version();
+            exit_code = 0;
+            goto cleanup;
+        case CEPHYR_OPT_EMIT_IR:
             opts.emit_ir = true;
-        } else if (strcmp(argv[i], "--target") == 0 && i + 1 < argc) {
-            opts.target_triple = argv[++i];
-        } else if (strcmp(argv[i], "--cpp") == 0 && i + 1 < argc) {
-            opts.cpp_command = argv[++i];
-        } else if (argv[i][0] == '-') {
-            fprintf(stderr, "cephyr: unknown option '%s'\n", argv[i]);
-            return 1;
-        } else {
-            source_path = argv[i];
+            break;
+        case CEPHYR_OPT_TARGET:
+            opts.target_triple = parser.arg;
+            break;
+        case CEPHYR_OPT_CPP:
+            opts.cpp_command = parser.arg;
+            break;
+        case ':':
+            fprintf(stderr, "cephyr: option '-%c' requires an argument\n",
+                    parser.opt);
+            goto cleanup;
+        case '?':
+        default:
+            fprintf(stderr, "cephyr: unknown option\n");
+            goto cleanup;
         }
     }
 
+    if (parser.ind < argc)
+        source_path = argv[parser.ind++];
+    if (parser.ind < argc) {
+        fprintf(stderr, "cephyr: more than one source file specified\n");
+        goto cleanup;
+    }
     if (!source_path) {
         fprintf(stderr, "cephyr: no source file specified\n");
         fprintf(stderr, "Usage: %s [options] <source.c>\n", argv[0]);
-        return 1;
+        goto cleanup;
     }
 
     opts.source_path = source_path;
+    opts.include_paths = (const char *const *)include_paths.a;
+    opts.include_path_count = (int)kv_size(include_paths);
+    opts.defines = (const char *const *)defines.a;
+    opts.define_count = (int)kv_size(defines);
 
     /* Compile */
     cephyr_result result = cephyr_compile(&opts);
 
     if (result != CEPHYR_SUCCESS) {
         fprintf(stderr, "cephyr: compilation failed: %s\n", cephyr_result_string(result));
-        return 1;
+        goto cleanup;
     }
 
-    return 0;
+    exit_code = 0;
+
+cleanup:
+    kv_destroy(include_paths);
+    kv_destroy(defines);
+    return exit_code;
 }

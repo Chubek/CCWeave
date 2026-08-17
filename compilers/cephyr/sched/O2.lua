@@ -7,7 +7,10 @@ S = sched.new "Cephyr-O2"
 -- Analyses.
 local def_use  = S:require { capability = "analysis.def-use" }
 local purity   = S:require { capability = "analysis.purity" }
-local range    = S:require { capability = "analysis.range" }
+local range    = S:require {
+  capability = "analysis.range",
+  prefer = "range-analysis"
+}
 local alias    = S:require { capability = "analysis.alias" }
 
 -- Normalization.
@@ -32,14 +35,19 @@ local cast_rules     = S:rewrite "cast.*"
 local norm_rules     = S:rewrite "norm.*"
 local mem_rules      = S:rewrite "mem.*"
 
--- Code generation backend.
-local isel    = S:require { capability = "codegen.x86-64" }
-local ra = S:probe   { capability = "codegen.regalloc-graph" }
-        or S:require { capability = "codegen.regalloc-linear" }
-local sched_list = S:require { capability = "codegen.sched-list" }
-
 -- The core → Tilly barrier (§8.4).
 local pre_tilly = S:barrier "pre-tilly"
+
+-- Code generation backend.
+local isel    = S:require { capability = "codegen.x86-64" }
+local ra = S:probe {
+  capability = "codegen.regalloc-graph",
+  prefer = "regalloc-graph-color"
+} or S:require {
+  capability = "codegen.regalloc-linear",
+  prefer = "regalloc-linear-scan"
+}
+local sched_list = S:require { capability = "codegen.sched-list" }
 
 -- Ordering.
 S:edge(def_use, purity)

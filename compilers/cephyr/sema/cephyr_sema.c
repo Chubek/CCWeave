@@ -14,17 +14,20 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "khash.h"
+
 /* ---------- symbol table ---------- */
 
 typedef struct symbol_entry {
     const char        *name;
     cephyr_ast_node   *node;   /* declaration node */
     cephyr_type       *type;   /* resolved type */
-    struct symbol_entry *next;
 } symbol_entry;
 
+KHASH_MAP_INIT_STR(cephyr_symbols, symbol_entry *)
+
 typedef struct scope {
-    symbol_entry      *symbols;
+    khash_t(cephyr_symbols) *symbols;
     struct scope      *parent;
 } scope;
 
@@ -33,9 +36,16 @@ struct cephyr_sema_ctx {
     int                diag_count;
     int                error_count;
     scope             *current_scope;
-    /* Canonical type table for struct/union/enum/typedef */
-    symbol_entry      *type_table;
 };
+
+static char *cephyr_strdup(const char *s)
+{
+    if (!s) return NULL;
+    size_t n = strlen(s) + 1u;
+    char *copy = malloc(n);
+    if (copy) memcpy(copy, s, n);
+    return copy;
+}
 
 /* ---------- diagnostic helpers ---------- */
 
@@ -60,18 +70,23 @@ static void add_diag(cephyr_sema_ctx *ctx, cephyr_severity sev,
 static scope *scope_create(scope *parent)
 {
     scope *s = calloc(1, sizeof(scope));
-    s->parent = parent;
+    if (s) {
+        s->symbols = kh_init(cephyr_symbols);
+        s->parent = parent;
+    }
     return s;
 }
 
 static void scope_free(scope *s)
 {
     if (!s) return;
-    symbol_entry *sym = s->symbols;
-    while (sym) {
-        symbol_entry *next = sym->next;
-        free(sym);
-        sym = next;
+    if (s->symbols) {
+        for (khint_t i = kh_begin(s->symbols);
+             i != kh_end(s->symbols); ++i) {
+            if (kh_exist(s->symbols, i))
+                free(kh_val(s->symbols, i));
+        }
+        kh_destroy(cephyr_symbols, s->symbols);
     }
     free(s);
 }
@@ -79,20 +94,31 @@ static void scope_free(scope *s)
 static void scope_insert(scope *s, const char *name, cephyr_ast_node *node, cephyr_type *type)
 {
     symbol_entry *sym = calloc(1, sizeof(symbol_entry));
+    if (!s || !s->symbols || !name || !sym) {
+        free(sym);
+        return;
+    }
     sym->name = name;
     sym->node = node;
     sym->type = type;
-    sym->next = s->symbols;
-    s->symbols = sym;
+    int ret = 0;
+    khint_t k = kh_put(cephyr_symbols, s->symbols, name, &ret);
+    if (k == kh_end(s->symbols)) {
+        free(sym);
+        return;
+    }
+    if (ret == 0)
+        free(kh_val(s->symbols, k));
+    kh_val(s->symbols, k) = sym;
 }
 
 static symbol_entry *scope_lookup(scope *s, const char *name)
 {
     for (; s; s = s->parent) {
-        for (symbol_entry *sym = s->symbols; sym; sym = sym->next) {
-            if (name && strcmp(sym->name, name) == 0)
-                return sym;
-        }
+        if (!s->symbols || !name) continue;
+        khint_t k = kh_get(cephyr_symbols, s->symbols, name);
+        if (k != kh_end(s->symbols))
+            return kh_val(s->symbols, k);
     }
     return NULL;
 }
@@ -268,6 +294,16 @@ size_t cephyr_type_size(const cephyr_type *t)
 size_t cephyr_type_align(const cephyr_type *t)
 {
     if (!t) return 1;
+    if (t->kind == CEPHYR_TY_ARRAY)
+        return cephyr_type_align(t->inner);
+    if (t->kind == CEPHYR_TY_STRUCT || t->kind == CEPHYR_TY_UNION) {
+        size_t alignment = 1;
+        for (int i = 0; i < t->field_count; i++) {
+            size_t field_alignment = cephyr_type_align(t->field_types[i]);
+            if (field_alignment > alignment) alignment = field_alignment;
+        }
+        return alignment;
+    }
     size_t sz = cephyr_type_size(t);
     /* Alignment is the size, capped at 8 */
     if (sz > 8) return 8;
@@ -282,14 +318,14 @@ cephyr_type *cephyr_type_dup(const cephyr_type *t)
     memcpy(copy, t, sizeof(cephyr_type));
     if (t->inner) copy->inner = cephyr_type_dup(t->inner);
     if (t->return_type) copy->return_type = cephyr_type_dup(t->return_type);
-    if (t->name) copy->name = strdup(t->name);
+    if (t->name) copy->name = cephyr_strdup(t->name);
     /* Deep copy arrays */
     if (t->field_count > 0) {
         copy->field_names = calloc((size_t)t->field_count, sizeof(char *));
         copy->field_types = calloc((size_t)t->field_count, sizeof(cephyr_type *));
         copy->field_bit_widths = calloc((size_t)t->field_count, sizeof(int));
         for (int i = 0; i < t->field_count; i++) {
-            if (t->field_names[i]) copy->field_names[i] = strdup(t->field_names[i]);
+            if (t->field_names[i]) copy->field_names[i] = cephyr_strdup(t->field_names[i]);
             copy->field_types[i] = cephyr_type_dup(t->field_types[i]);
             copy->field_bit_widths[i] = t->field_bit_widths[i];
         }
@@ -299,7 +335,7 @@ cephyr_type *cephyr_type_dup(const cephyr_type *t)
         copy->param_names = calloc((size_t)t->param_count, sizeof(char *));
         for (int i = 0; i < t->param_count; i++) {
             copy->param_types[i] = cephyr_type_dup(t->param_types[i]);
-            if (t->param_names[i]) copy->param_names[i] = strdup(t->param_names[i]);
+            if (t->param_names[i]) copy->param_names[i] = cephyr_strdup(t->param_names[i]);
         }
     }
     return copy;
@@ -340,14 +376,6 @@ void cephyr_sema_destroy(cephyr_sema_ctx *ctx)
 {
     if (!ctx) return;
     scope_free(ctx->current_scope);
-    /* Free type table */
-    symbol_entry *sym = ctx->type_table;
-    while (sym) {
-        symbol_entry *next = sym->next;
-        cephyr_type_free(sym->type);
-        free(sym);
-        sym = next;
-    }
     free(ctx);
 }
 

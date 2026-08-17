@@ -10,6 +10,7 @@
 #include <string.h>
 
 #include "../../../kliche/ccw_kliche.h"
+#include "kvec.h"
 
 /* ---------- lowering context ---------- */
 
@@ -18,6 +19,15 @@ struct cephyr_lower_ctx {
     int         reg_counter;
     char        err_buf[512];
 };
+
+static char *cephyr_lower_strdup(const char *s)
+{
+    if (!s) return NULL;
+    size_t n = strlen(s) + 1u;
+    char *copy = malloc(n);
+    if (copy) memcpy(copy, s, n);
+    return copy;
+}
 
 cephyr_lower_ctx *cephyr_lower_create(void)
 {
@@ -67,7 +77,7 @@ ccw_ir_type cephyr_lower_map_type(const cephyr_type *ct)
 static char *fresh_reg(cephyr_lower_ctx *ctx)
 {
     char *buf = malloc(32);
-    snprintf(buf, 32, "%%r%d", ctx->reg_counter++);
+    snprintf(buf, 32, "r%d", ctx->reg_counter++);
     return buf;
 }
 
@@ -93,23 +103,23 @@ static char *lower_binary(cephyr_lower_ctx *ctx, ccw_ir *ir, ccw_node blk,
 
     /* Map C operators to Weave IR opcodes */
     const char *op = node->data.binop.op;
-    const char *ir_op = "add"; /* default */
-    if (strcmp(op, "+") == 0)       ir_op = "add";
-    else if (strcmp(op, "-") == 0)  ir_op = "sub";
-    else if (strcmp(op, "*") == 0)  ir_op = "mul";
-    else if (strcmp(op, "/") == 0)  ir_op = "sdiv";
-    else if (strcmp(op, "%") == 0)  ir_op = "srem";
-    else if (strcmp(op, "==") == 0) ir_op = "cmp_eq";
-    else if (strcmp(op, "!=") == 0) ir_op = "cmp_ne";
-    else if (strcmp(op, "<") == 0)  ir_op = "cmp_slt";
-    else if (strcmp(op, ">") == 0)  ir_op = "cmp_sgt";
-    else if (strcmp(op, "<=") == 0) ir_op = "cmp_sle";
-    else if (strcmp(op, ">=") == 0) ir_op = "cmp_sge";
-    else if (strcmp(op, "&&") == 0) ir_op = "and";
-    else if (strcmp(op, "||") == 0) ir_op = "or";
-    else if (strcmp(op, "&") == 0)  ir_op = "and";
-    else if (strcmp(op, "|") == 0)  ir_op = "or";
-    else if (strcmp(op, "^") == 0)  ir_op = "xor";
+    const char *ir_op = "iadd"; /* default */
+    if (strcmp(op, "+") == 0)       ir_op = "iadd";
+    else if (strcmp(op, "-") == 0)  ir_op = "isub";
+    else if (strcmp(op, "*") == 0)  ir_op = "imul";
+    else if (strcmp(op, "/") == 0)  ir_op = "idiv";
+    else if (strcmp(op, "%") == 0)  ir_op = "irem";
+    else if (strcmp(op, "==") == 0) ir_op = "icmp.eq";
+    else if (strcmp(op, "!=") == 0) ir_op = "icmp.ne";
+    else if (strcmp(op, "<") == 0)  ir_op = "icmp.lt";
+    else if (strcmp(op, ">") == 0)  ir_op = "icmp.gt";
+    else if (strcmp(op, "<=") == 0) ir_op = "icmp.le";
+    else if (strcmp(op, ">=") == 0) ir_op = "icmp.ge";
+    else if (strcmp(op, "&&") == 0) ir_op = "logic.and";
+    else if (strcmp(op, "||") == 0) ir_op = "logic.or";
+    else if (strcmp(op, "&") == 0)  ir_op = "iand";
+    else if (strcmp(op, "|") == 0)  ir_op = "ior";
+    else if (strcmp(op, "^") == 0)  ir_op = "ixor";
     else if (strcmp(op, "<<") == 0) ir_op = "shl";
     else if (strcmp(op, ">>") == 0) ir_op = "ashr";
 
@@ -127,10 +137,10 @@ static char *lower_unary(cephyr_lower_ctx *ctx, ccw_ir *ir, ccw_node blk,
     ccw_ir_type ty = cephyr_lower_map_type(node->type);
 
     const char *op = node->data.unop.op;
-    const char *ir_op = "neg"; /* default */
-    if (strcmp(op, "-") == 0)  ir_op = "neg";
-    else if (strcmp(op, "!") == 0) ir_op = "not";
-    else if (strcmp(op, "~") == 0) ir_op = "not";
+    const char *ir_op = "ineg"; /* default */
+    if (strcmp(op, "-") == 0)  ir_op = "ineg";
+    else if (strcmp(op, "!") == 0) ir_op = "logic.not";
+    else if (strcmp(op, "~") == 0) ir_op = "inot";
     else if (strcmp(op, "*") == 0) ir_op = "load";
     else if (strcmp(op, "&") == 0) {
         /* Address-of: just return the operand (it's a reference to the variable) */
@@ -147,9 +157,11 @@ static char *lower_call(cephyr_lower_ctx *ctx, ccw_ir *ir, ccw_node blk,
                         const cephyr_ast_node *node)
 {
     /* Lower args */
-    char **arg_regs = calloc((size_t)node->data.call.arg_count, sizeof(char *));
+    kvec_t(char *) arg_regs;
+    kv_init(arg_regs);
     for (int i = 0; i < node->data.call.arg_count; i++) {
-        arg_regs[i] = lower_expr(ctx, ir, blk, node->data.call.args[i]);
+        kv_push(char *, arg_regs,
+                lower_expr(ctx, ir, blk, node->data.call.args[i]));
     }
 
     /* Get callee name */
@@ -162,11 +174,12 @@ static char *lower_call(cephyr_lower_ctx *ctx, ccw_ir *ir, ccw_node blk,
     ccw_ir_type result_ty = cephyr_lower_map_type(node->type);
 
     ccw_kliche_call(ir, blk, dest, callee,
-                    (const char *const *)arg_regs, node->data.call.arg_count,
+                    (const char *const *)arg_regs.a, (int)kv_size(arg_regs),
                     result_ty);
 
-    for (int i = 0; i < node->data.call.arg_count; i++) free(arg_regs[i]);
-    free(arg_regs);
+    for (size_t i = 0; i < kv_size(arg_regs); i++)
+        free(kv_A(arg_regs, i));
+    kv_destroy(arg_regs);
     return dest;
 }
 
@@ -188,7 +201,7 @@ static char *lower_expr(cephyr_lower_ctx *ctx, ccw_ir *ir, ccw_node blk,
     case CEPHYR_NODE_EXPR_IDENT: {
         /* Just return the identifier name as a reg reference */
         char *r = malloc(strlen(node->name) + 4);
-        snprintf(r, strlen(node->name) + 4, "%%%s", node->name);
+        snprintf(r, strlen(node->name) + 1, "%s", node->name);
         return r;
     }
     case CEPHYR_NODE_EXPR_BINARY:
@@ -316,7 +329,7 @@ static void lower_stmt(cephyr_lower_ctx *ctx, ccw_ir *ir, ccw_node fn,
         if (node->name && node->type) {
             ccw_ir_type ty = cephyr_lower_map_type(node->type);
             char *dest = malloc(strlen(node->name) + 4);
-            snprintf(dest, strlen(node->name) + 4, "%%%s", node->name);
+            snprintf(dest, strlen(node->name) + 1, "%s", node->name);
             ccw_kliche_local_alloc(ir, *current_blk, dest, ty);
             free(dest);
         }
@@ -328,7 +341,7 @@ static void lower_stmt(cephyr_lower_ctx *ctx, ccw_ir *ir, ccw_node fn,
         if (node->name && node->type) {
             ccw_ir_type ty = cephyr_lower_map_type(node->type);
             char *dest = malloc(strlen(node->name) + 4);
-            snprintf(dest, strlen(node->name) + 4, "%%%s", node->name);
+            snprintf(dest, strlen(node->name) + 1, "%s", node->name);
             ccw_kliche_local_alloc(ir, *current_blk, dest, ty);
             if (node->data.var_decl.init) {
                 char *init_val = lower_expr(ctx, ir, *current_blk, node->data.var_decl.init);
@@ -353,7 +366,8 @@ ccw_node cephyr_lower_function(cephyr_lower_ctx *ctx,
                                char **error_message)
 {
     if (!func_def || func_def->kind != CEPHYR_NODE_FUNC_DEF) {
-        if (error_message) *error_message = strdup("not a function definition");
+        if (error_message)
+            *error_message = cephyr_lower_strdup("not a function definition");
         return 0;
     }
 
@@ -365,7 +379,8 @@ ccw_node cephyr_lower_function(cephyr_lower_ctx *ctx,
 
     ccw_node fn = ccw_ir_function_add(ir, name, result_ty);
     if (!fn) {
-        if (error_message) *error_message = strdup("failed to create function");
+        if (error_message)
+            *error_message = cephyr_lower_strdup("failed to create function");
         return 0;
     }
 
@@ -399,14 +414,16 @@ ccw_ir *cephyr_lower_program(cephyr_lower_ctx *ctx,
                              char **error_message)
 {
     if (!program) {
-        if (error_message) *error_message = strdup("null program AST");
+        if (error_message)
+            *error_message = cephyr_lower_strdup("null program AST");
         return NULL;
     }
 
     ccw_ir *ir = ccw_ir_module_create(module_name ? module_name : "cephyr_module",
                                       CCW_PROFILE_TILLY);
     if (!ir) {
-        if (error_message) *error_message = strdup("failed to create IR module");
+        if (error_message)
+            *error_message = cephyr_lower_strdup("failed to create IR module");
         return NULL;
     }
 

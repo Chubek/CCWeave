@@ -18,7 +18,6 @@ void cephyr_ast_node_free(cephyr_ast_node *node)
     if (!node) return;
     free((void *)node->name);
     cephyr_type_free(node->type);
-    free(node->string_value);
     /* Free children based on kind */
     switch (node->kind) {
     case CEPHYR_NODE_EXPR_BINARY:
@@ -89,6 +88,9 @@ void cephyr_ast_node_free(cephyr_ast_node *node)
     case CEPHYR_NODE_EXPR_DESIGNATED_INIT:
         cephyr_ast_free_recursive(node->data.designated_init.init);
         break;
+    case CEPHYR_NODE_EXPR_STRING_CONST:
+        free(node->data.string_value);
+        break;
     default:
         break;
     }
@@ -116,11 +118,6 @@ void cephyr_ast_free_recursive(cephyr_ast_node *node)
 }
 
 /* ---------- dump ---------- */
-
-static void dump_indent(FILE *out, int depth)
-{
-    for (int i = 0; i < depth; i++) fputs("  ", out);
-}
 
 static const char *kind_name(cephyr_ast_node_kind k)
 {

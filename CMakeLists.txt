@@ -138,3 +138,4 @@ add_subdirectory(tools/ccw-manifest)
 
 enable_testing()
 add_subdirectory(tests)
+add_subdirectory(compilers/cephyr/tests)

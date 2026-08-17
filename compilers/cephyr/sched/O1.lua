@@ -20,14 +20,17 @@ local strength   = S:require { capability = "opt.strength-reduction" }
 -- Oeuph rewriting.
 local arith_rules = S:rewrite "arith.*"
 
+-- The core → Tilly barrier (§8.4).
+local pre_tilly = S:barrier "pre-tilly"
+
 -- Code generation backend.
 local isel    = S:require { capability = "codegen.x86-64" }
 local ra = S:probe   { capability = "codegen.regalloc-graph" }
-        or S:require { capability = "codegen.regalloc-linear" }
+        or S:require {
+          capability = "codegen.regalloc-linear",
+          prefer = "regalloc-linear-scan"
+        }
 local sched_list = S:require { capability = "codegen.sched-list" }
-
--- The core → Tilly barrier (§8.4).
-local pre_tilly = S:barrier "pre-tilly"
 
 -- Ordering: analyses → normalization → optimizations → Tilly barrier → codegen.
 S:edge(def_use, purity)

@@ -71,7 +71,7 @@ static cephyr_module *gnu_attributes_init(void)
 
 /* ---------- LTO module ---------- */
 
-static const char *lto_fragment_source =
+static const char lto_fragment_source[] =
     "-- LTO fragment: registers link-time optimization passes.\n"
     "-- In v0.1, this is a placeholder; LTO requires kernel support\n"
     "-- for cross-module IR merging, deferred to v0.2.\n"

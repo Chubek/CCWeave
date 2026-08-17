@@ -7,7 +7,7 @@
 #ifndef CEPHYR_LOWER_H
 #define CEPHYR_LOWER_H
 
-#include "../../sema/cephyr_ast.h"
+#include "../sema/cephyr_ast.h"
 #include "../../../ir/ccw_ir.h"
 
 #ifdef __cplusplus
