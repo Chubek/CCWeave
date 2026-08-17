@@ -7,6 +7,8 @@ no Kernel.yaml probing, no runtime coupling to Cephyr or Moonix. Codegen kernels
 `codegen.*` capabilities) and hand-written runtime stubs are its expected producers; the
 linker consuming Glue ABI v1 objects is its expected consumer.
 
+`ccwas` uses `third_party/LIEF` for creating object files (ELF, PE, Mach-O).
+
 ## 1. Scope and non-goals
 
 - **In scope:** assembling, macro expansion, ISA validation against the manifests, template
