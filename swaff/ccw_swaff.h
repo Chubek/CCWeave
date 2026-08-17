@@ -37,6 +37,8 @@ typedef struct ccw_swaff_frontend ccw_swaff_frontend;
 
 /* The C frontend: tree-sitter-c grammar + its lowering adapter. */
 const ccw_swaff_frontend *ccw_swaff_frontend_c(void);
+/* The Lua frontend: tree-sitter-lua + imperative Kliche lowering. */
+const ccw_swaff_frontend *ccw_swaff_frontend_lua(void);
 /* The OCaml implementation frontend: tree-sitter-ocaml + functional
  * and control-flow Kliche construction patterns. */
 const ccw_swaff_frontend *ccw_swaff_frontend_ocaml(void);

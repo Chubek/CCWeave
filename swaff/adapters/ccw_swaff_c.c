@@ -686,6 +686,9 @@ ccw_ir *ccw_swaff_lower(const ccw_swaff_frontend *fe,
                         ccw_swaff_report *report, char **error_message)
 {
     if (error_message != NULL) *error_message = NULL;
+    if (fe == ccw_swaff_frontend_lua())
+        return ccw_swaff_lower_lua(fe, source, source_len, module_name,
+                                   profile, policy, report, error_message);
     if (fe == ccw_swaff_frontend_ocaml())
         return ccw_swaff_lower_ocaml(fe, source, source_len, module_name,
                                      profile, policy, report, error_message);
@@ -799,6 +802,9 @@ ccw_ir *ccw_swaff_lower(const ccw_swaff_frontend *fe,
     if (fe == ccw_swaff_frontend_ocaml())
         return ccw_swaff_lower_ocaml(fe, source, source_len, module_name,
                                      profile, policy, report, error_message);
+    if (fe == ccw_swaff_frontend_lua())
+        return ccw_swaff_lower_lua(fe, source, source_len, module_name,
+                                   profile, policy, report, error_message);
     (void)fe; (void)source; (void)source_len; (void)module_name;
     (void)profile; (void)policy; (void)report;
     set_error(error_message,
