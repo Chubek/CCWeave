@@ -88,6 +88,13 @@ kernels:
     description: Lowers closure construction and invocation to explicit runtime operations.
     capabilities:
       - lower.closure-conversion
+  - path: kernels/closure-specialize.scm
+    library: (ccweave kernel closure-specialize)
+    name: closure-specialize
+    version: 1.0.0
+    description: Marks closure calls with a statically known function target.
+    capabilities:
+      - opt.functional-closure-specialization
   - path: kernels/code-sink.scm
     library: (ccweave kernel code-sink)
     name: code-sink
@@ -235,6 +242,20 @@ kernels:
     description: Lowers generic exception nodes to explicit runtime exception operations.
     capabilities:
       - lower.exceptions
+  - path: kernels/functional-eta-reduce.scm
+    library: (ccweave kernel functional-eta-reduce)
+    name: functional-eta-reduce
+    version: 1.0.0
+    description: Records functions whose body is a direct call-and-return wrapper.
+    capabilities:
+      - opt.functional-eta-reduction
+  - path: kernels/functional-pipeline-lower.scm
+    library: (ccweave kernel functional-pipeline-lower)
+    name: functional-pipeline-lower
+    version: 1.0.0
+    description: Lowers compose and apply primitives to explicit runtime operations.
+    capabilities:
+      - lower.functional-pipeline
   - path: kernels/gc-barrier-insert.scm
     library: (ccweave kernel gc-barrier-insert)
     name: gc-barrier-insert
@@ -263,6 +284,20 @@ kernels:
     description: Converts simple diamond branches to predicated select instructions.
     capabilities:
       - opt.if-conversion
+  - path: kernels/imperative-branch-fold.scm
+    library: (ccweave kernel imperative-branch-fold)
+    name: imperative-branch-fold
+    version: 1.0.0
+    description: Replaces branches with constant conditions by direct jumps.
+    capabilities:
+      - opt.imperative-branch-folding
+  - path: kernels/imperative-store-load-forward.scm
+    library: (ccweave kernel imperative-store-load-forward)
+    name: imperative-store-load-forward
+    version: 1.0.0
+    description: Forwards an adjacent store value into a matching load.
+    capabilities:
+      - opt.imperative-store-load-forwarding
   - path: kernels/inline-cost.scm
     library: (ccweave kernel inline-cost)
     name: inline-cost
@@ -382,6 +417,27 @@ kernels:
     description: Eliminates repeated null checks of the same SSA value.
     capabilities:
       - opt.null-check-elim
+  - path: kernels/oop-devirtualize.scm
+    library: (ccweave kernel oop-devirtualize)
+    name: oop-devirtualize
+    version: 1.0.0
+    description: Devirtualizes calls carrying an explicit function target.
+    capabilities:
+      - opt.oop-devirtualization
+  - path: kernels/oop-null-check.scm
+    library: (ccweave kernel oop-null-check)
+    name: oop-null-check
+    version: 1.0.0
+    description: Records object null checks that are immediately repeated.
+    capabilities:
+      - opt.oop-null-check-elimination
+  - path: kernels/oop-vtable-lower.scm
+    library: (ccweave kernel oop-vtable-lower)
+    name: oop-vtable-lower
+    version: 1.0.0
+    description: Lowers object vtable construction and lookup to runtime operations.
+    capabilities:
+      - lower.oop-vtable
   - path: kernels/overflow-lower.scm
     library: (ccweave kernel overflow-lower)
     name: overflow-lower

@@ -162,3 +162,11 @@ ordinals, virtual register colors/slots, stable list schedules, and SLP pack
 ids. These facts are intentionally advisory until the corresponding target
 extension groups are promoted. No kernel remains metadata-only or versioned
 `0.0.0`.
+
+## 2026-08-17 — Eight paradigm-oriented kernels
+
+The request did not prescribe names or capabilities. Functional kernels use
+the `functional-*` family, OOP kernels use `oop-*`, and imperative kernels use
+`imperative-*`. They stay within the existing Core Accessor Set: concrete
+rewrites use builder-based mutation, while analyses publish facts through
+`analysis-put!`.

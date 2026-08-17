@@ -76,8 +76,12 @@ capabilities:
     - kernels/cps-convert.scm
   lower.exceptions:
     - kernels/exception-lower.scm
+  lower.functional-pipeline:
+    - kernels/functional-pipeline-lower.scm
   lower.lambda-lifting:
     - kernels/lambda-lift.scm
+  lower.oop-vtable:
+    - kernels/oop-vtable-lower.scm
   lower.overflow:
     - kernels/overflow-lower.scm
   lower.pattern-match:
@@ -112,10 +116,18 @@ capabilities:
     - kernels/dce.scm
   opt.early-cse:
     - kernels/early-cse.scm
+  opt.functional-closure-specialization:
+    - kernels/closure-specialize.scm
+  opt.functional-eta-reduction:
+    - kernels/functional-eta-reduce.scm
   opt.gvn:
     - kernels/gvn.scm
   opt.if-conversion:
     - kernels/if-conversion.scm
+  opt.imperative-branch-folding:
+    - kernels/imperative-branch-fold.scm
+  opt.imperative-store-load-forwarding:
+    - kernels/imperative-store-load-forward.scm
   opt.inline:
     - kernels/inline.scm
   opt.inline-cost:
@@ -135,6 +147,10 @@ capabilities:
     - kernels/mem2reg.scm
   opt.null-check-elim:
     - kernels/null-check-elim.scm
+  opt.oop-devirtualization:
+    - kernels/oop-devirtualize.scm
+  opt.oop-null-check-elimination:
+    - kernels/oop-null-check.scm
   opt.phi-simplify:
     - kernels/phi-simplify.scm
   opt.reassociate:
