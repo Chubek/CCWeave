@@ -13,4 +13,4 @@ Lowering returns a fresh module on success. On rejection or other failure it
 returns no module and gives a caller-owned error message where available.
 
 Previous: \subpage ccweave-manual-31 "Swaff overview" · Next:
-\subpage ccweave-manual-33 "C frontend"
+\subpage ccweave-manual-33 "C and OCaml frontends"

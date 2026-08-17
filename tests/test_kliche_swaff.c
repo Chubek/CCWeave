@@ -79,6 +79,15 @@ int main(void)
         CCW_CHECK(m == NULL && err != NULL,
                   "a build without Tree-sitter must report why lowering is unavailable");
         free(err);
+
+        err = NULL;
+        m = ccw_swaff_lower(ccw_swaff_frontend_ocaml(),
+                            "let identity x = x\n", 19, "m",
+                            CCW_PROFILE_TILLY, CCW_SWAFF_REJECT_ON_ERROR,
+                            NULL, &err);
+        CCW_CHECK(m == NULL && err != NULL,
+                  "the OCaml adapter must report disabled Tree-sitter support");
+        free(err);
         return ccw_test_report("kliche-swaff (no tree-sitter)");
     }
 

@@ -37,6 +37,9 @@ typedef struct ccw_swaff_frontend ccw_swaff_frontend;
 
 /* The C frontend: tree-sitter-c grammar + its lowering adapter. */
 const ccw_swaff_frontend *ccw_swaff_frontend_c(void);
+/* The OCaml implementation frontend: tree-sitter-ocaml + functional
+ * and control-flow Kliche construction patterns. */
+const ccw_swaff_frontend *ccw_swaff_frontend_ocaml(void);
 const char               *ccw_swaff_frontend_name(const ccw_swaff_frontend *fe);
 
 /* Parses `source` and lowers it into a fresh module named `module_name`.

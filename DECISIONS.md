@@ -1,5 +1,16 @@
 # Decisions
 
+## 2026-08-17 — Initial OCaml frontend subset
+
+The OCaml Swaff adapter lowers the source forms that have an unambiguous
+mapping to the current Kliche and Weave IR APIs: top-level functions, scalar
+integer and boolean expressions, direct and higher-order application,
+immutable local bindings, sequencing, and value-producing conditionals.
+Global value storage, algebraic data, pattern matching, nested named
+functions, objects, modules, and exceptions remain explicitly unsupported
+because the current lower layers do not define their representation. The
+adapter reports those CST nodes instead of inventing an encoding.
+
 ## 2026-08-16 — Capability kernels preserve IR without required extensions
 
 The Core Accessor Set exposes instruction navigation and structural edits, but

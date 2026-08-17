@@ -6,7 +6,7 @@
  * according to the caller's policy, and emits the imperative Kliche
  * stereotype rather than exposing CST details to lower layers. */
 
-#include "../ccw_swaff.h"
+#include "ccw_swaff_internal.h"
 #include "ccw_kliche.h"
 
 #include <errno.h>
@@ -14,10 +14,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-struct ccw_swaff_frontend {
-    const char *name;
-};
 
 static const ccw_swaff_frontend g_frontend_c = { "c" };
 
@@ -690,6 +686,10 @@ ccw_ir *ccw_swaff_lower(const ccw_swaff_frontend *fe,
                         ccw_swaff_report *report, char **error_message)
 {
     if (error_message != NULL) *error_message = NULL;
+    if (fe == ccw_swaff_frontend_ocaml())
+        return ccw_swaff_lower_ocaml(fe, source, source_len, module_name,
+                                     profile, policy, report, error_message);
+
     ccw_swaff_report local;
     memset(&local, 0, sizeof(local));
     if (report != NULL) memset(report, 0, sizeof(*report));
@@ -796,6 +796,9 @@ ccw_ir *ccw_swaff_lower(const ccw_swaff_frontend *fe,
                         ccw_swaff_error_policy policy,
                         ccw_swaff_report *report, char **error_message)
 {
+    if (fe == ccw_swaff_frontend_ocaml())
+        return ccw_swaff_lower_ocaml(fe, source, source_len, module_name,
+                                     profile, policy, report, error_message);
     (void)fe; (void)source; (void)source_len; (void)module_name;
     (void)profile; (void)policy; (void)report;
     set_error(error_message,

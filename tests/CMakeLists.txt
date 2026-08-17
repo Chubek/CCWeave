@@ -46,6 +46,9 @@ target_link_libraries(test_kliche_swaff PRIVATE ccw_kliche ccw_swaff)
 if(CCWEAVE_ENABLE_TREESITTER)
   ccw_add_test(test_swaff_c test_swaff_c.c)
   target_link_libraries(test_swaff_c PRIVATE ccw_swaff)
+
+  ccw_add_test(test_swaff_ocaml test_swaff_ocaml.c)
+  target_link_libraries(test_swaff_ocaml PRIVATE ccw_swaff)
 endif()
 
 # Manifests must regenerate identically and fail on drift (§4.2).

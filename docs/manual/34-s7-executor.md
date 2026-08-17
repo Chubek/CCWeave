@@ -11,5 +11,5 @@ executors and host implementations.
 An executor must reject a load when the required kernel exports are missing,
 and it must verify a requested capability before calling `kernel-apply`.
 
-Previous: \subpage ccweave-manual-33 "C frontend" · Next:
+Previous: \subpage ccweave-manual-33 "C and OCaml frontends" · Next:
 \subpage ccweave-manual-35 "Host integration"
