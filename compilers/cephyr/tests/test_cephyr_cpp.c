@@ -40,6 +40,32 @@ int main(void)
                   result.line_map_count == 0,
               "freeing a preprocessor result must clear owned storage");
 
+    static const char defined_source[] =
+        "int profile_value(void) { return PROFILE_VALUE; }\n";
+    static const char *defines[] = { "PROFILE_VALUE=17" };
+    result = cephyr_cpp_preprocess_with_defines(
+        defined_source, strlen(defined_source), "defined-test.c",
+        NULL, 0, defines, 1);
+    CCW_CHECK(result.error_message == NULL,
+              "profile definitions must preprocess: %s",
+              result.error_message ? result.error_message : "(no message)");
+    CCW_CHECK(result.text != NULL && strstr(result.text, "17") != NULL,
+              "profile definitions must be visible to ucpp");
+    cephyr_cpp_result_free(&result);
+
+    static const char forwarded_source[] =
+        "int forwarded(void) { return FORWARDED_VALUE; }\n";
+    static const char *forwarded_options[] = { "-DFORWARDED_VALUE=29" };
+    result = cephyr_cpp_preprocess_with_options(
+        forwarded_source, strlen(forwarded_source), "forwarded-test.c",
+        NULL, 0, NULL, 0, forwarded_options, 1, NULL, 0);
+    CCW_CHECK(result.error_message == NULL,
+              "forwarded preprocessor options must work: %s",
+              result.error_message ? result.error_message : "(no message)");
+    CCW_CHECK(result.text != NULL && strstr(result.text, "29") != NULL,
+              "-Wp/-Xpreprocessor definitions must reach ucpp");
+    cephyr_cpp_result_free(&result);
+
     char *error = NULL;
     CCW_CHECK(cephyr_cpp_external("missing-input.c", NULL, &error) == NULL,
               "external preprocessing without a command must fail");

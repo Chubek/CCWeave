@@ -2,6 +2,7 @@
 build/
 build-*/
 out/
+compilers/cephyr/sched/plans/
 *.o
 *.obj
 *.a

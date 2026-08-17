@@ -9,7 +9,7 @@
 
 enum { NODE_KERNEL = 1, NODE_REWRITE = 2, NODE_BARRIER = 3 };
 typedef struct { char *name, *path; char **caps; size_t nc, cc; } kernel;
-typedef struct { char *name; } ruleset;
+typedef struct { char *name, *path; } ruleset;
 typedef struct { unsigned id, kind; char *name; char **members; size_t nm; } node;
 typedef struct { unsigned from, to; } edge;
 typedef struct { size_t *items, n, c; } kernel_matches;
@@ -122,22 +122,33 @@ bad:
   fail(e, 2, "malformed Kernel.yaml"); return 0;
 }
 static int load_rules(ccw_sched *s, ccw_sched_error *e) {
-  char file[1024], line[2048]; FILE *f; char *name = NULL;
+  char file[1024], line[2048]; FILE *f; char *name = NULL, *path = NULL;
   snprintf(file, sizeof(file), "%s/Stdrewrite.yaml", s->manifest_dir);
   f = fopen(file, "r"); if (!f) { fail(e, 2, "cannot read Stdrewrite.yaml"); return 0; }
   while (fgets(line, sizeof(line), f)) {
     char *p = strip(line);
-    if (!strncmp(p, "- path:", 7)) { free(name); name = NULL; }
+    if (!strncmp(p, "- path:", 7)) {
+      free(name); free(path);
+      name = NULL; path = xstrdup(strip(p + 7));
+      if (!path || !clean_scalar(path)) goto bad;
+    }
     else if (!strncmp(p, "name:", 5)) {
-      name = xstrdup(strip(p + 5)); if (!name || !clean_scalar(name) || !reserve((void **)&s->rules, &s->cr, s->nr + 1, sizeof(*s->rules))) goto bad;
+      if (!path) goto bad;
+      name = xstrdup(strip(p + 5)); if (!name || !clean_scalar(name) ||
+          !reserve((void **)&s->rules, &s->cr, s->nr + 1, sizeof(*s->rules))) goto bad;
       s->rules[s->nr].name = name;
+      s->rules[s->nr].path = path;
       name = NULL;
+      path = NULL;
       ++s->nr;
       if (!index_ruleset(s, s->nr - 1)) goto bad;
     }
   }
-  free(name); fclose(f); return s->nr != 0;
-bad: free(name); fclose(f); fail(e, 2, "malformed Stdrewrite.yaml"); return 0;
+  free(name); free(path); fclose(f); if (!s->nr) {
+    fail(e, 2, "Stdrewrite.yaml has no rulesets"); return 0;
+  }
+  return 1;
+bad: free(name); free(path); fclose(f); fail(e, 2, "malformed Stdrewrite.yaml"); return 0;
 }
 static int has_cap(const kernel *k, const char *cap) {
   for (size_t i = 0; i < k->nc; ++i) if (!strcmp(k->caps[i], cap)) return 1;
@@ -206,7 +217,7 @@ ccw_sched *ccw_sched_new(const char *name, const char *manifest_dir, ccw_sched_e
 void ccw_sched_free(ccw_sched *s) {
   if (!s) return;
   for (size_t i=0;i<s->nk;i++) { free(s->kernels[i].name); free(s->kernels[i].path); for(size_t j=0;j<s->kernels[i].nc;j++) free(s->kernels[i].caps[j]); free(s->kernels[i].caps); }
-  for (size_t i=0;i<s->nr;i++) free(s->rules[i].name);
+  for (size_t i=0;i<s->nr;i++) { free(s->rules[i].name); free(s->rules[i].path); }
   for (size_t i=0;i<s->nn;i++) { free(s->nodes[i].name); for(size_t j=0;j<s->nodes[i].nm;j++) free(s->nodes[i].members[j]); free(s->nodes[i].members); }
   if (s->capability_index) {
     for (khint_t i = kh_begin(s->capability_index); i != kh_end(s->capability_index); ++i)
@@ -296,6 +307,417 @@ void ccw_plan_free(ccw_plan *p){if(p){free(p->text);free(p);}}
 const char *ccw_plan_text(const ccw_plan *p){return p?p->text:"";}
 ccw_plan *ccw_plan_from_text(const char *text){ccw_plan*p=malloc(sizeof(*p));if(p)p->text=xstrdup(text?text:"");return p;}
 int ccw_plan_write(const ccw_plan*p,const char*path,ccw_sched_error*e){FILE*f;if(!p||!path){fail(e,1,"invalid plan path");return 0;}f=fopen(path,"wb");if(!f){fail(e,7,"cannot write plan");return 0;}if(fputs(p->text,f)<0||fclose(f)){fail(e,7,"cannot write plan");return 0;}return 1;}
+
+static void free_node_array(node *nodes, size_t count)
+{
+  if (nodes == NULL) return;
+  for (size_t i = 0; i < count; ++i) {
+    free(nodes[i].name);
+    for (size_t j = 0; j < nodes[i].nm; ++j) free(nodes[i].members[j]);
+    free(nodes[i].members);
+  }
+  free(nodes);
+}
+
+/* Plan text is intentionally small and scalar-only, so execution can
+ * rehydrate it without adding another serialized artifact format. */
+static int parse_plan_text(const char *text, node **nodes_out, size_t *nn_out,
+                           edge **edges_out, size_t *ne_out,
+                           ccw_sched_error *e)
+{
+  char *copy = NULL, *save = NULL, *line;
+  node *nodes = NULL;
+  edge *edges = NULL;
+  size_t nn = 0, cn = 0, ne = 0, ce = 0;
+  int ok = 0;
+
+  if (nodes_out) *nodes_out = NULL;
+  if (nn_out) *nn_out = 0;
+  if (edges_out) *edges_out = NULL;
+  if (ne_out) *ne_out = 0;
+  if (text == NULL || nodes_out == NULL || nn_out == NULL ||
+      edges_out == NULL || ne_out == NULL) {
+    fail(e, 1, "invalid plan");
+    return 0;
+  }
+
+  copy = xstrdup(text);
+  if (copy == NULL) {
+    fail(e, 1, "out of memory");
+    return 0;
+  }
+  line = strtok_r(copy, "\n", &save);
+  if (line == NULL || strcmp(line, "CCW-SCHED-PLAN 1") != 0) {
+    fail(e, 8, "invalid plan header");
+    goto done;
+  }
+
+  while ((line = strtok_r(NULL, "\n", &save)) != NULL) {
+    char *item_save = NULL;
+    char *item = strtok_r(line, " ", &item_save);
+    if (item == NULL) continue;
+
+    if (!strcmp(item, "name")) {
+      if (strtok_r(NULL, " ", &item_save) == NULL ||
+          strtok_r(NULL, " ", &item_save) != NULL) {
+        fail(e, 8, "malformed plan name");
+        goto done;
+      }
+    } else if (!strcmp(item, "node")) {
+      char *id_text = strtok_r(NULL, " ", &item_save);
+      char *kind_text = strtok_r(NULL, " ", &item_save);
+      char *name = strtok_r(NULL, " ", &item_save);
+      char *extra;
+      unsigned id, kind;
+      node parsed;
+      char **members = NULL;
+      size_t nm = 0, cm = 0;
+
+      if (id_text == NULL || kind_text == NULL || name == NULL ||
+          sscanf(id_text, "%u", &id) != 1 ||
+          sscanf(kind_text, "%u", &kind) != 1 ||
+          id != nn + 1 || (kind != NODE_KERNEL && kind != NODE_REWRITE &&
+                           kind != NODE_BARRIER) || !clean_scalar(name)) {
+        fail(e, 8, "malformed plan node");
+        goto done;
+      }
+      memset(&parsed, 0, sizeof(parsed));
+      parsed.id = id;
+      parsed.kind = kind;
+      parsed.name = xstrdup(name);
+      if (parsed.name == NULL) {
+        fail(e, 1, "out of memory");
+        goto done;
+      }
+      while ((extra = strtok_r(NULL, " ", &item_save)) != NULL) {
+        if (!clean_scalar(extra) ||
+            !reserve((void **)&members, &cm, nm + 1, sizeof(*members))) {
+          free(parsed.name);
+          for (size_t i = 0; i < nm; ++i) free(members[i]);
+          free(members);
+          fail(e, !clean_scalar(extra) ? 8 : 1,
+               !clean_scalar(extra) ? "malformed plan member" : "out of memory");
+          goto done;
+        }
+        members[nm] = xstrdup(extra);
+        if (members[nm] == NULL) {
+          free(parsed.name);
+          for (size_t i = 0; i < nm; ++i) free(members[i]);
+          free(members);
+          fail(e, 1, "out of memory");
+          goto done;
+        }
+        ++nm;
+      }
+      if ((kind == NODE_REWRITE && nm == 0) ||
+          (kind == NODE_BARRIER && nm != 0)) {
+        free(parsed.name);
+        for (size_t i = 0; i < nm; ++i) free(members[i]);
+        free(members);
+        fail(e, 8, "invalid plan node members");
+        goto done;
+      }
+      parsed.members = members;
+      parsed.nm = nm;
+      if (!reserve((void **)&nodes, &cn, nn + 1, sizeof(*nodes))) {
+        free(parsed.name);
+        for (size_t i = 0; i < nm; ++i) free(members[i]);
+        free(members);
+        fail(e, 1, "out of memory");
+        goto done;
+      }
+      nodes[nn++] = parsed;
+    } else if (!strcmp(item, "edge")) {
+      char *from_text = strtok_r(NULL, " ", &item_save);
+      char *to_text = strtok_r(NULL, " ", &item_save);
+      unsigned from, to;
+      int have_space;
+      have_space = reserve((void **)&edges, &ce, ne + 1, sizeof(*edges));
+      if (from_text == NULL || to_text == NULL ||
+          strtok_r(NULL, " ", &item_save) != NULL ||
+          sscanf(from_text, "%u", &from) != 1 ||
+          sscanf(to_text, "%u", &to) != 1 || from == 0 || to == 0 ||
+          !have_space) {
+        fail(e, !have_space ? 1 : 8,
+             "malformed plan edge");
+        goto done;
+      }
+      edges[ne++] = (edge){from, to};
+    } else {
+      fail(e, 8, "unknown plan record");
+      goto done;
+    }
+  }
+
+  for (size_t i = 0; i < ne; ++i) {
+    if (edges[i].from > nn || edges[i].to > nn) {
+      fail(e, 8, "plan edge references an unknown node");
+      goto done;
+    }
+  }
+  if (nn == 0) {
+    fail(e, 8, "plan contains no nodes");
+    goto done;
+  }
+
+  *nodes_out = nodes;
+  *nn_out = nn;
+  *edges_out = edges;
+  *ne_out = ne;
+  nodes = NULL;
+  edges = NULL;
+  ok = 1;
+done:
+  free(copy);
+  free_node_array(nodes, nn);
+  free(edges);
+  return ok;
+}
+
+static char *path_join3(const char *a, const char *b, const char *c)
+{
+  size_t na, nb, nc, n;
+  char *out;
+  if (a == NULL || b == NULL || c == NULL) return NULL;
+  na = strlen(a);
+  nb = strlen(b);
+  nc = strlen(c);
+  n = na + nb + nc + 3;
+  out = (char *)malloc(n);
+  if (out == NULL) return NULL;
+  snprintf(out, n, "%s%s%s", a, (na && a[na - 1] == '/') ? "" : "/", b);
+  {
+    size_t used = strlen(out);
+    snprintf(out + used, n - used, "%s%s", (used && out[used - 1] == '/') ? "" : "/", c);
+  }
+  return out;
+}
+
+static char *manifest_parent(const char *manifest_dir)
+{
+  char *parent, *slash;
+  size_t n;
+  if (manifest_dir == NULL || !*manifest_dir) return NULL;
+  parent = xstrdup(manifest_dir);
+  if (parent == NULL) return NULL;
+  n = strlen(parent);
+  while (n > 1 && parent[n - 1] == '/') parent[--n] = '\0';
+  slash = strrchr(parent, '/');
+  if (slash == NULL) {
+    strcpy(parent, ".");
+  } else if (slash == parent) {
+    parent[1] = '\0';
+  } else {
+    *slash = '\0';
+  }
+  return parent;
+}
+
+static char *ruleset_file_path(const char *manifest_dir, const char *ruleset_path)
+{
+  char *candidate, *parent;
+  FILE *probe;
+  if (ruleset_path == NULL || !*ruleset_path) return NULL;
+  if (ruleset_path[0] == '/') {
+    candidate = path_join3("", ruleset_path, "rules.scm");
+    if (candidate == NULL) return NULL;
+    probe = fopen(candidate, "r");
+    if (probe != NULL) {
+      fclose(probe);
+      return candidate;
+    }
+    free(candidate);
+    return NULL;
+  }
+
+  /* Generated paths are repository-root relative, while manifest_dir names
+   * the manifests/ directory.  Resolve exactly that manifest-declared path. */
+  parent = manifest_parent(manifest_dir);
+  if (parent == NULL) return NULL;
+  candidate = path_join3(parent, ruleset_path, "rules.scm");
+  free(parent);
+  if (candidate == NULL) return NULL;
+  probe = fopen(candidate, "r");
+  if (probe == NULL) {
+    free(candidate);
+    return NULL;
+  }
+  fclose(probe);
+  return candidate;
+}
+
+static int find_node_rule(const ccw_sched *s, const char *name, size_t *index)
+{
+  khint_t slot;
+  if (s == NULL || name == NULL || index == NULL) return 0;
+  slot = kh_get(sched_ruleset_by_name, s->ruleset_by_name, name);
+  if (slot == kh_end(s->ruleset_by_name)) return 0;
+  *index = kh_value(s->ruleset_by_name, slot);
+  return 1;
+}
+
+int ccw_plan_apply_rewrites(const ccw_plan *plan, ccw_ir *ir,
+                            const char *manifest_dir,
+                            ccw_oeuph_budget budget, ccw_cost_model model,
+                            ccw_oeuph_stats *stats, size_t stats_capacity,
+                            size_t *stats_count, ccw_sched_error *e)
+{
+  ccw_sched *manifest = NULL;
+  node *nodes = NULL;
+  edge *edges = NULL;
+  size_t nn = 0, ne = 0, required = 0, written = 0;
+  bool *done = NULL;
+  ccw_sched_error local_error;
+
+  if (stats_count != NULL) *stats_count = 0;
+  if (plan == NULL || ir == NULL || manifest_dir == NULL ||
+      (stats == NULL && stats_capacity != 0)) {
+    fail(e, 1, "invalid rewrite execution request");
+    return 0;
+  }
+  if (!parse_plan_text(plan->text, &nodes, &nn, &edges, &ne, e)) return 0;
+
+  manifest = ccw_sched_new("rewrite-execution", manifest_dir, &local_error);
+  if (manifest == NULL) {
+    if (e) *e = local_error;
+    free_node_array(nodes, nn);
+    free(edges);
+    return 0;
+  }
+  for (size_t i = 0; i < nn; ++i)
+    if (nodes[i].kind == NODE_REWRITE) required += nodes[i].nm;
+  if (stats_count != NULL) *stats_count = required;
+  if (stats != NULL && required > stats_capacity) {
+    fail(e, 1, "rewrite stats buffer is too small");
+    ccw_sched_free(manifest);
+    free_node_array(nodes, nn);
+    free(edges);
+    return 0;
+  }
+
+  done = (bool *)calloc(nn, sizeof(*done));
+  if (done == NULL) {
+    fail(e, 1, "out of memory");
+    ccw_sched_free(manifest);
+    free_node_array(nodes, nn);
+    free(edges);
+    return 0;
+  }
+
+  for (size_t completed = 0; completed < nn; ++completed) {
+    size_t selected = nn;
+    for (size_t i = 0; i < nn; ++i) {
+      bool ready = !done[i];
+      if (!ready) continue;
+      for (size_t j = 0; j < ne; ++j)
+        if (edges[j].to == nodes[i].id && !done[edges[j].from - 1]) {
+          ready = false;
+          break;
+        }
+      if (ready) {
+        selected = i;
+        break; /* node ids are the deterministic tie-breaker */
+      }
+    }
+    if (selected == nn) {
+      fail(e, 6, "plan contains a cycle");
+      free(done);
+      ccw_sched_free(manifest);
+      free_node_array(nodes, nn);
+      free(edges);
+      return 0;
+    }
+
+    if (nodes[selected].kind == NODE_REWRITE) {
+      for (size_t j = 0; j < nodes[selected].nm; ++j) {
+        size_t ruleset_index;
+        char *path;
+        char *load_error = NULL;
+        ccw_oeuph_ruleset *ruleset;
+        ccw_oeuph_stats local_stats;
+        ccw_status status;
+
+        if (!find_node_rule(manifest, nodes[selected].members[j],
+                            &ruleset_index)) {
+          fail(e, 8, "plan references a ruleset absent from Stdrewrite.yaml");
+          free(done);
+          ccw_sched_free(manifest);
+          free_node_array(nodes, nn);
+          free(edges);
+          return 0;
+        }
+        path = ruleset_file_path(manifest_dir,
+                                 manifest->rules[ruleset_index].path);
+        if (path == NULL) {
+          fail(e, 2, "ruleset path from Stdrewrite.yaml is unreadable");
+          free(done);
+          ccw_sched_free(manifest);
+          free_node_array(nodes, nn);
+          free(edges);
+          return 0;
+        }
+        ruleset = ccw_oeuph_ruleset_load(path, &load_error);
+        free(path);
+        if (ruleset == NULL) {
+          if (load_error != NULL) {
+            snprintf(e ? e->message : local_error.message,
+                     e ? sizeof(e->message) : sizeof(local_error.message),
+                     "cannot load ruleset %s: %s",
+                     nodes[selected].members[j], load_error);
+            if (e) e->code = 2;
+            free(load_error);
+          } else {
+            fail(e, 2, "cannot load selected ruleset");
+          }
+          free(done);
+          ccw_sched_free(manifest);
+          free_node_array(nodes, nn);
+          free(edges);
+          return 0;
+        }
+        if (strcmp(ccw_oeuph_ruleset_name(ruleset),
+                   nodes[selected].members[j]) != 0) {
+          ccw_oeuph_ruleset_destroy(ruleset);
+          fail(e, 8, "ruleset name disagrees with Stdrewrite.yaml");
+          free(done);
+          ccw_sched_free(manifest);
+          free_node_array(nodes, nn);
+          free(edges);
+          return 0;
+        }
+        memset(&local_stats, 0, sizeof(local_stats));
+        status = ccw_oeuph_run(ir, ruleset, budget, model, &local_stats,
+                               &load_error);
+        ccw_oeuph_ruleset_destroy(ruleset);
+        if (status != CCW_OK) {
+          if (load_error != NULL) {
+            fail(e, (int)status, load_error);
+            free(load_error);
+          } else {
+            fail(e, (int)status, "Oeuph rewrite failed");
+          }
+          free(done);
+          ccw_sched_free(manifest);
+          free_node_array(nodes, nn);
+          free(edges);
+          return 0;
+        }
+        if (stats != NULL) stats[written] = local_stats;
+        ++written;
+        free(load_error);
+      }
+    }
+    done[selected] = true;
+  }
+
+  if (stats_count != NULL) *stats_count = written;
+  free(done);
+  ccw_sched_free(manifest);
+  free_node_array(nodes, nn);
+  free(edges);
+  return 1;
+}
+
 /* SHA-256 keeps release-pinned plan hashes portable without a host dependency. */
 static unsigned rotr(unsigned x, unsigned n) { return (x >> n) | (x << (32 - n)); }
 static void sha256_block(unsigned state[8], const unsigned char block[64]) {

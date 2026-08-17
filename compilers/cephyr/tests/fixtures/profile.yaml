@@ -1,0 +1,35 @@
+version: 1
+name: yaml-test
+target: x86_64-linux-gnu
+opt_level: O1
+preprocessor: ucpp
+manifest_dir: manifests
+sched_script: compilers/cephyr/sched/O1.lua
+preprocessor_options:
+  - -traditional-cpp
+preprocessor_args:
+  - -undef
+assembler_options:
+  - --gdwarf-2
+assembler_args:
+  - --32
+linker_options:
+  - gc-sections
+linker_args:
+  - --eh-frame-hdr
+library_paths:
+  - lib
+libraries:
+  - m
+pic: true
+pie: false
+shared: false
+include_paths:
+  - include
+defines:
+  - TEST_PROFILE
+rewrites:
+  - arith.*
+commands:
+  - name: check
+    command: "true"

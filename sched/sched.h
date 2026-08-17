@@ -1,5 +1,6 @@
 #ifndef CCW_SCHED_H
 #define CCW_SCHED_H
+#include "../oeuph/ccw_oeuph.h"
 #include <stddef.h>
 #include <stdint.h>
 
@@ -22,6 +23,19 @@ int ccw_plan_hash(const ccw_plan *, char out[65]);
 const char *ccw_plan_text(const ccw_plan *);
 ccw_plan *ccw_plan_from_text(const char *);
 int ccw_plan_check(const char *path, const char *manifest_dir, ccw_sched_error *);
+
+/* SCHED §6: ruleset batch nodes are executed through Oeuph.  The manifest
+ * directory is used to revalidate the sealed plan and resolve each selected
+ * ruleset's manifest path; it is never inferred by scanning stdrewrite. */
+int ccw_plan_apply_rewrites(const ccw_plan *,
+                            ccw_ir *,
+                            const char *manifest_dir,
+                            ccw_oeuph_budget,
+                            ccw_cost_model,
+                            ccw_oeuph_stats *stats,
+                            size_t stats_capacity,
+                            size_t *stats_count,
+                            ccw_sched_error *);
 int ccw_sched_run_script(const char *script, const char *manifest_dir, ccw_plan **out, ccw_sched_error *);
 
 #endif

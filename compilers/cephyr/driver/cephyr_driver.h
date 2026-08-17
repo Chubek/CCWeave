@@ -22,6 +22,13 @@ typedef enum {
     CEPHYR_O2 = 2
 } cephyr_opt_level;
 
+typedef enum {
+    CEPHYR_STOP_NONE = 0,
+    CEPHYR_STOP_PREPROCESS,
+    CEPHYR_STOP_ASSEMBLER_SCRIPT,
+    CEPHYR_STOP_LINK
+} cephyr_stop_stage;
+
 /* ---------- compilation options ---------- */
 
 typedef struct {
@@ -34,10 +41,39 @@ typedef struct {
     int                include_path_count;
     const char *const *defines;           /* -D defines */
     int                define_count;
+    const char *const *preprocessor_options; /* -Wp,a,b */
+    int                preprocessor_option_count;
+    const char *const *preprocessor_args;    /* -Xpreprocessor arg */
+    int                preprocessor_arg_count;
+    const char *const *assembler_options; /* -Wa,a,b */
+    int                assembler_option_count;
+    const char *const *assembler_args;    /* -Xassembler arg */
+    int                assembler_arg_count;
+    const char *const *linker_options;    /* -Wl,a,b */
+    int                linker_option_count;
+    const char *const *linker_args;       /* -Xlinker arg */
+    int                linker_arg_count;
+    const char *const *library_paths;     /* -L paths */
+    int                library_path_count;
+    const char *const *libraries;         /* -l names */
+    int                library_count;
+    bool               pic;
+    bool               pie;
+    bool               shared;
+    bool               pic_explicit;
+    bool               pie_explicit;
+    bool               shared_explicit;
     bool               emit_ir;           /* dump IR instead of assembly */
+    cephyr_stop_stage   stop_stage;
     bool               keep_temp;         /* keep intermediate files */
     const char        *plugin_dir;        /* extra plugin search path */
     const char        *sched_script;      /* custom Sched script (NULL = use O{N}.lua) */
+    const char        *profile_path;      /* CEPHYR.yaml/.toml override */
+    const char        *manifest_dir;      /* manifest directory */
+    bool               opt_level_explicit;
+    bool               target_explicit;
+    bool               cpp_explicit;
+    bool               manifest_explicit;
     /* Toolchain discovery */
     const char        *assembler;         /* system assembler (NULL = discover) */
     const char        *linker;            /* system linker (NULL = discover) */

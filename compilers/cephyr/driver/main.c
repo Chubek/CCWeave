@@ -1,3 +1,5 @@
+#define _POSIX_C_SOURCE 200809L
+
 /* Cephyr CLI entry point.
  *
  * Usage: cephyr [options] <source.c>
@@ -20,8 +22,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/wait.h>
 
 #include "cephyr_driver.h"
+#include "../profile/cephyr_profile.h"
 #include "ketopt.h"
 #include "kvec.h"
 
@@ -29,6 +33,13 @@ enum {
     CEPHYR_OPT_EMIT_IR = 256,
     CEPHYR_OPT_TARGET,
     CEPHYR_OPT_CPP,
+    CEPHYR_OPT_PROFILE,
+    CEPHYR_OPT_XASSEMBLER,
+    CEPHYR_OPT_XPREPROCESSOR,
+    CEPHYR_OPT_XLINKER,
+    CEPHYR_OPT_FPIC,
+    CEPHYR_OPT_FPIE,
+    CEPHYR_OPT_SHARED,
     CEPHYR_OPT_HELP,
     CEPHYR_OPT_VERSION
 };
@@ -37,6 +48,15 @@ static const ko_longopt_t cephyr_long_options[] = {
     { "emit-ir", ko_no_argument,       CEPHYR_OPT_EMIT_IR },
     { "target",  ko_required_argument, CEPHYR_OPT_TARGET },
     { "cpp",     ko_required_argument, CEPHYR_OPT_CPP },
+    { "profile", ko_required_argument, CEPHYR_OPT_PROFILE },
+    { "Xassembler",   ko_required_argument, CEPHYR_OPT_XASSEMBLER },
+    { "Xpreprocessor", ko_required_argument, CEPHYR_OPT_XPREPROCESSOR },
+    { "Xlinker",      ko_required_argument, CEPHYR_OPT_XLINKER },
+    { "fPIC",     ko_no_argument, CEPHYR_OPT_FPIC },
+    { "fPIE",     ko_no_argument, CEPHYR_OPT_FPIE },
+    { "PIC",      ko_no_argument, CEPHYR_OPT_FPIC },
+    { "PIE",      ko_no_argument, CEPHYR_OPT_FPIE },
+    { "shared",   ko_no_argument, CEPHYR_OPT_SHARED },
     { "help",    ko_no_argument,       CEPHYR_OPT_HELP },
     { "version", ko_no_argument,       CEPHYR_OPT_VERSION },
     { NULL,      0,                    0 }
@@ -51,13 +71,136 @@ static void print_help(const char *prog)
     printf("  -O0, -O1, -O2  Optimization level (default: -O0)\n");
     printf("  -I <dir>       Add include path\n");
     printf("  -D <name>      Define preprocessor macro\n");
-    printf("  -S             Emit assembly (stop after compilation)\n");
+    printf("  -Wp,a,b        Pass comma-separated options to the preprocessor\n");
+    printf("  -Wa,a,b        Pass comma-separated options to the assembler\n");
+    printf("  -Wl,a,b        Pass comma-separated options to the linker\n");
+    printf("  -Xpreprocessor <arg>\n");
+    printf("  -Xassembler <arg>\n");
+    printf("  -Xlinker <arg>\n");
+    printf("  -L <dir>       Add linker library search path\n");
+    printf("  -l <name>      Link a shared/static library\n");
+    printf("  -fPIC          Generate position-independent code\n");
+    printf("  -fPIE          Generate position-independent executable code\n");
+    printf("  -PIC/-PIE      Accepted aliases for -fPIC/-fPIE\n");
+    printf("  -shared        Link a shared object\n");
+    printf("  -S/-s          Stop after assembler script generation\n");
     printf("  -E             Preprocess only\n");
+    printf("  -o <file>      Write output and stop before linking\n");
     printf("  --emit-ir      Dump Weave IR text\n");
     printf("  --target <t>   Target triple (default: x86_64-linux-gnu)\n");
     printf("  --cpp <cmd>    Use external preprocessor\n");
+    printf("  --profile <p>  Load CEPHYR.yaml/toml profile\n");
+    printf("  profile init [--yaml|--toml]\n");
+    printf("  run <command>  Run a named profile command\n");
     printf("  --help         Show this help\n");
     printf("  --version      Show version\n");
+}
+
+typedef struct {
+    char **a;
+    size_t n;
+    size_t m;
+} cephyr_string_vector;
+
+static void string_vector_init(cephyr_string_vector *vector)
+{
+    memset(vector, 0, sizeof(*vector));
+}
+
+static void string_vector_destroy(cephyr_string_vector *vector)
+{
+    for (size_t i = 0; i < vector->n; ++i) free(vector->a[i]);
+    free(vector->a);
+    memset(vector, 0, sizeof(*vector));
+}
+
+static int string_vector_push(cephyr_string_vector *vector, const char *value)
+{
+    char **next;
+    char *copy;
+    if (value == NULL || *value == '\0') return 0;
+    if (vector->n == vector->m) {
+        size_t next_capacity = vector->m ? vector->m * 2u : 4u;
+        next = (char **)realloc(vector->a, next_capacity * sizeof(*next));
+        if (next == NULL) return 0;
+        vector->a = next;
+        vector->m = next_capacity;
+    }
+    copy = strdup(value);
+    if (copy == NULL) return 0;
+    vector->a[vector->n++] = copy;
+    return 1;
+}
+
+static int string_vector_push_csv(cephyr_string_vector *vector,
+                                  const char *value)
+{
+    const char *start = value;
+    const char *comma;
+    char *piece;
+    size_t length;
+    if (value == NULL || *value == '\0') return 0;
+    for (;;) {
+        comma = strchr(start, ',');
+        length = comma ? (size_t)(comma - start) : strlen(start);
+        if (length == 0) return 0;
+        piece = (char *)malloc(length + 1u);
+        if (piece == NULL) return 0;
+        memcpy(piece, start, length);
+        piece[length] = '\0';
+        if (!string_vector_push(vector, piece)) {
+            free(piece);
+            return 0;
+        }
+        free(piece);
+        if (comma == NULL) break;
+        start = comma + 1;
+    }
+    return 1;
+}
+
+static void request_stop_stage(cephyr_options *options,
+                               cephyr_stop_stage stage)
+{
+    if (options->stop_stage == CEPHYR_STOP_NONE ||
+        stage < options->stop_stage)
+        options->stop_stage = stage;
+}
+
+static char **normalize_long_options(int argc, char **argv, int *out_argc)
+{
+    char **normalized = (char **)calloc((size_t)argc + 1u,
+                                        sizeof(*normalized));
+    int count = 0;
+    if (normalized == NULL) return NULL;
+    for (int i = 0; i < argc; ++i) {
+        if (!strcmp(argv[i], "-Xassembler") ||
+            !strcmp(argv[i], "-Xpreprocessor") ||
+            !strcmp(argv[i], "-Xlinker")) {
+            const char *name = argv[i] + 1;
+            if (i + 1 >= argc) {
+                free(normalized);
+                return NULL;
+            }
+            normalized[count++] = (char *)(name[1] == 'a' ?
+                                           "--Xassembler" :
+                                           name[1] == 'p' ?
+                                           "--Xpreprocessor" :
+                                           "--Xlinker");
+            normalized[count++] = argv[++i];
+        } else if (!strcmp(argv[i], "-fPIC") || !strcmp(argv[i], "-PIC")) {
+            normalized[count++] = "--fPIC";
+        } else if (!strcmp(argv[i], "-fPIE") || !strcmp(argv[i], "-PIE")) {
+            normalized[count++] = "--fPIE";
+        } else if (!strcmp(argv[i], "-shared")) {
+            normalized[count++] = "--shared";
+        } else {
+            normalized[count++] = argv[i];
+        }
+    }
+    normalized[count] = NULL;
+    *out_argc = count;
+    return normalized;
 }
 
 static void print_version(void)
@@ -66,28 +209,143 @@ static void print_version(void)
     printf("Copyright (c) 2026 CCWeave Project\n");
 }
 
+static int profile_init_command(int argc, char **argv)
+{
+    cephyr_profile_format format = CEPHYR_PROFILE_YAML;
+    const char *path = "CEPHYR.yaml";
+    char error[512] = {0};
+    for (int i = 3; i < argc; ++i) {
+        if (!strcmp(argv[i], "--yaml")) {
+            format = CEPHYR_PROFILE_YAML;
+            path = "CEPHYR.yaml";
+        } else if (!strcmp(argv[i], "--toml")) {
+            format = CEPHYR_PROFILE_TOML;
+            path = "CEPHYR.toml";
+        } else {
+            fprintf(stderr, "cephyr: unknown profile init option '%s'\n",
+                    argv[i]);
+            return 2;
+        }
+    }
+    if (!cephyr_profile_init_file(path, format, error, sizeof(error))) {
+        fprintf(stderr, "cephyr: %s\n", error);
+        return 1;
+    }
+    printf("created %s\n", path);
+    return 0;
+}
+
+static int run_profile_command(int argc, char **argv)
+{
+    const char *command_name;
+    const char *explicit_profile = NULL;
+    char *profile_path = NULL;
+    char error[512] = {0};
+    cephyr_profile profile;
+    const cephyr_profile_command *command;
+    int status;
+
+    if (argc < 3) {
+        fprintf(stderr, "Usage: %s run <command> [--profile PATH]\n", argv[0]);
+        return 2;
+    }
+    command_name = argv[2];
+    for (int i = 3; i < argc; ++i) {
+        if (!strcmp(argv[i], "--profile") && i + 1 < argc)
+            explicit_profile = argv[++i];
+        else {
+            fprintf(stderr, "cephyr: unknown run option '%s'\n", argv[i]);
+            return 2;
+        }
+    }
+    if (explicit_profile != NULL)
+        profile_path = strdup(explicit_profile);
+    else
+        profile_path = cephyr_profile_discover(".", error, sizeof(error));
+    memset(&profile, 0, sizeof(profile));
+    if (profile_path == NULL ||
+        !cephyr_profile_load(profile_path, &profile, error, sizeof(error))) {
+        fprintf(stderr, "cephyr: profile error: %s\n",
+                error[0] ? error : "cannot load profile");
+        free(profile_path);
+        return 1;
+    }
+    command = cephyr_profile_find_command(&profile, command_name);
+    if (command == NULL) {
+        fprintf(stderr, "cephyr: profile command '%s' is not defined\n",
+                command_name);
+        cephyr_profile_destroy(&profile);
+        free(profile_path);
+        return 1;
+    }
+    status = system(command->command);
+    cephyr_profile_destroy(&profile);
+    free(profile_path);
+    if (status == -1) {
+        fprintf(stderr, "cephyr: cannot run command '%s'\n", command_name);
+        return 1;
+    }
+    if (WIFEXITED(status)) return WEXITSTATUS(status);
+    if (WIFSIGNALED(status)) {
+        fprintf(stderr, "cephyr: command '%s' terminated by signal %d\n",
+                command_name, WTERMSIG(status));
+        return 128 + WTERMSIG(status);
+    }
+    return 1;
+}
+
 int main(int argc, char **argv)
 {
+    if (argc >= 2 && !strcmp(argv[1], "profile") &&
+        argc >= 3 && !strcmp(argv[2], "init"))
+        return profile_init_command(argc, argv);
+    if (argc >= 2 && !strcmp(argv[1], "run"))
+        return run_profile_command(argc, argv);
+
     cephyr_options opts;
     memset(&opts, 0, sizeof(opts));
     opts.opt_level = CEPHYR_O0;
     kvec_t(const char *) include_paths;
     kvec_t(const char *) defines;
+    cephyr_string_vector preprocessor_options;
+    cephyr_string_vector preprocessor_args;
+    cephyr_string_vector assembler_options;
+    cephyr_string_vector assembler_args;
+    cephyr_string_vector linker_options;
+    cephyr_string_vector linker_args;
+    cephyr_string_vector library_paths;
+    cephyr_string_vector libraries;
     kv_init(include_paths);
     kv_init(defines);
+    string_vector_init(&preprocessor_options);
+    string_vector_init(&preprocessor_args);
+    string_vector_init(&assembler_options);
+    string_vector_init(&assembler_args);
+    string_vector_init(&linker_options);
+    string_vector_init(&linker_args);
+    string_vector_init(&library_paths);
+    string_vector_init(&libraries);
 
     const char *source_path = NULL;
     int exit_code = 1;
+    int parse_argc = argc;
+    char **parse_argv = normalize_long_options(argc, argv, &parse_argc);
     ketopt_t parser = KETOPT_INIT;
     int opt;
 
     /* Klib's ketopt handles short/long options and keeps collection storage
      * in Klib vectors until compilation has consumed it. */
-    while ((opt = ketopt(&parser, argc, argv, 1, "o:I:D:O:SEchV",
+    if (parse_argv == NULL) {
+        fprintf(stderr, "cephyr: malformed option\n");
+        goto cleanup;
+    }
+    while ((opt = ketopt(&parser, parse_argc, parse_argv, 1,
+                         "o:I:D:O:W:L:l:SEschV",
                          cephyr_long_options)) != -1) {
         switch (opt) {
         case 'o':
             opts.output_path = parser.arg;
+            request_stop_stage(&opts, CEPHYR_STOP_LINK);
             break;
         case 'I':
             kv_push(const char *, include_paths, parser.arg);
@@ -95,7 +353,35 @@ int main(int argc, char **argv)
         case 'D':
             kv_push(const char *, defines, parser.arg);
             break;
+        case 'W':
+            if (parser.arg == NULL ||
+                (parser.arg[0] != 'p' && parser.arg[0] != 'a' &&
+                 parser.arg[0] != 'l') || parser.arg[1] != ',') {
+                fprintf(stderr, "cephyr: expected -Wp, -Wa, or -Wl options\n");
+                goto cleanup;
+            }
+            if (!string_vector_push_csv(
+                    parser.arg[0] == 'p' ? &preprocessor_options :
+                    parser.arg[0] == 'a' ? &assembler_options :
+                    &linker_options, parser.arg + 2)) {
+                fprintf(stderr, "cephyr: invalid comma-separated option list\n");
+                goto cleanup;
+            }
+            break;
+        case 'L':
+            if (!string_vector_push(&library_paths, parser.arg)) {
+                fprintf(stderr, "cephyr: out of memory storing -L path\n");
+                goto cleanup;
+            }
+            break;
+        case 'l':
+            if (!string_vector_push(&libraries, parser.arg)) {
+                fprintf(stderr, "cephyr: out of memory storing -l library\n");
+                goto cleanup;
+            }
+            break;
         case 'O':
+            opts.opt_level_explicit = true;
             if (!parser.arg || strcmp(parser.arg, "0") == 0)
                 opts.opt_level = CEPHYR_O0;
             else if (strcmp(parser.arg, "1") == 0)
@@ -109,12 +395,15 @@ int main(int argc, char **argv)
             }
             break;
         case 'S':
+        case 's':
+            request_stop_stage(&opts, CEPHYR_STOP_ASSEMBLER_SCRIPT);
+            break;
         case 'c':
-            /* -S/-c are accepted; v0.1 already stops before system linking. */
+            request_stop_stage(&opts, CEPHYR_STOP_LINK);
             break;
         case 'E':
-            fprintf(stderr, "cephyr: -E (preprocess only) not yet implemented\n");
-            goto cleanup;
+            request_stop_stage(&opts, CEPHYR_STOP_PREPROCESS);
+            break;
         case 'h':
         case CEPHYR_OPT_HELP:
             print_help(argv[0]);
@@ -130,9 +419,44 @@ int main(int argc, char **argv)
             break;
         case CEPHYR_OPT_TARGET:
             opts.target_triple = parser.arg;
+            opts.target_explicit = true;
             break;
         case CEPHYR_OPT_CPP:
             opts.cpp_command = parser.arg;
+            opts.cpp_explicit = true;
+            break;
+        case CEPHYR_OPT_PROFILE:
+            opts.profile_path = parser.arg;
+            break;
+        case CEPHYR_OPT_XASSEMBLER:
+            if (!string_vector_push(&assembler_args, parser.arg)) {
+                fprintf(stderr, "cephyr: out of memory storing assembler argument\n");
+                goto cleanup;
+            }
+            break;
+        case CEPHYR_OPT_XPREPROCESSOR:
+            if (!string_vector_push(&preprocessor_args, parser.arg)) {
+                fprintf(stderr, "cephyr: out of memory storing preprocessor argument\n");
+                goto cleanup;
+            }
+            break;
+        case CEPHYR_OPT_XLINKER:
+            if (!string_vector_push(&linker_args, parser.arg)) {
+                fprintf(stderr, "cephyr: out of memory storing linker argument\n");
+                goto cleanup;
+            }
+            break;
+        case CEPHYR_OPT_FPIC:
+            opts.pic = true;
+            opts.pic_explicit = true;
+            break;
+        case CEPHYR_OPT_FPIE:
+            opts.pie = true;
+            opts.pie_explicit = true;
+            break;
+        case CEPHYR_OPT_SHARED:
+            opts.shared = true;
+            opts.shared_explicit = true;
             break;
         case ':':
             fprintf(stderr, "cephyr: option '-%c' requires an argument\n",
@@ -145,9 +469,9 @@ int main(int argc, char **argv)
         }
     }
 
-    if (parser.ind < argc)
-        source_path = argv[parser.ind++];
-    if (parser.ind < argc) {
+    if (parser.ind < parse_argc)
+        source_path = parse_argv[parser.ind++];
+    if (parser.ind < parse_argc) {
         fprintf(stderr, "cephyr: more than one source file specified\n");
         goto cleanup;
     }
@@ -162,6 +486,23 @@ int main(int argc, char **argv)
     opts.include_path_count = (int)kv_size(include_paths);
     opts.defines = (const char *const *)defines.a;
     opts.define_count = (int)kv_size(defines);
+    opts.preprocessor_options =
+        (const char *const *)preprocessor_options.a;
+    opts.preprocessor_option_count = (int)preprocessor_options.n;
+    opts.preprocessor_args = (const char *const *)preprocessor_args.a;
+    opts.preprocessor_arg_count = (int)preprocessor_args.n;
+    opts.assembler_options = (const char *const *)assembler_options.a;
+    opts.assembler_option_count = (int)assembler_options.n;
+    opts.assembler_args = (const char *const *)assembler_args.a;
+    opts.assembler_arg_count = (int)assembler_args.n;
+    opts.linker_options = (const char *const *)linker_options.a;
+    opts.linker_option_count = (int)linker_options.n;
+    opts.linker_args = (const char *const *)linker_args.a;
+    opts.linker_arg_count = (int)linker_args.n;
+    opts.library_paths = (const char *const *)library_paths.a;
+    opts.library_path_count = (int)library_paths.n;
+    opts.libraries = (const char *const *)libraries.a;
+    opts.library_count = (int)libraries.n;
 
     /* Compile */
     cephyr_result result = cephyr_compile(&opts);
@@ -176,5 +517,14 @@ int main(int argc, char **argv)
 cleanup:
     kv_destroy(include_paths);
     kv_destroy(defines);
+    string_vector_destroy(&preprocessor_options);
+    string_vector_destroy(&preprocessor_args);
+    string_vector_destroy(&assembler_options);
+    string_vector_destroy(&assembler_args);
+    string_vector_destroy(&linker_options);
+    string_vector_destroy(&linker_args);
+    string_vector_destroy(&library_paths);
+    string_vector_destroy(&libraries);
+    free(parse_argv);
     return exit_code;
 }

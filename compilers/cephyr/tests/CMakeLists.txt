@@ -28,3 +28,16 @@ target_link_libraries(test_cephyr_sched PRIVATE ccw_sched)
 target_compile_definitions(test_cephyr_sched PRIVATE
   CCW_MANIFEST_DIR="${CMAKE_SOURCE_DIR}/manifests"
   CEPHYR_SCHED_DIR="${CMAKE_SOURCE_DIR}/compilers/cephyr/sched")
+
+cephyr_add_test(test_cephyr_profile test_cephyr_profile.c)
+target_include_directories(test_cephyr_profile PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/../profile)
+target_link_libraries(test_cephyr_profile PRIVATE cephyr_profile)
+target_compile_definitions(test_cephyr_profile PRIVATE
+  CEPHYR_PROFILE_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
+
+add_test(NAME test_cephyr_cli
+  COMMAND sh ${CMAKE_CURRENT_SOURCE_DIR}/test_cephyr_cli.sh
+          $<TARGET_FILE:cephyr>)
+set_tests_properties(test_cephyr_cli PROPERTIES
+  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})

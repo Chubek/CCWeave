@@ -1,0 +1,28 @@
+version = 1
+name = "toml-test"
+target = "x86_64-linux-gnu"
+opt_level = "O2"
+preprocessor = "ucpp"
+manifest_dir = "manifests"
+preprocessor_options = ["-traditional-cpp"]
+preprocessor_args = ["-undef"]
+assembler_options = ["--gdwarf-2"]
+assembler_args = ["--32"]
+linker_options = ["gc-sections"]
+linker_args = ["--eh-frame-hdr"]
+library_paths = ["lib"]
+libraries = ["m"]
+pic = true
+pie = false
+shared = false
+rewrites = ["arith.*"]
+include_paths = ["include"]
+defines = ["TEST_PROFILE"]
+
+[[kernels]]
+capability = "opt.strength-reduction"
+prefer = "strength-reduce"
+
+[[commands]]
+name = "check"
+command = "true"

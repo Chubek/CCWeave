@@ -48,6 +48,20 @@ cephyr_cpp_result cephyr_cpp_preprocess(const char *source_text,
                                         const char *const *include_paths,
                                         int include_path_count);
 
+/* Variant used by the driver when command-line or profile definitions are
+ * present.  Each definition is in ucpp's NAME or NAME=VALUE form. */
+cephyr_cpp_result cephyr_cpp_preprocess_with_defines(
+    const char *source_text, size_t source_len, const char *source_name,
+    const char *const *include_paths, int include_path_count,
+    const char *const *defines, int define_count);
+
+cephyr_cpp_result cephyr_cpp_preprocess_with_options(
+    const char *source_text, size_t source_len, const char *source_name,
+    const char *const *include_paths, int include_path_count,
+    const char *const *defines, int define_count,
+    const char *const *options, int option_count,
+    const char *const *args, int arg_count);
+
 /* Free a preprocessor result. Safe to call on a zeroed result. */
 void cephyr_cpp_result_free(cephyr_cpp_result *res);
 
@@ -57,6 +71,12 @@ void cephyr_cpp_result_free(cephyr_cpp_result *res);
 char *cephyr_cpp_external(const char *source_path,
                           const char *cpp_command,
                           char **error_message);
+
+char *cephyr_cpp_external_with_options(
+    const char *source_path, const char *cpp_command,
+    const char *const *options, int option_count,
+    const char *const *args, int arg_count,
+    char **error_message);
 
 /* Resolve the line-map entry for a given output line. Returns NULL
  * if the line has no mapping (e.g. builtin expansions). */

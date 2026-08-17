@@ -1,5 +1,35 @@
 # Decisions
 
+## 2026-08-17 — Cephyr toolchain forwarding uses ordered option lists
+
+`-Wp,`, `-Wa,`, and `-Wl,` split on commas and preserve order; `-X*` adds
+one unmodified argument after the corresponding list. Profiles express the
+same channels as string arrays, alongside `library_paths`, `libraries`, and
+the `pic`/`pie`/`shared` booleans. `-E`, `-s`/`-S`, and `-o` are CLI-only
+stage controls; `-o` retains its output-file meaning and requests the
+pre-link stop stage. The current Cephyr backend emits IR rather than invoking
+an assembler/linker, so those two option channels are retained on the driver
+configuration until backend emission is enabled.
+
+## 2026-08-17 — Cephyr profiles are declarative YAML/TOML overlays
+
+Cephyr discovers `CEPHYR.yaml` before `CEPHYR.toml` in the working directory;
+`--profile` selects an explicit file. A profile may select one Sched Lua
+script or declare ordered kernel and Stdrewrite selections, but not both.
+Profile-relative manifest and script paths resolve beside the profile, while
+command entries are intentionally executed by the host shell through
+`cephyr run`. `profile init` is non-destructive and defaults to YAML.
+
+## 2026-08-17 — Sched executes sealed Stdrewrite batches through Oeuph
+
+`S:rewrite` remains a selection-only Lua operation.  The host consumes a
+sealed plan with `ccw_plan_apply_rewrites`, resolves each selected ruleset
+through `Stdrewrite.yaml`, and invokes Oeuph in deterministic DAG/node and
+manifest order.  Kernel and barrier nodes are treated as already handled by
+the host and are skipped by this rewrite-only executor.  The caller supplies
+one Oeuph budget and cost model for every selected ruleset and receives one
+`ccw_oeuph_stats` record per invocation.
+
 ## 2026-08-17 — Sched lookup indexes use klib khash
 
 Sched uses the pinned `third_party/klib/khash.h` implementation for manifest
