@@ -5,13 +5,14 @@ tells you how to work in this repository. It is not the specification.
 
 ## Normative sources (read before writing any code)
 
-1. `.agents/CCWEAVE_SPECS.md` — CCWeave Specification v0.1. Defines all
+1. `.agents/CCWEAVE_SPECS.md` -- CCWeave Specification v0.1. Defines all
    subsystems, their contracts, and conformance conditions (§9).
-2. `.agents/GLUESTD_H.md` — the complete, normative `glue/GlueSTD.h`
+2. `.agents/GLUESTD_H.md` -- the complete, normative `glue/GlueSTD.h`
    (Glue ABI v1), including the host accessor registration API, the
    `ccw_val` boundary-value model, and the Core Accessor Set.
 3. `.agents/SCHED.md` -- the complete, normative specs for the scheduler + orchestrator layer (Lua-based)
-4. `.agents/CEPHYR.md` -- the complete, normative specs for the `compiler/cephyr`, the C compiler derived from the infrastructure
+4. `.agents/CEPHYR.md` -- the complete, normative specs for `compiler/cephyr`, the C compiler derived from the infrastructure
+5. `.agents/MOONIX.md` -- the complete, normative specs for `interpreters/moonix`, a JIT-backed Lua interpreter
 
 If this file and the specs conflict, the specs win. If the two specs
 conflict, `GLUESTD_H.md` wins for anything ABI-related. Do not invent
