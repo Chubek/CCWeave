@@ -94,6 +94,19 @@ if(CCWEAVE_ENABLE_TREESITTER)
     POSITION_INDEPENDENT_CODE ON)
   ccw_vendored_target(ccw_tree_sitter_lua)
 
+  # --- vendored Tree-sitter Standard ML grammar ----------------------
+  add_library(ccw_tree_sitter_sml STATIC
+    ${CCWEAVE_SWAFF_GRAMMARS}/tree-sitter-sml/src/parser.c
+    ${CCWEAVE_SWAFF_GRAMMARS}/tree-sitter-sml/src/scanner.c)
+  target_include_directories(ccw_tree_sitter_sml
+    PUBLIC ${CCWEAVE_SWAFF_GRAMMARS}/tree-sitter-sml/bindings/c
+    PRIVATE ${CCWEAVE_SWAFF_GRAMMARS}/tree-sitter-sml/src)
+  set_target_properties(ccw_tree_sitter_sml PROPERTIES
+    C_STANDARD 11
+    C_STANDARD_REQUIRED ON
+    POSITION_INDEPENDENT_CODE ON)
+  ccw_vendored_target(ccw_tree_sitter_sml)
+
   # --- vendored Tree-sitter OCaml grammar (three sub-languages) ----------
   # ocaml (implementation files: .ml)
   add_library(ccw_tree_sitter_ocaml STATIC

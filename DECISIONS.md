@@ -188,3 +188,14 @@ the `functional-*` family, OOP kernels use `oop-*`, and imperative kernels use
 `imperative-*`. They stay within the existing Core Accessor Set: concrete
 rewrites use builder-based mutation, while analyses publish facts through
 `analysis-put!`.
+
+## 2026-08-17 — Standard ML Swaff lowering subset
+
+The SML frontend lowers the profile-independent functional core: curried
+functions, single-pattern `fn` bindings, scalar Basis operators, named and
+higher-order application, `if`, short-circuit `andalso`/`orelse`, sequences,
+and local simple-name `val` bindings. Because tree-sitter-sml intentionally
+represents fixity syntax as application CSTs, the adapter normalizes recognized
+Basis infix forms itself. Chained unresolved fixity, destructuring parameters,
+multi-clause pattern matching, and non-function top-level values are reported
+as unsupported rather than assigned semantics not specified by CCWeave.
