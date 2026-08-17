@@ -13,6 +13,7 @@ tells you how to work in this repository. It is not the specification.
 3. `.agents/SCHED.md` -- the complete, normative specs for the scheduler + orchestrator layer (Lua-based)
 4. `.agents/CEPHYR.md` -- the complete, normative specs for `compiler/cephyr`, the C compiler derived from the infrastructure
 5. `.agents/MOONIX.md` -- the complete, normative specs for `interpreters/moonix`, a JIT-backed Lua interpreter
+6. `.agents/CCWAS.md` and `.agents/LCCWAS.md` -- the complete, normative specs for `toolchain/ccwas` and `toolchain/ccwas/lccwas`, respectively
 
 If this file and the specs conflict, the specs win. If the two specs
 conflict, `GLUESTD_H.md` wins for anything ABI-related. Do not invent
