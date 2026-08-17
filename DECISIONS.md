@@ -199,3 +199,25 @@ represents fixity syntax as application CSTs, the adapter normalizes recognized
 Basis infix forms itself. Chained unresolved fixity, destructuring parameters,
 multi-clause pattern matching, and non-function top-level values are reported
 as unsupported rather than assigned semantics not specified by CCWeave.
+
+## 2026-08-17 — Broadened codegen-* instruction coverage
+
+The request asked for the `codegen-*` kernels to cover "the majority of
+instructions needed for compilation" but did not enumerate a target ISA
+subset. Weave IR's conventional scalar-integer inventory (§5.4, and as
+exercised by `anf-normalize.scm`, `code-sink.scm`, and
+`isel-tree-match.scm`) is: `imov`, the ALU set (`iadd isub imul idiv irem
+iand ior ixor shl lshr ashr ineg inot`), the compare family (`icmp.{eq,ne,
+lt,le,gt,ge}`), `load`/`store`, control flow (`jmp br ret phi`), and calls
+(`call call.dynamic call.virtual`). Each of `codegen-x86-64.scm`,
+`codegen-aarch64.scm`, `codegen-riscv64.scm`, `riscv64-codegen.scm`
+(RV64GC), and `codegen-wasm32.scm` now maps this full set one opcode at a
+time to target-mnemonic-prefixed forms (e.g. `x86-64.idiv`, `aarch64.orr`,
+`rv64.seq`, `wasm32.div_s`), replacing the previous five-opcode
+(`iadd/isub/imul/load/store`) placeholder tables. Floating-point,
+vector, and target-specific addressing-mode legalization remain out of
+scope here: they are not part of the shared scalar-integer core and would
+require either new profile-neutral opcodes or per-target extension groups
+not yet specified. Mapping stays a same-arity, same-operand-order rename;
+register/immediate legalization is `isel-legalize`'s job and physical
+allocation is `regalloc-*`'s, per the existing pipeline division.

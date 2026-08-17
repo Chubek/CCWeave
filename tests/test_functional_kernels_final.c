@@ -101,6 +101,50 @@ static void test_mappings(ccw_executor *executor)
                         "iadd", "x86-64.add");
     test_opcode_mapping(executor, "riscv64-codegen.scm", "codegen.riscv64",
                         "iadd", "rv64gc.add");
+
+    /* §9: codegen kernels must select a majority of the scalar integer
+     * instruction inventory, not just iadd. Spot-check arithmetic,
+     * compares, memory, and control flow per target. */
+    test_opcode_mapping(executor, "codegen-x86-64.scm", "codegen.x86-64",
+                        "isub", "x86-64.sub");
+    test_opcode_mapping(executor, "codegen-x86-64.scm", "codegen.x86-64",
+                        "idiv", "x86-64.idiv");
+    test_opcode_mapping(executor, "codegen-x86-64.scm", "codegen.x86-64",
+                        "icmp.lt", "x86-64.cmp.lt");
+    test_opcode_mapping(executor, "codegen-x86-64.scm", "codegen.x86-64",
+                        "load", "x86-64.load");
+    test_opcode_mapping(executor, "codegen-x86-64.scm", "codegen.x86-64",
+                        "store", "x86-64.store");
+    test_opcode_mapping(executor, "codegen-x86-64.scm", "codegen.x86-64",
+                        "shl", "x86-64.shl");
+
+    test_opcode_mapping(executor, "codegen-aarch64.scm", "codegen.aarch64",
+                        "imul", "aarch64.mul");
+    test_opcode_mapping(executor, "codegen-aarch64.scm", "codegen.aarch64",
+                        "icmp.ge", "aarch64.cmp.ge");
+    test_opcode_mapping(executor, "codegen-aarch64.scm", "codegen.aarch64",
+                        "ior", "aarch64.orr");
+    test_opcode_mapping(executor, "codegen-aarch64.scm", "codegen.aarch64",
+                        "load", "aarch64.ldr");
+
+    test_opcode_mapping(executor, "codegen-riscv64.scm", "codegen.riscv64",
+                        "ixor", "rv64.xor");
+    test_opcode_mapping(executor, "codegen-riscv64.scm", "codegen.riscv64",
+                        "icmp.eq", "rv64.seq");
+    test_opcode_mapping(executor, "codegen-riscv64.scm", "codegen.riscv64",
+                        "store", "rv64.sd");
+
+    test_opcode_mapping(executor, "riscv64-codegen.scm", "codegen.riscv64",
+                        "ashr", "rv64gc.sra");
+    test_opcode_mapping(executor, "riscv64-codegen.scm", "codegen.riscv64",
+                        "icmp.le", "rv64gc.sle");
+
+    test_opcode_mapping(executor, "codegen-wasm32.scm", "codegen.wasm32",
+                        "idiv", "wasm32.div_s");
+    test_opcode_mapping(executor, "codegen-wasm32.scm", "codegen.wasm32",
+                        "icmp.ne", "wasm32.ne");
+    test_opcode_mapping(executor, "codegen-wasm32.scm", "codegen.wasm32",
+                        "iand", "wasm32.and");
 }
 
 static void test_cps(ccw_executor *executor)

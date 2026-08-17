@@ -105,29 +105,29 @@ kernels:
   - path: kernels/codegen-aarch64.scm
     library: (ccweave kernel codegen-aarch64)
     name: codegen-aarch64
-    version: 0.1.0
-    description: Selects a scalar AArch64 instruction subset.
+    version: 0.2.0
+    description: Selects a scalar AArch64 instruction subset covering arithmetic, compares, memory, and control flow.
     capabilities:
       - codegen.aarch64
   - path: kernels/codegen-riscv64.scm
     library: (ccweave kernel codegen-riscv64)
     name: codegen-riscv64
-    version: 0.1.0
-    description: Selects a scalar RV64 instruction subset.
+    version: 0.2.0
+    description: Selects a scalar RV64 instruction subset covering arithmetic, compares, memory, and control flow.
     capabilities:
       - codegen.riscv64
   - path: kernels/codegen-wasm32.scm
     library: (ccweave kernel codegen-wasm32)
     name: codegen-wasm32
-    version: 0.1.0
-    description: Selects a scalar WebAssembly instruction subset.
+    version: 0.2.0
+    description: Selects a scalar WebAssembly instruction subset covering arithmetic, compares, memory, and control flow.
     capabilities:
       - codegen.wasm32
   - path: kernels/codegen-x86-64.scm
     library: (ccweave kernel codegen-x86-64)
     name: codegen-x86-64
-    version: 0.1.0
-    description: Selects a scalar x86-64 instruction subset.
+    version: 0.2.0
+    description: Selects a scalar x86-64 instruction subset covering arithmetic, compares, memory, and control flow.
     capabilities:
       - codegen.x86-64
   - path: kernels/complex-lower.scm
@@ -539,8 +539,8 @@ kernels:
   - path: kernels/riscv64-codegen.scm
     library: (ccweave kernel riscv64-codegen)
     name: riscv64-codegen
-    version: 0.1.0
-    description: Selects a scalar RV64GC instruction subset.
+    version: 0.2.0
+    description: Selects a scalar RV64GC instruction subset covering arithmetic, compares, memory, and control flow.
     capabilities:
       - codegen.riscv64
   - path: kernels/safepoint-insert.scm
