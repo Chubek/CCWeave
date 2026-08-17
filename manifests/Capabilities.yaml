@@ -92,20 +92,30 @@ capabilities:
     - kernels/cfg-canonicalize.scm
   normalize.instructions:
     - kernels/instr-canonicalize.scm
+  opt.aggressive-dce:
+    - kernels/aggressive-dce.scm
+  opt.argument-promotion:
+    - kernels/argument-promotion.scm
   opt.block-merge:
     - kernels/block-merge.scm
   opt.bounds-check-elim:
     - kernels/bounds-check-elim.scm
   opt.constant-folding:
     - kernels/const-fold.scm
+  opt.contour-simplification:
+    - kernels/contour-simplification.scm
   opt.copy-propagation:
     - kernels/copy-prop.scm
   opt.cse:
     - kernels/cse.scm
   opt.dead-code-elimination:
     - kernels/dce.scm
+  opt.early-cse:
+    - kernels/early-cse.scm
   opt.gvn:
     - kernels/gvn.scm
+  opt.if-conversion:
+    - kernels/if-conversion.scm
   opt.inline:
     - kernels/inline.scm
   opt.inline-cost:

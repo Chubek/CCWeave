@@ -4,6 +4,13 @@
 generator: ccw-manifest/0.1
 glue_abi: 1
 kernels:
+  - path: kernels/aggressive-dce.scm
+    library: (ccweave kernel aggressive-dce)
+    name: aggressive-dce
+    version: 0.1.0
+    description: Eliminates dead instructions using liveness and side-effect analysis.
+    capabilities:
+      - opt.aggressive-dce
   - path: kernels/alias.scm
     library: (ccweave kernel alias)
     name: alias
@@ -18,6 +25,13 @@ kernels:
     description: Assigns administrative names to unnamed scalar computations.
     capabilities:
       - normalize.anf
+  - path: kernels/argument-promotion.scm
+    library: (ccweave kernel argument-promotion)
+    name: argument-promotion
+    version: 0.1.0
+    description: Promotes scalar by-reference arguments to by-value copies.
+    capabilities:
+      - opt.argument-promotion
   - path: kernels/atomics-lower.scm
     library: (ccweave kernel atomics-lower)
     name: atomics-lower
@@ -123,6 +137,13 @@ kernels:
     description: Folds integer add/sub/mul on constant operands.
     capabilities:
       - opt.constant-folding
+  - path: kernels/contour-simplification.scm
+    library: (ccweave kernel contour-simplification)
+    name: contour-simplification
+    version: 0.1.0
+    description: Merges adjacent blocks that share identical instruction sequences.
+    capabilities:
+      - opt.contour-simplification
   - path: kernels/copy-prop.scm
     library: (ccweave kernel copy-prop)
     name: copy-prop
@@ -186,6 +207,13 @@ kernels:
     description: Publishes deterministic instruction ordinals for line-table emission.
     capabilities:
       - debug.dwarf-linetable
+  - path: kernels/early-cse.scm
+    library: (ccweave kernel early-cse)
+    name: early-cse
+    version: 0.1.0
+    description: Publishes duplicate expression candidates for elimination within basic blocks.
+    capabilities:
+      - opt.early-cse
   - path: kernels/escape-analysis.scm
     library: (ccweave kernel escape-analysis)
     name: escape-analysis
@@ -228,6 +256,13 @@ kernels:
     description: Assigns deterministic inline-cache slots to On1x dynamic calls.
     capabilities:
       - vm.inline-cache
+  - path: kernels/if-conversion.scm
+    library: (ccweave kernel if-conversion)
+    name: if-conversion
+    version: 0.1.0
+    description: Converts simple diamond branches to predicated select instructions.
+    capabilities:
+      - opt.if-conversion
   - path: kernels/inline-cost.scm
     library: (ccweave kernel inline-cost)
     name: inline-cost
