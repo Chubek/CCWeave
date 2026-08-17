@@ -10,6 +10,8 @@ tells you how to work in this repository. It is not the specification.
 2. `.agents/GLUESTD_H.md` — the complete, normative `glue/GlueSTD.h`
    (Glue ABI v1), including the host accessor registration API, the
    `ccw_val` boundary-value model, and the Core Accessor Set.
+3. `.agents/SCHED.md` -- the complete, normative specs for the scheduler + orchestrator layer (Lua-based)
+4. `.agents/CEPHYR.md` -- the complete, normative specs for the `compiler/cephyr`, the C compiler derived from the infrastructure
 
 If this file and the specs conflict, the specs win. If the two specs
 conflict, `GLUESTD_H.md` wins for anything ABI-related. Do not invent
@@ -28,6 +30,9 @@ ccweave/
   swaff/                # grammars/ + adapters/
   oeuph/                # e-graph engine
   stdrewrite/           # rulesets
+  sched/                # the scheduler + orchestrator engine
+  compilers/            # the compilers derived from the CCWeave infrastructure
+  interpreters/         # the interpreters weaved from CCWeave
   third_party/          # vendored deps + VERSIONS.lock
   tools/ccw-manifest/
   tests/
@@ -106,6 +111,7 @@ the next begins; later stages depend on earlier ones.
 - **Language:** C11 for host code (`ir/`, `glue/`, `executors/`,
   `oeuph/`, `tools/`), portable R7RS-small for kernels and rewrite
   rules. No C++ in the core.
+  - Lua for the orchestrator + scheduler (`sched`) layer
 - **Naming:** public C symbols are prefixed `ccw_`; capability ids
   match `[a-z0-9-]+(\.[a-z0-9-]+)+` (validate this in `ccw-manifest`).
 - **Errors:** C functions return `ccw_status` or negative status;
