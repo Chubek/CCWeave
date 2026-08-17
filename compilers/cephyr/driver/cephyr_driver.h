@@ -9,6 +9,7 @@
 
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdio.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -33,7 +34,7 @@ typedef enum {
 
 typedef struct {
     const char        *source_path;       /* input .c file */
-    const char        *output_path;       /* output .s file (NULL = stdout) */
+    const char        *output_path;       /* .s with -S, object otherwise */
     cephyr_opt_level   opt_level;         /* optimization level */
     const char        *cpp_command;       /* external preprocessor (NULL = use ucpp) */
     const char        *target_triple;     /* e.g. "x86_64-linux-gnu" */
@@ -103,6 +104,10 @@ cephyr_result cephyr_compile(const cephyr_options *opts);
 
 /* Discover the default assembler. The returned string is heap-allocated. */
 const char *cephyr_discover_assembler(const char *target_triple);
+/* Return the ccwas architecture spelling for a Cephyr target triple. */
+const char *cephyr_target_arch(const char *target_triple);
+/* Print the triples accepted by --target. */
+void cephyr_list_target_triples(FILE *out);
 
 /* Discover the system linker. Returns a static string. */
 const char *cephyr_discover_linker(const char *target_triple);

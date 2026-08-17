@@ -41,7 +41,8 @@ enum {
     CEPHYR_OPT_FPIE,
     CEPHYR_OPT_SHARED,
     CEPHYR_OPT_HELP,
-    CEPHYR_OPT_VERSION
+    CEPHYR_OPT_VERSION,
+    CEPHYR_OPT_LIST_TRIPLES
 };
 
 static const ko_longopt_t cephyr_long_options[] = {
@@ -59,6 +60,7 @@ static const ko_longopt_t cephyr_long_options[] = {
     { "shared",   ko_no_argument, CEPHYR_OPT_SHARED },
     { "help",    ko_no_argument,       CEPHYR_OPT_HELP },
     { "version", ko_no_argument,       CEPHYR_OPT_VERSION },
+    { "lstriples", ko_no_argument,     CEPHYR_OPT_LIST_TRIPLES },
     { NULL,      0,                    0 }
 };
 
@@ -83,11 +85,12 @@ static void print_help(const char *prog)
     printf("  -fPIE          Generate position-independent executable code\n");
     printf("  -PIC/-PIE      Accepted aliases for -fPIC/-fPIE\n");
     printf("  -shared        Link a shared object\n");
-    printf("  -S/-s          Stop after assembler script generation\n");
+    printf("  -S/-s          Emit assembly and stop before assembling\n");
     printf("  -E             Preprocess only\n");
     printf("  -c             Compile only (don't link)\n");
     printf("  --emit-ir      Dump Weave IR text\n");
     printf("  --target <t>   Target triple (default: x86_64-linux-gnu)\n");
+    printf("  --lstriples     List supported target triples and exit\n");
     printf("  --cpp <cmd>    Use external preprocessor\n");
     printf("  --profile <p>  Load CEPHYR.yaml/toml profile\n");
     printf("  profile init [--yaml|--toml]\n");
@@ -412,6 +415,10 @@ int main(int argc, char **argv)
         case 'V':
         case CEPHYR_OPT_VERSION:
             print_version();
+            exit_code = 0;
+            goto cleanup;
+        case CEPHYR_OPT_LIST_TRIPLES:
+            cephyr_list_target_triples(stdout);
             exit_code = 0;
             goto cleanup;
         case CEPHYR_OPT_EMIT_IR:

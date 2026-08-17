@@ -247,3 +247,12 @@ require either new profile-neutral opcodes or per-target extension groups
 not yet specified. Mapping stays a same-arity, same-operand-order rename;
 register/immediate legalization is `isel-legalize`'s job and physical
 allocation is `regalloc-*`'s, per the existing pipeline division.
+
+## 2026-08-17 — Cephyr target triples and assembly handoff
+
+Cephyr accepts a finite registry of GNU-style triples corresponding to the
+four ccwas architectures and maps them to ccwas's architecture spelling.
+`-S` writes deterministic target assembly; other compilation modes write a
+relocatable object by invoking ccwas. The environment variable `CEPHYR_AS`
+overrides the default ccwas command, while retaining the same target and
+input/output argument contract.
