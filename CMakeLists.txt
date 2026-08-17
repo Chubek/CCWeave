@@ -1,6 +1,6 @@
 # CCWeave — global build specification (spec §8).
 cmake_minimum_required(VERSION 3.16)
-project(ccweave C)
+project(ccweave C CXX)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
@@ -33,6 +33,18 @@ endfunction()
 add_library(ccw_mpc STATIC ${CCWEAVE_THIRD_PARTY}/mpc/mpc.c)
 target_include_directories(ccw_mpc PUBLIC ${CCWEAVE_THIRD_PARTY}/mpc)
 ccw_vendored_target(ccw_mpc)
+
+add_library(ccw_linenoise STATIC
+  ${CCWEAVE_THIRD_PARTY}/linenoise-ng/src/ConvertUTF.cpp
+  ${CCWEAVE_THIRD_PARTY}/linenoise-ng/src/linenoise.cpp
+  ${CCWEAVE_THIRD_PARTY}/linenoise-ng/src/wcwidth.cpp)
+target_include_directories(ccw_linenoise PUBLIC
+  ${CCWEAVE_THIRD_PARTY}/linenoise-ng/include)
+set_target_properties(ccw_linenoise PROPERTIES
+  CXX_STANDARD 11
+  CXX_STANDARD_REQUIRED ON
+  CXX_EXTENSIONS OFF)
+ccw_vendored_target(ccw_linenoise)
 
 add_library(ccw_s7 STATIC ${CCWEAVE_THIRD_PARTY}/s7/s7.c)
 target_include_directories(ccw_s7 PUBLIC ${CCWEAVE_THIRD_PARTY}/s7)

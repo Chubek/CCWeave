@@ -1,6 +1,5 @@
 #include "moonix.h"
-
-#include "lauxlib.h"
+#include "repl.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -28,18 +27,6 @@ static int report(moonix_state *state, moonix_status status)
     fprintf(stderr, "moonix: %s: %s\n",
             moonix_status_string(status), moonix_last_error(state));
     return 1;
-}
-
-static int repl(moonix_state *state)
-{
-    char line[4096];
-    while (fputs("> ", stdout), fflush(stdout), fgets(line, sizeof(line), stdin)) {
-        moonix_status status = moonix_dostring(state, line, "=stdin");
-        if (status != MOONIX_OK)
-            fprintf(stderr, "%s\n", moonix_last_error(state));
-        lua_settop(moonix_lua_state(state), 0);
-    }
-    return 0;
 }
 
 static int dump_bytecode(moonix_state *state, const char *input,
@@ -145,7 +132,7 @@ int main(int argc, char **argv)
     else if (script != NULL)
         result = report(state, moonix_dofile(state, script));
     else
-        result = repl(state);
+        result = moonix_repl(state);
     moonix_close(state);
     return result;
 }

@@ -19,5 +19,7 @@ target_compile_definitions(moonix_lib PRIVATE
   MOONIX_DEFAULT_SCHED_DIR="${CMAKE_CURRENT_SOURCE_DIR}/sched")
 target_link_libraries(moonix_lib PUBLIC ccw_lua ccw_swaff ccw_sched ccw_ir)
 
-add_executable(moonix cli/main.c)
-target_link_libraries(moonix PRIVATE moonix_lib)
+add_executable(moonix
+  cli/main.c
+  cli/repl.c)
+target_link_libraries(moonix PRIVATE moonix_lib ccw_linenoise)
