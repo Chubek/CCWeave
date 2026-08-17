@@ -15,7 +15,7 @@ caches, deopt metadata, safepoints, GC barriers — are the whole point.
 
 ## 1. Scope and goals
 
-1. Moonix implements **Lua 5.4** semantics (integer/float subtypes, integer division `//`,
+1. Moonix implements **Lua 5.5** semantics (integer/float subtypes, integer division `//`,
    bitwise operators, `goto`, to-be-closed variables), excluding features listed per phase (§3).
 2. Moonix is a **tiered** implementation:
    - **T0** — a bytecode interpreter, Moonix-owned C11 host code. Always present; the semantic
@@ -70,7 +70,7 @@ Moonix-owned stages, and why:
 
 | Phase | Adds | Explicitly excluded until later |
 |---|---|---|
-| v0.1 | Full expression/statement core; tables, metatables, closures, varargs; integer/float arithmetic with 5.4 coercions; `pcall`/`error`; string/table/math stdlib core; T0 + T1 | Coroutines, `goto` into T1+ code (interpreter-only), `<close>`, weak tables, `__gc`, string pattern library completeness, T2 |
+| v0.1 | Full expression/statement core; tables, metatables, closures, varargs; integer/float arithmetic with 5.5 coercions; `pcall`/`error`; string/table/math stdlib core; T0 + T1 | Coroutines, `goto` into T1+ code (interpreter-only), `<close>`, weak tables, `__gc`, string pattern library completeness, T2 |
 | v0.2 | Coroutines (T0-resident), `<close>`, weak tables + `__gc`, full pattern library, T2 speculation, aarch64 | `require`/full package library, os/io completeness |
 | v0.3 | Full stdlib, package library, finalizer ordering guarantees | — |
 
@@ -90,12 +90,12 @@ Swaff tree and survive into bytecode line tables and `vm.deopt-metadata`.
    scalars cross the kernel ABI, consistent with D-0004; tables and strings are heap handles.
 2. **Arithmetic.** T1 lowers `+`/`-`/`*` on numbers as boxed calls or IC-dispatched fast paths.
    T2 speculates: guarded unbox → native integer ops. Because Weave IR integer arithmetic is
-   wrapping and Lua 5.4 integer arithmetic is also wrapping two's-complement, **all `arith.*`,
+   wrapping and Lua 5.5 integer arithmetic is also wrapping two's-complement, **all `arith.*`,
    `bitwise.*`, `divmod.*`, and `cmp.*` stdrewrite equivalences apply unchanged** on unboxed
    lanes. The `arith.overflow-guarded` ruleset (side-conditioned, per Stdrewrite.yaml) is used
    on T2 speculative lanes where overflow guards exist. Float ops use `float.*` rules only where
    Lua's IEEE semantics hold (no fast-math).
-3. **Integer/float distinction** follows Lua 5.4 exactly: `//` and `%` on integers use floor
+3. **Integer/float distinction** follows Lua 5.5 exactly: `//` and `%` on integers use floor
    semantics — lowered via `divmod.*`-compatible sequences with explicit floor adjustment;
    division `/` always produces float.
 4. **Metatables.** Every dynamic dispatch site (`__index`, `__add`, calls, method calls) is an
@@ -171,7 +171,7 @@ Testing requirements, all CI-gated and ASan-clean:
 4. **JIT execution tests**: T1 and T2 execution of the same T0 programs. Output MUST match T0.
 5. **Deopt tests**: specifically exercise type-feedback loops and guard failures; verify T2 → T0
    reconstruction.
-6. **Differential tests**: same programs against Lua 5.4.1 reference.
+6. **Differential tests**: same programs against Lua 5.5.1 reference.
 
 ## 9. Decisions to append to `DECISIONS.md`
 
