@@ -85,7 +85,7 @@ static void print_help(const char *prog)
     printf("  -shared        Link a shared object\n");
     printf("  -S/-s          Stop after assembler script generation\n");
     printf("  -E             Preprocess only\n");
-    printf("  -o <file>      Write output and stop before linking\n");
+    printf("  -c             Compile only (don't link)\n");
     printf("  --emit-ir      Dump Weave IR text\n");
     printf("  --target <t>   Target triple (default: x86_64-linux-gnu)\n");
     printf("  --cpp <cmd>    Use external preprocessor\n");

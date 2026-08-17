@@ -22,3 +22,11 @@ grep -q '31' "$tmpdir/preprocessed.c"
 
 "$cephyr" -s -o "$tmpdir/assembler.ir" "$tmpdir/main.c"
 grep -q '(module ' "$tmpdir/assembler.ir"
+
+help=$("$cephyr" --help)
+printf '%s\n' "$help" | grep -q '^  -o <file>      Output file'
+printf '%s\n' "$help" | grep -q "^  -c             Compile only (don't link)$"
+if printf '%s\n' "$help" | grep -q '^  -o <file>      Write output and stop before linking'; then
+  echo "cephyr: compile-only help entry must use -c" >&2
+  exit 1
+fi
