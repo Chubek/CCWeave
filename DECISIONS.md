@@ -1,5 +1,14 @@
 # Decisions
 
+## 2026-08-17 — CCWAS encoding authority interpretation
+
+The supplied x86reference XML is used as the x86-64 opcode/form authority.
+Where the repository's CPU-ISA JSONL contains only QBE format metadata, ccwas
+uses canonical baseline encodings for the implemented register forms and emits
+a deterministic placeholder encoding for unsupported target forms. This keeps
+the standalone tool usable while preserving deterministic output; adding
+complete AArch64, RISC-V, and wasm encoding tables remains a follow-up.
+
 ## 2026-08-17 — Cephyr profile schema is a generated shared-data-model artifact
 
 `manifests/CephyrProfile.schema.json` uses JSON Schema Draft 2020-12 to

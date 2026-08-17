@@ -174,6 +174,7 @@ add_subdirectory(compilers/cephyr)
 add_subdirectory(interpreters/moonix)
 add_subdirectory(docs)
 add_subdirectory(tools/ccw-manifest)
+add_subdirectory(toolchain/ccwas)
 
 enable_testing()
 add_subdirectory(tests)
