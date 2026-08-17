@@ -1,5 +1,23 @@
 # Decisions
 
+## 2026-08-17 — Moonix v0.1 tier admission uses the available Sched boundary
+
+D-0020 through D-0024 are accepted. Moonix emits versioned bytecode from the
+pinned Lua 5.5 implementation and treats T0 as the semantic reference. Swaff
+is the sole CST-facing component and produces On1x IR when the current Kliche
+mapping supports the source. T1 admission requires that On1x lowering plus a
+sealed plan containing inline caches, GC barriers, safepoints, and the
+`on1x-complete` barrier. T2 plan construction is checked in v0.1, but execution
+falls back to T0 because T2 is a v0.2 feature.
+
+The current Sched public API can seal/revalidate plans and execute Oeuph
+ruleset batches, but cannot execute kernel nodes or return a native code
+buffer. Moonix therefore does not invent a private code-emission ABI: when
+native kernel-plan execution is unavailable, admitted T1 chunks and all T2
+chunks retain T0 execution semantics. Promoting a code-cache result contract
+into Sched/Glue is required before native JIT emission can replace this
+fallback.
+
 ## 2026-08-17 — Cephyr toolchain forwarding uses ordered option lists
 
 `-Wp,`, `-Wa,`, and `-Wl,` split on commas and preserve order; `-X*` adds
