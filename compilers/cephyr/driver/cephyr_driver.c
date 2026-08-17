@@ -53,8 +53,15 @@ void cephyr_options_init(cephyr_options *opts, const char *source_path)
 const char *cephyr_discover_assembler(const char *target_triple)
 {
     (void)target_triple;
-    /* Try common assembler names */
-    static const char *candidates[] = { "as", "x86_64-linux-gnu-as", "llvm-mc", NULL };
+#ifdef CEPHYR_DEFAULT_ASSEMBLER_PATH
+    if (access(CEPHYR_DEFAULT_ASSEMBLER_PATH, X_OK) == 0)
+        return cephyr_driver_strdup(CEPHYR_DEFAULT_ASSEMBLER_PATH);
+#endif
+    /* CCWAS is the default; retain system fallbacks for external builds. */
+    static const char *candidates[] = {
+        "ccwas", "x86_64-linux-gnu-ccwas", "as",
+        "x86_64-linux-gnu-as", "llvm-mc", NULL
+    };
     for (int i = 0; candidates[i]; i++) {
         char buf[256];
         snprintf(buf, sizeof(buf), "which %s 2>/dev/null", candidates[i]);
@@ -73,7 +80,7 @@ const char *cephyr_discover_assembler(const char *target_triple)
             }
         }
     }
-    return "as"; /* fallback */
+    return cephyr_driver_strdup("ccwas");
 }
 
 const char *cephyr_discover_linker(const char *target_triple)
@@ -565,6 +572,7 @@ cephyr_result cephyr_compile(const cephyr_options *opts)
     char *resolved_manifest = NULL;
     char *resolved_sched = NULL;
     char *generated_sched = NULL;
+    char *discovered_assembler = NULL;
     const char **include_paths = NULL;
     const char **defines = NULL;
     const char **preprocessor_options = NULL;
@@ -653,6 +661,17 @@ cephyr_result cephyr_compile(const cephyr_options *opts)
         effective.assembler = profile.assembler;
     if (opts->linker == NULL && profile.linker != NULL)
         effective.linker = profile.linker;
+    if (effective.assembler == NULL) {
+        discovered_assembler = (char *)cephyr_discover_assembler(
+            effective.target_triple);
+        if (discovered_assembler == NULL) {
+            fprintf(stderr, "cephyr: cannot discover default assembler\n");
+            cephyr_profile_destroy(&profile);
+            free(profile_path);
+            return CEPHYR_ERR_ASSEMBLE;
+        }
+        effective.assembler = discovered_assembler;
+    }
     if (!opts->pic_explicit) effective.pic = profile.pic;
     if (!opts->pie_explicit) effective.pie = profile.pie;
     if (!opts->shared_explicit) effective.shared = profile.shared;
@@ -790,6 +809,7 @@ oom:
 cleanup:
     if (generated_sched != NULL) unlink(generated_sched);
     free(generated_sched);
+    free(discovered_assembler);
     free(resolved_sched);
     free(resolved_manifest);
     free(include_paths);

@@ -101,7 +101,7 @@ void cephyr_options_init(cephyr_options *opts, const char *source_path);
 /* Compile a C source file to assembly. Returns a result code. */
 cephyr_result cephyr_compile(const cephyr_options *opts);
 
-/* Discover the system assembler. Returns a static string. */
+/* Discover the default assembler. The returned string is heap-allocated. */
 const char *cephyr_discover_assembler(const char *target_triple);
 
 /* Discover the system linker. Returns a static string. */

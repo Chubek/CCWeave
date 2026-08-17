@@ -83,6 +83,9 @@ target_include_directories(cephyr_driver PUBLIC
   ${CMAKE_SOURCE_DIR}/third_party/klib)
 target_link_libraries(cephyr_driver PUBLIC cephyr_cpp cephyr_sema cephyr_lower
   cephyr_stdmodule cephyr_profile ccw_ir ccw_swaff ccw_sched)
+add_dependencies(cephyr_driver ccwas)
+target_compile_definitions(cephyr_driver PRIVATE
+  CEPHYR_DEFAULT_ASSEMBLER_PATH="$<TARGET_FILE:ccwas>")
 
 # --- cephyr executable ---
 add_executable(cephyr driver/main.c)

@@ -1,5 +1,12 @@
 # Decisions
 
+## 2026-08-17 — Cephyr uses CCWAS as its default assembler
+
+Cephyr resolves `toolchain/ccwas` first for assembly tooling. A profile-provided
+assembler remains authoritative, while system assemblers remain fallback
+compatibility options for external builds that do not build CCWAS. The linker
+selection is unchanged.
+
 ## 2026-08-17 — CCWAS encoding authority interpretation
 
 The supplied x86reference XML is used as the x86-64 opcode/form authority.

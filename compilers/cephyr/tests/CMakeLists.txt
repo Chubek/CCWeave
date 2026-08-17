@@ -36,6 +36,9 @@ target_link_libraries(test_cephyr_profile PRIVATE cephyr_profile)
 target_compile_definitions(test_cephyr_profile PRIVATE
   CEPHYR_PROFILE_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
 
+cephyr_add_test(test_cephyr_driver_tools test_cephyr_driver_tools.c)
+target_link_libraries(test_cephyr_driver_tools PRIVATE cephyr_driver)
+
 add_test(NAME test_cephyr_cli
   COMMAND sh ${CMAKE_CURRENT_SOURCE_DIR}/test_cephyr_cli.sh
           $<TARGET_FILE:cephyr>)
