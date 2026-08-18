@@ -1,0 +1,4 @@
+#ifndef CCWEAVE_ISL_GITVERSION_H
+#define CCWEAVE_ISL_GITVERSION_H
+#define GIT_HEAD_ID "0.0-ccw-436547d"
+#endif

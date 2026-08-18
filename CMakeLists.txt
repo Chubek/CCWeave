@@ -20,6 +20,60 @@ endif()
 set(CCWEAVE_THIRD_PARTY ${CMAKE_CURRENT_SOURCE_DIR}/third_party)
 set(CCWEAVE_SWAFF_GRAMMARS ${CMAKE_CURRENT_SOURCE_DIR}/swaff/grammars)
 
+# --- vendored ISL ---------------------------------------------------------
+find_path(CCWEAVE_GMP_INCLUDE_DIR gmp.h REQUIRED)
+find_library(CCWEAVE_GMP_LIBRARY gmp REQUIRED)
+set(CCWEAVE_ISL_DIR ${CCWEAVE_THIRD_PARTY}/isl)
+set(CCWEAVE_ISL_CONFIG_DIR ${CMAKE_CURRENT_SOURCE_DIR}/third_party/isl-config)
+set(CCWEAVE_ISL_SOURCES
+  ${CCWEAVE_ISL_DIR}/isl_gmp.c
+  ${CCWEAVE_ISL_DIR}/isl_aff.c ${CCWEAVE_ISL_DIR}/isl_aff_map.c
+  ${CCWEAVE_ISL_DIR}/isl_affine_hull.c ${CCWEAVE_ISL_DIR}/isl_arg.c
+  ${CCWEAVE_ISL_DIR}/isl_ast.c ${CCWEAVE_ISL_DIR}/isl_ast_build.c
+  ${CCWEAVE_ISL_DIR}/isl_ast_build_expr.c ${CCWEAVE_ISL_DIR}/isl_ast_codegen.c
+  ${CCWEAVE_ISL_DIR}/isl_ast_graft.c ${CCWEAVE_ISL_DIR}/basis_reduction_tab.c
+  ${CCWEAVE_ISL_DIR}/isl_bernstein.c ${CCWEAVE_ISL_DIR}/isl_blk.c
+  ${CCWEAVE_ISL_DIR}/isl_bound.c ${CCWEAVE_ISL_DIR}/isl_box.c
+  ${CCWEAVE_ISL_DIR}/isl_coalesce.c ${CCWEAVE_ISL_DIR}/isl_constraint.c
+  ${CCWEAVE_ISL_DIR}/isl_convex_hull.c ${CCWEAVE_ISL_DIR}/isl_ctx.c
+  ${CCWEAVE_ISL_DIR}/isl_deprecated.c ${CCWEAVE_ISL_DIR}/isl_dim_map.c
+  ${CCWEAVE_ISL_DIR}/isl_equalities.c ${CCWEAVE_ISL_DIR}/isl_factorization.c
+  ${CCWEAVE_ISL_DIR}/isl_farkas.c ${CCWEAVE_ISL_DIR}/isl_ffs.c
+  ${CCWEAVE_ISL_DIR}/isl_flow.c ${CCWEAVE_ISL_DIR}/isl_fold.c
+  ${CCWEAVE_ISL_DIR}/isl_hash.c ${CCWEAVE_ISL_DIR}/isl_id_to_ast_expr.c
+  ${CCWEAVE_ISL_DIR}/isl_id_to_id.c ${CCWEAVE_ISL_DIR}/isl_id_to_pw_aff.c
+  ${CCWEAVE_ISL_DIR}/isl_ilp.c ${CCWEAVE_ISL_DIR}/isl_input.c
+  ${CCWEAVE_ISL_DIR}/isl_local.c ${CCWEAVE_ISL_DIR}/isl_local_space.c
+  ${CCWEAVE_ISL_DIR}/isl_lp.c ${CCWEAVE_ISL_DIR}/isl_map.c
+  ${CCWEAVE_ISL_DIR}/isl_map_list.c ${CCWEAVE_ISL_DIR}/isl_map_simplify.c
+  ${CCWEAVE_ISL_DIR}/isl_map_subtract.c ${CCWEAVE_ISL_DIR}/isl_map_to_basic_set.c
+  ${CCWEAVE_ISL_DIR}/isl_mat.c ${CCWEAVE_ISL_DIR}/isl_morph.c
+  ${CCWEAVE_ISL_DIR}/isl_id.c ${CCWEAVE_ISL_DIR}/isl_obj.c
+  ${CCWEAVE_ISL_DIR}/isl_options.c ${CCWEAVE_ISL_DIR}/isl_output.c
+  ${CCWEAVE_ISL_DIR}/isl_point.c ${CCWEAVE_ISL_DIR}/isl_polynomial.c
+  ${CCWEAVE_ISL_DIR}/isl_printer.c ${CCWEAVE_ISL_DIR}/print.c
+  ${CCWEAVE_ISL_DIR}/isl_range.c ${CCWEAVE_ISL_DIR}/isl_reordering.c
+  ${CCWEAVE_ISL_DIR}/isl_sample.c ${CCWEAVE_ISL_DIR}/isl_scan.c
+  ${CCWEAVE_ISL_DIR}/isl_schedule.c ${CCWEAVE_ISL_DIR}/isl_schedule_band.c
+  ${CCWEAVE_ISL_DIR}/isl_schedule_node.c ${CCWEAVE_ISL_DIR}/isl_schedule_read.c
+  ${CCWEAVE_ISL_DIR}/isl_schedule_tree.c ${CCWEAVE_ISL_DIR}/isl_schedule_constraints.c
+  ${CCWEAVE_ISL_DIR}/isl_scheduler.c ${CCWEAVE_ISL_DIR}/isl_scheduler_clustering.c
+  ${CCWEAVE_ISL_DIR}/isl_scheduler_scc.c ${CCWEAVE_ISL_DIR}/isl_set_list.c
+  ${CCWEAVE_ISL_DIR}/isl_sort.c ${CCWEAVE_ISL_DIR}/isl_space.c
+  ${CCWEAVE_ISL_DIR}/isl_stream.c ${CCWEAVE_ISL_DIR}/isl_seq.c
+  ${CCWEAVE_ISL_DIR}/isl_set_to_ast_graft_list.c ${CCWEAVE_ISL_DIR}/isl_stride.c
+  ${CCWEAVE_ISL_DIR}/isl_tab.c ${CCWEAVE_ISL_DIR}/isl_tab_pip.c
+  ${CCWEAVE_ISL_DIR}/isl_tarjan.c ${CCWEAVE_ISL_DIR}/isl_transitive_closure.c
+  ${CCWEAVE_ISL_DIR}/isl_union_map.c ${CCWEAVE_ISL_DIR}/isl_val.c
+  ${CCWEAVE_ISL_DIR}/isl_vec.c ${CCWEAVE_ISL_DIR}/isl_version.c
+  ${CCWEAVE_ISL_DIR}/isl_vertices.c)
+add_library(ccw_isl STATIC ${CCWEAVE_ISL_SOURCES})
+target_include_directories(ccw_isl SYSTEM PUBLIC
+  ${CCWEAVE_ISL_CONFIG_DIR} ${CCWEAVE_ISL_DIR}
+  ${CCWEAVE_ISL_DIR}/include ${CCWEAVE_GMP_INCLUDE_DIR})
+target_compile_definitions(ccw_isl PRIVATE USE_GMP_FOR_MP _GNU_SOURCE)
+target_link_libraries(ccw_isl PUBLIC ${CCWEAVE_GMP_LIBRARY})
+
 # --- vendored dependencies (pinned in third_party/VERSIONS.lock) ---
 # Vendored sources are never edited, so they are compiled without our
 # warning and sanitizer flags; sanitizers still cover all CCWeave code.
@@ -29,6 +83,8 @@ function(ccw_vendored_target target)
     target_compile_options(${target} PRIVATE -fno-sanitize=undefined)
   endif()
 endfunction()
+
+ccw_vendored_target(ccw_isl)
 
 add_library(ccw_klib STATIC ${CCWEAVE_THIRD_PARTY}/klib/kstring.c)
 target_include_directories(ccw_klib PUBLIC ${CCWEAVE_THIRD_PARTY}/klib)

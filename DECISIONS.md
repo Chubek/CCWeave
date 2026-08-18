@@ -263,3 +263,18 @@ Cephyr's default linker is the in-tree CCWld executable, discovered from
 the build target when available and otherwise from `PATH`. `CEPHYR_LD`
 overrides this default (and profile linker configuration) for external
 toolchains and test doubles.
+# 2026-08-18 — Pin vendored ISL through a CCWeave configuration shim
+
+ISL's autotools-generated `isl_config.h` and `gitversion.h` are not checked
+into the upstream vendored tree.  CCWeave therefore supplies equivalent
+generated configuration headers under `third_party/isl-config/`, builds the
+library directly from its checked-in C sources with GMP, and applies all
+scheduler/quota options in `glue/ccw_isl.c`.  This keeps builds offline and
+reproducible without modifying upstream ISL sources.
+
+# 2026-08-18 — Soft-fail polyhedral kernels on non-affine regions
+
+The initial kernel slice publishes explicit `nonaffine`/`unavailable` facts
+when a host has not registered an ISL fact accessor.  This preserves the
+ISLKERN deterministic soft-failure contract while allowing a later host
+integration to replace those payloads with canonical ISL strings.

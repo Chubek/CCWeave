@@ -44,7 +44,9 @@ typedef enum {
     CCW_ERR_ACCESSOR      = -5,  /* host accessor reported failure         */
     CCW_ERR_TYPE          = -6,  /* value of wrong type crossed boundary   */
     CCW_ERR_ARITY         = -7,  /* accessor called with wrong arg count   */
-    CCW_ERR_OOM           = -8
+    CCW_ERR_OOM           = -8,
+    CCW_E_ISL_NONAFFINE   = -9,  /* region cannot be represented affinely */
+    CCW_E_ISL_QUOTA       = -10  /* deterministic ISL operation quota    */
 } ccw_status;
 
 /* ---------- boundary values ----------
@@ -76,6 +78,34 @@ typedef struct {
         ccw_node node;
     } as;
 } ccw_val;
+
+/* ---------- pinned ISL polyhedral bindings ----------
+ *
+ * These handles own ISL objects in the pinned context created by
+ * ccw_isl_ctx_new_pinned().  The textual forms are canonical ISL strings;
+ * callers own returned strings and must free them with free().
+ */
+typedef struct ccw_isl_ctx      ccw_isl_ctx;
+typedef struct ccw_isl_uset     ccw_isl_uset;
+typedef struct ccw_isl_umap     ccw_isl_umap;
+typedef struct ccw_isl_schedule  ccw_isl_schedule;
+
+ccw_isl_ctx *ccw_isl_ctx_new_pinned(void);
+void         ccw_isl_ctx_free(ccw_isl_ctx *ctx);
+unsigned long ccw_isl_ctx_quota(const ccw_isl_ctx *ctx);
+
+ccw_isl_uset *ccw_isl_uset_parse(ccw_isl_ctx *ctx, const char *text);
+char         *ccw_isl_uset_serialize(const ccw_isl_uset *uset);
+void          ccw_isl_uset_free(ccw_isl_uset *uset);
+
+ccw_isl_umap *ccw_isl_umap_parse(ccw_isl_ctx *ctx, const char *text);
+char         *ccw_isl_umap_serialize(const ccw_isl_umap *umap);
+void          ccw_isl_umap_free(ccw_isl_umap *umap);
+
+ccw_isl_schedule *ccw_isl_schedule_parse(ccw_isl_ctx *ctx, const char *text);
+char              *ccw_isl_schedule_serialize(
+    const ccw_isl_schedule *schedule);
+void               ccw_isl_schedule_free(ccw_isl_schedule *schedule);
 
 /* Constructors (by value; string constructors copy their input). */
 ccw_val ccw_nil(void);

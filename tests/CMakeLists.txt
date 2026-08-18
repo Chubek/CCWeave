@@ -18,6 +18,9 @@ target_compile_definitions(test_glue_executor PRIVATE
   CCW_KERNEL_DIR="${CMAKE_SOURCE_DIR}/kernels"
   CCW_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
 
+ccw_add_test(test_isl test_isl.c)
+target_link_libraries(test_isl PRIVATE ccw_glue)
+
 ccw_add_test(test_functional_kernels test_functional_kernels.c)
 target_link_libraries(test_functional_kernels PRIVATE ccw_host_glue ccw_executor_s7)
 target_compile_definitions(test_functional_kernels PRIVATE

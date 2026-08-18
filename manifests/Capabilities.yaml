@@ -4,6 +4,8 @@
 generator: ccw-manifest/0.1
 glue_abi: 1
 capabilities:
+  analysis.affine:
+    - kernels/affine-extract.scm
   analysis.alias:
     - kernels/alias.scm
   analysis.callgraph:
@@ -11,6 +13,8 @@ capabilities:
     - kernels/callgraph.scm
   analysis.def-use:
     - kernels/def-use.scm
+  analysis.dependence:
+    - kernels/dep-poly.scm
   analysis.dominators:
     - kernels/dominators.scm
   analysis.escape:
@@ -157,6 +161,8 @@ capabilities:
     - kernels/reassociate.scm
   opt.sccp:
     - kernels/sccp.scm
+  opt.schedule:
+    - kernels/isl-schedule.scm
   opt.sink:
     - kernels/code-sink.scm
   opt.slp-vectorize:
@@ -166,6 +172,8 @@ capabilities:
   opt.tailcall:
     - kernels/tail-call.scm
     - kernels/tailcall-mark.scm
+  opt.tiling:
+    - kernels/tile-plan.scm
   opt.unreachable-elim:
     - kernels/unreachable-elim.scm
   sanitize.ubsan:

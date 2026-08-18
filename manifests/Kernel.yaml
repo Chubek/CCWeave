@@ -4,6 +4,13 @@
 generator: ccw-manifest/0.1
 glue_abi: 1
 kernels:
+  - path: kernels/affine-extract.scm
+    library: (ccweave kernel affine-extract)
+    name: affine-extract
+    version: 0.1.0
+    description: Publishes deterministic affine-region or nonaffine facts for loop regions.
+    capabilities:
+      - analysis.affine
   - path: kernels/aggressive-dce.scm
     library: (ccweave kernel aggressive-dce)
     name: aggressive-dce
@@ -200,6 +207,13 @@ kernels:
     description: Marks explicit On1x guard and deopt instructions as deoptimization points.
     capabilities:
       - vm.deopt-points
+  - path: kernels/dep-poly.scm
+    library: (ccweave kernel dep-poly)
+    name: dep-poly
+    version: 0.1.0
+    description: Publishes deterministic dependence-polyhedron facts from affine regions.
+    capabilities:
+      - analysis.dependence
   - path: kernels/dominators.scm
     library: (ccweave kernel dominators)
     name: dominators
@@ -333,6 +347,13 @@ kernels:
     description: Publishes target-neutral instruction-selection pattern classes.
     capabilities:
       - codegen.isel-tree-match
+  - path: kernels/isl-schedule.scm
+    library: (ccweave kernel isl-schedule)
+    name: isl-schedule
+    version: 0.1.0
+    description: Publishes pinned ISL schedule-tree metadata for affine regions.
+    capabilities:
+      - opt.schedule
   - path: kernels/jump-thread.scm
     library: (ccweave kernel jump-thread)
     name: jump-thread
@@ -627,6 +648,13 @@ kernels:
     description: Publishes direct-return tail-position facts for calls.
     capabilities:
       - opt.tailcall
+  - path: kernels/tile-plan.scm
+    library: (ccweave kernel tile-plan)
+    name: tile-plan
+    version: 0.1.0
+    description: Publishes pinned cost-table tile-size candidates for scheduled bands.
+    capabilities:
+      - opt.tiling
   - path: kernels/trip-count.scm
     library: (ccweave kernel trip-count)
     name: trip-count

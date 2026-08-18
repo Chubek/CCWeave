@@ -8,6 +8,7 @@ mpc           0.9.8                                     third_party/mpc
 klib          97a0fcb790b43b9e5da8994f4671021fec036f19  third_party/klib
 libcyaml      2.0.0-devel                                     third_party/libcyaml
 tomlc99       vendored C99 snapshot                           third_party/tomlc99
+isl           0.0-ccw-436547d (GMP; pinned options)            third_party/isl
 linenoise-ng  git-tree fa12beb021ea4ad0fc5d6c2afc3ee8192c4bf386  third_party/linenoise-ng
 #
 tree-sitter   0.27.0 (language ABI 15)                  third_party/tree-sitter

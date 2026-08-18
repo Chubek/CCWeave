@@ -1,0 +1,16 @@
+# CCWeave pinned ISL options. Keep this file synchronized with ccw_isl.c.
+version: 1
+algorithm: isl
+max_coefficient: 1000000
+max_constant_term: 1000000
+max_operations: 100000
+maximize_band_depth: true
+maximize_coincidence: true
+outer_coincidence: true
+split_scaled: true
+treat_coalescing: true
+separate_components: false
+serialize_sccs: true
+whole_component: false
+carry_self_first: true
+on_error: continue
