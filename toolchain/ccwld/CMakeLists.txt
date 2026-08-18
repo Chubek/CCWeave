@@ -1,0 +1,7 @@
+add_library(ccwld STATIC ccwld.c abi.c lccwld/lccwld.c)
+target_include_directories(ccwld PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_SOURCE_DIR}/third_party/lua)
+target_link_libraries(ccwld PUBLIC ccw_lua)
+target_compile_definitions(ccwld PRIVATE _POSIX_C_SOURCE=200809L)
+add_executable(ccwld-bin driver/main.c)
+set_target_properties(ccwld-bin PROPERTIES OUTPUT_NAME ccwld)
+target_link_libraries(ccwld-bin PRIVATE ccwld)

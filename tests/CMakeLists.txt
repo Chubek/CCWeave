@@ -54,6 +54,11 @@ target_compile_definitions(test_sched PRIVATE
 ccw_add_test(test_kliche_swaff test_kliche_swaff.c)
 target_link_libraries(test_kliche_swaff PRIVATE ccw_kliche ccw_swaff)
 
+ccw_add_test(test_ccwld test_ccwld.c)
+target_link_libraries(test_ccwld PRIVATE ccwld)
+target_compile_definitions(test_ccwld PRIVATE
+  CCWLD_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
+
 if(CCWEAVE_ENABLE_TREESITTER)
   ccw_add_test(test_swaff_c test_swaff_c.c)
   target_link_libraries(test_swaff_c PRIVATE ccw_swaff)

@@ -27,6 +27,11 @@ set(CCW_LUA_SOURCES
   ${CMAKE_SOURCE_DIR}/third_party/lua/lvm.c
   ${CMAKE_SOURCE_DIR}/third_party/lua/lzio.c
   ${CMAKE_SOURCE_DIR}/third_party/lua/lcorolib.c)
+list(APPEND CCW_LUA_SOURCES
+  ${CMAKE_SOURCE_DIR}/third_party/lua/ldblib.c
+  ${CMAKE_SOURCE_DIR}/third_party/lua/liolib.c
+  ${CMAKE_SOURCE_DIR}/third_party/lua/loslib.c
+  ${CMAKE_SOURCE_DIR}/third_party/lua/loadlib.c)
 add_library(ccw_lua STATIC ${CCW_LUA_SOURCES})
 target_include_directories(ccw_lua PUBLIC ${CMAKE_SOURCE_DIR}/third_party/lua)
 ccw_vendored_target(ccw_lua)
