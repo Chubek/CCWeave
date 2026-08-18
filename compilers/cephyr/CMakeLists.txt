@@ -87,7 +87,9 @@ target_link_libraries(cephyr_driver PUBLIC cephyr_cpp cephyr_sema cephyr_lower
   cephyr_stdmodule cephyr_profile ccw_ir ccw_swaff ccw_sched ccw_klib)
 add_dependencies(cephyr_driver ccwas)
 target_compile_definitions(cephyr_driver PRIVATE
-  CEPHYR_DEFAULT_ASSEMBLER_PATH="$<TARGET_FILE:ccwas>")
+  CEPHYR_DEFAULT_ASSEMBLER_PATH="$<TARGET_FILE:ccwas>"
+  CEPHYR_DEFAULT_LINKER_PATH="$<TARGET_FILE:ccwld-bin>")
+add_dependencies(cephyr_driver ccwld-bin)
 
 # --- cephyr executable ---
 add_executable(cephyr driver/main.c)

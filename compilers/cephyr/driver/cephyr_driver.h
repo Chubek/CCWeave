@@ -109,7 +109,7 @@ const char *cephyr_target_arch(const char *target_triple);
 /* Print the triples accepted by --target. */
 void cephyr_list_target_triples(FILE *out);
 
-/* Discover the system linker. Returns a static string. */
+/* Discover the linker (CCWld by default). The returned string is heap-allocated. */
 const char *cephyr_discover_linker(const char *target_triple);
 
 /* Get a human-readable string for a result code. */

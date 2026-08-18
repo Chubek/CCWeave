@@ -123,8 +123,19 @@ const char *cephyr_discover_assembler(const char *target_triple)
 
 const char *cephyr_discover_linker(const char *target_triple)
 {
+    const char *environment_linker = getenv("CEPHYR_LD");
+    if (environment_linker != NULL && *environment_linker != '\0')
+        return cephyr_driver_strdup(environment_linker);
     (void)target_triple;
-    static const char *candidates[] = { "ld", "x86_64-linux-gnu-ld", "lld", NULL };
+#ifdef CEPHYR_DEFAULT_LINKER_PATH
+    if (access(CEPHYR_DEFAULT_LINKER_PATH, X_OK) == 0)
+        return cephyr_driver_strdup(CEPHYR_DEFAULT_LINKER_PATH);
+#endif
+    /* CCWld is the default; retain system fallbacks for external builds. */
+    static const char *candidates[] = {
+        "ccwld", "x86_64-linux-gnu-ccwld", "ld", "x86_64-linux-gnu-ld",
+        "lld", NULL
+    };
     for (int i = 0; candidates[i]; i++) {
         char buf[256];
         snprintf(buf, sizeof(buf), "which %s 2>/dev/null", candidates[i]);
@@ -142,7 +153,7 @@ const char *cephyr_discover_linker(const char *target_triple)
             }
         }
     }
-    return "ld"; /* fallback */
+    return cephyr_driver_strdup("ccwld"); /* fallback */
 }
 
 /* ---------- error strings ---------- */
@@ -717,6 +728,7 @@ cephyr_result cephyr_compile(const cephyr_options *opts)
     char *resolved_sched = NULL;
     char *generated_sched = NULL;
     char *discovered_assembler = NULL;
+    char *discovered_linker = NULL;
     const char **include_paths = NULL;
     const char **defines = NULL;
     const char **preprocessor_options = NULL;
@@ -805,7 +817,9 @@ cephyr_result cephyr_compile(const cephyr_options *opts)
         effective.assembler = getenv("CEPHYR_AS");
     else if (opts->assembler == NULL && profile.assembler != NULL)
         effective.assembler = profile.assembler;
-    if (opts->linker == NULL && profile.linker != NULL)
+    if (getenv("CEPHYR_LD") != NULL && *getenv("CEPHYR_LD") != '\0')
+        effective.linker = getenv("CEPHYR_LD");
+    else if (opts->linker == NULL && profile.linker != NULL)
         effective.linker = profile.linker;
     if (effective.assembler == NULL) {
         discovered_assembler = (char *)cephyr_discover_assembler(
@@ -817,6 +831,18 @@ cephyr_result cephyr_compile(const cephyr_options *opts)
             return CEPHYR_ERR_ASSEMBLE;
         }
         effective.assembler = discovered_assembler;
+    }
+    if (effective.linker == NULL) {
+        discovered_linker = (char *)cephyr_discover_linker(
+            effective.target_triple);
+        if (discovered_linker == NULL) {
+            fprintf(stderr, "cephyr: cannot discover default linker\n");
+            cephyr_profile_destroy(&profile);
+            free(profile_path);
+            free(discovered_assembler);
+            return CEPHYR_ERR_LINK;
+        }
+        effective.linker = discovered_linker;
     }
     if (!opts->pic_explicit) effective.pic = profile.pic;
     if (!opts->pie_explicit) effective.pie = profile.pie;
@@ -956,6 +982,7 @@ cleanup:
     if (generated_sched != NULL) unlink(generated_sched);
     free(generated_sched);
     free(discovered_assembler);
+    free(discovered_linker);
     free(resolved_sched);
     free(resolved_manifest);
     free(include_paths);

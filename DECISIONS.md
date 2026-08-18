@@ -256,3 +256,10 @@ four ccwas architectures and maps them to ccwas's architecture spelling.
 relocatable object by invoking ccwas. The environment variable `CEPHYR_AS`
 overrides the default ccwas command, while retaining the same target and
 input/output argument contract.
+
+## 2026-08-18 — Cephyr linker discovery
+
+Cephyr's default linker is the in-tree CCWld executable, discovered from
+the build target when available and otherwise from `PATH`. `CEPHYR_LD`
+overrides this default (and profile linker configuration) for external
+toolchains and test doubles.
