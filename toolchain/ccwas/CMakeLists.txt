@@ -1,6 +1,6 @@
 add_library(ccw_lccwas STATIC lccwas/lccwas.c)
 target_include_directories(ccw_lccwas PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/lccwas ${CMAKE_SOURCE_DIR}/third_party/lua)
-target_link_libraries(ccw_lccwas PUBLIC ccw_lua)
+target_link_libraries(ccw_lccwas PUBLIC ccw_lua ccw_klib)
 
 set(CCWAS_POSIX_TARGETS ccw_lccwas)
 
@@ -13,6 +13,7 @@ target_include_directories(ccw_sema PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}/sema
   ${CMAKE_SOURCE_DIR}/third_party/klib
 )
+target_link_libraries(ccw_sema PUBLIC ccw_klib)
 
 # --- ccwas parse library (assembly parser) ---
 add_library(ccw_parse STATIC
@@ -26,6 +27,7 @@ target_include_directories(ccw_parse PUBLIC
   ${CMAKE_SOURCE_DIR}/third_party/klib
 )
 target_link_libraries(ccw_parse PUBLIC ccw_sema ccw_encode)
+target_link_libraries(ccw_parse PUBLIC ccw_klib)
 
 # --- ccwas encode library (per-target encoders) ---
 add_library(ccw_encode STATIC
@@ -38,6 +40,7 @@ target_include_directories(ccw_encode PUBLIC
   ${CMAKE_SOURCE_DIR}/third_party/klib
 )
 target_link_libraries(ccw_encode PUBLIC ccw_sema)
+target_link_libraries(ccw_encode PUBLIC ccw_klib)
 
 # --- ccwas obj library (object writer) ---
 add_library(ccw_obj STATIC
@@ -50,6 +53,7 @@ target_include_directories(ccw_obj PUBLIC
   ${CMAKE_SOURCE_DIR}/third_party/klib
 )
 target_link_libraries(ccw_obj PUBLIC ccw_sema)
+target_link_libraries(ccw_obj PUBLIC ccw_klib)
 
 # --- ccwas driver ---
 add_executable(ccwas driver/main.c)

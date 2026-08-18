@@ -16,7 +16,7 @@ target_include_directories(moonix_lib PUBLIC
 target_compile_definitions(moonix_lib PRIVATE
   MOONIX_DEFAULT_MANIFEST_DIR="${CMAKE_SOURCE_DIR}/manifests"
   MOONIX_DEFAULT_SCHED_DIR="${CMAKE_CURRENT_SOURCE_DIR}/sched")
-target_link_libraries(moonix_lib PUBLIC ccw_swaff ccw_sched ccw_ir)
+target_link_libraries(moonix_lib PUBLIC ccw_swaff ccw_sched ccw_ir ccw_klib)
 
 add_executable(moonix
   cli/main.c

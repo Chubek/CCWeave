@@ -30,6 +30,10 @@ function(ccw_vendored_target target)
   endif()
 endfunction()
 
+add_library(ccw_klib STATIC ${CCWEAVE_THIRD_PARTY}/klib/kstring.c)
+target_include_directories(ccw_klib PUBLIC ${CCWEAVE_THIRD_PARTY}/klib)
+ccw_vendored_target(ccw_klib)
+
 add_library(ccw_mpc STATIC ${CCWEAVE_THIRD_PARTY}/mpc/mpc.c)
 target_include_directories(ccw_mpc PUBLIC ${CCWEAVE_THIRD_PARTY}/mpc)
 ccw_vendored_target(ccw_mpc)

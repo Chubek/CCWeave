@@ -1,7 +1,9 @@
 #include "repl.h"
 
 #include "linenoise.h"
+#include "kstring.h"
 
+#include <limits.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -13,20 +15,11 @@
 
 static int append_line(char **source, size_t *source_len, const char *line)
 {
-    size_t line_len = strlen(line);
-    size_t separator_len = *source_len != 0 ? 1u : 0u;
-    char *grown;
-
-    if (line_len > SIZE_MAX - *source_len - separator_len - 1u)
-        return 0;
-    grown = (char *)realloc(
-        *source, *source_len + separator_len + line_len + 1u);
-    if (grown == NULL) return 0;
-    if (separator_len != 0)
-        grown[(*source_len)++] = '\n';
-    memcpy(grown + *source_len, line, line_len + 1u);
-    *source_len += line_len;
-    *source = grown;
+    kstring_t text = { *source_len, *source_len, *source };
+    if (*source_len != 0 && kputc('\n', &text) == EOF) return 0;
+    if (kputs(line, &text) == EOF) return 0;
+    *source_len = text.l;
+    *source = ks_release(&text);
     return 1;
 }
 
@@ -59,25 +52,22 @@ static moonix_status load_expression(moonix_state *state,
                                      size_t source_len)
 {
     static const char prefix[] = "return ";
-    const size_t prefix_len = sizeof(prefix) - 1u;
-    const size_t suffix_len = 0u;
-    char *expression;
+    kstring_t expression = { 0, 0, NULL };
     moonix_status status;
 
     if (memchr(source, '=', source_len) != NULL)
         return MOONIX_ERR_SYNTAX;
-
-    if (source_len > SIZE_MAX - prefix_len - suffix_len - 1u)
+    if (source_len > (size_t)INT_MAX)
         return MOONIX_ERR_OOM;
-    expression = (char *)malloc(prefix_len + source_len + suffix_len + 1u);
-    if (expression == NULL) return MOONIX_ERR_OOM;
-    memcpy(expression, prefix, prefix_len);
-    memcpy(expression + prefix_len, source, source_len);
-    expression[prefix_len + source_len] = '\0';
-    status = moonix_load_buffer(state, expression,
-                                prefix_len + source_len + suffix_len,
+
+    if (kputs(prefix, &expression) == EOF ||
+        kputsn(source, (int)source_len, &expression) == EOF) {
+        free(expression.s);
+        return MOONIX_ERR_OOM;
+    }
+    status = moonix_load_buffer(state, expression.s, expression.l,
                                 "=stdin");
-    free(expression);
+    free(expression.s);
     return status;
 }
 

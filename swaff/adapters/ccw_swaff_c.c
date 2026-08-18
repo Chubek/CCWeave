@@ -8,6 +8,7 @@
 
 #include "ccw_swaff_internal.h"
 #include "ccw_kliche.h"
+#include "kstring.h"
 
 #include <errno.h>
 #include <limits.h>
@@ -30,10 +31,9 @@ const char *ccw_swaff_frontend_name(const ccw_swaff_frontend *fe)
 static char *ccw_strdup(const char *s)
 {
     if (s == NULL) return NULL;
-    size_t n = strlen(s) + 1u;
-    char *copy = (char *)malloc(n);
-    if (copy != NULL) memcpy(copy, s, n);
-    return copy;
+    kstring_t copy = { 0, 0, NULL };
+    if (kputs(s, &copy) == EOF) return NULL;
+    return ks_release(&copy);
 }
 
 static void set_error(char **error_message, const char *msg)
@@ -99,11 +99,9 @@ static char *node_text(TSNode node, const char *source, size_t source_len)
     uint32_t end = ts_node_end_byte(node);
     if (end < start || (size_t)end > source_len) return NULL;
     size_t n = (size_t)(end - start);
-    char *out = (char *)malloc(n + 1u);
-    if (out == NULL) return NULL;
-    memcpy(out, source + start, n);
-    out[n] = '\0';
-    return out;
+    kstring_t out = { 0, 0, NULL };
+    if (kputsn(source + start, (int)n, &out) == EOF) return NULL;
+    return ks_release(&out);
 }
 
 static TSNode first_named_child(TSNode node)

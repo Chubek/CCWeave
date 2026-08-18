@@ -10,6 +10,7 @@
 
 #include "ccw_swaff_internal.h"
 #include "ccw_kliche.h"
+#include "kstring.h"
 
 #include <errno.h>
 #include <limits.h>
@@ -28,10 +29,9 @@ const ccw_swaff_frontend *ccw_swaff_frontend_lua(void)
 static char *lua_strdup(const char *s)
 {
     if (s == NULL) return NULL;
-    size_t n = strlen(s) + 1u;
-    char *copy = (char *)malloc(n);
-    if (copy != NULL) memcpy(copy, s, n);
-    return copy;
+    kstring_t copy = { 0, 0, NULL };
+    if (kputs(s, &copy) == EOF) return NULL;
+    return ks_release(&copy);
 }
 
 static void lua_set_error(char **error_message, const char *message)
@@ -125,17 +125,14 @@ static char *node_text(TSNode node, const char *source, size_t source_len)
 {
     uint32_t start, end;
     size_t n;
-    char *text;
     if (ts_node_is_null(node)) return NULL;
     start = ts_node_start_byte(node);
     end = ts_node_end_byte(node);
     if (end < start || (size_t)end > source_len) return NULL;
     n = (size_t)(end - start);
-    text = (char *)malloc(n + 1u);
-    if (text == NULL) return NULL;
-    memcpy(text, source + start, n);
-    text[n] = '\0';
-    return text;
+    kstring_t text_buffer = { 0, 0, NULL };
+    if (kputsn(source + start, (int)n, &text_buffer) == EOF) return NULL;
+    return ks_release(&text_buffer);
 }
 
 static void lower_fail(ccw_lua_lower *ctx, const char *message)

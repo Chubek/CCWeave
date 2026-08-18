@@ -6,6 +6,8 @@
 #include "GlueSTD.h"
 #include "ccw_s7_prelude.h"
 #include "s7.h"
+#include "kstring.h"
+#include "kvec.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -46,13 +48,28 @@ struct ccw_executor {
     bool          kernel_loaded;
 };
 
+static bool reserve_items(void **items, int *capacity, int needed,
+                          size_t item_size)
+{
+    if (needed <= *capacity) return true;
+    int next = *capacity ? *capacity * 2 : 8;
+    while (next < needed) next *= 2;
+    kvec_t(unsigned char) bytes = {
+        0, (size_t)*capacity * item_size, *items
+    };
+    if (kv_resize(unsigned char, bytes, (size_t)next * item_size) == NULL)
+        return false;
+    *items = bytes.a;
+    *capacity = next;
+    return true;
+}
+
 static char *ccw_dup(const char *s)
 {
     if (s == NULL) return NULL;
-    size_t n = strlen(s) + 1u;
-    char *p = (char *)malloc(n);
-    if (p != NULL) memcpy(p, s, n);
-    return p;
+    kstring_t copy = { 0, 0, NULL };
+    if (kputs(s, &copy) == EOF) return NULL;
+    return ks_release(&copy);
 }
 
 /* ---------- ccw_val <-> s7 conversion (the seven boundary types) ---------- */
@@ -110,18 +127,17 @@ static s7_pointer ccw_accessor_trampoline(s7_scheme *sc, s7_pointer args)
                                 s7_make_string(sc, "~A: glue accessors are only callable during kernel-apply"),
                                 s7_make_string(sc, acc->scheme_name)));
 
-    ccw_val *vals = NULL;
+    kvec_t(ccw_val) vals = { 0, 0, NULL };
     if (nargs > 0) {
-        vals = (ccw_val *)calloc((size_t)nargs, sizeof(*vals));
-        if (vals == NULL)
+        if (kv_resize(ccw_val, vals, (size_t)nargs) == NULL)
             return s7_error(sc, s7_make_symbol(sc, CCW_GLUE_TAG),
                             s7_list(sc, 1, s7_make_string(sc, "out of memory")));
     }
     int i = 0;
     for (s7_pointer p = args; !s7_is_null(sc, p); p = s7_cdr(p), i++) {
-        if (!s7_to_ccw_val(sc, s7_car(p), &vals[i])) {
-            for (int j = 0; j < i; j++) ccw_val_clear(&vals[j]);
-            free(vals);
+        if (!s7_to_ccw_val(sc, s7_car(p), &vals.a[i])) {
+            for (int j = 0; j < i; j++) ccw_val_clear(&vals.a[j]);
+            kv_destroy(vals);
             return s7_error(sc, s7_make_symbol(sc, CCW_GLUE_TAG),
                             s7_list(sc, 2,
                                     s7_make_string(sc, "~A: value of unsupported type crossed the glue boundary"),
@@ -131,10 +147,10 @@ static s7_pointer ccw_accessor_trampoline(s7_scheme *sc, s7_pointer args)
 
     ccw_val result = ccw_nil();
     char *error_message = NULL;
-    ccw_status st = acc->fn(acc->host_ctx, acc->ex->current_ir, vals, nargs,
+    ccw_status st = acc->fn(acc->host_ctx, acc->ex->current_ir, vals.a, nargs,
                             &result, &error_message);
-    for (int j = 0; j < nargs; j++) ccw_val_clear(&vals[j]);
-    free(vals);
+    for (int j = 0; j < nargs; j++) ccw_val_clear(&vals.a[j]);
+    kv_destroy(vals);
 
     if (st != CCW_OK) {
         ccw_val_clear(&result);
@@ -172,14 +188,9 @@ ccw_status ccw_glue_register(ccw_executor *ex, const char *scheme_name,
         }
     }
 
-    if (ex->accessor_count == ex->accessor_cap) {
-        int cap = ex->accessor_cap ? ex->accessor_cap * 2 : 16;
-        ccw_accessor **a = (ccw_accessor **)realloc(ex->accessors,
-                                                    (size_t)cap * sizeof(*a));
-        if (a == NULL) return CCW_ERR_OOM;
-        ex->accessors = a;
-        ex->accessor_cap = cap;
-    }
+    if (!reserve_items((void **)&ex->accessors, &ex->accessor_cap,
+                       ex->accessor_count + 1, sizeof(*ex->accessors)))
+        return CCW_ERR_OOM;
 
     ccw_accessor *slot = (ccw_accessor *)calloc(1, sizeof(*slot));
     if (slot == NULL) return CCW_ERR_OOM;
@@ -327,12 +338,10 @@ int ccw_kernel_load(ccw_executor *ex, const char *path, char **error_message)
         return CCW_ERR_LOAD;
     }
 
-    if (ex->kernel_count == ex->kernel_cap) {
-        int cap = ex->kernel_cap ? ex->kernel_cap * 2 : 8;
-        ccw_kernel *ks = (ccw_kernel *)realloc(ex->kernels, (size_t)cap * sizeof(*ks));
-        if (ks == NULL) { set_error(error_message, "out of memory"); return CCW_ERR_OOM; }
-        ex->kernels = ks;
-        ex->kernel_cap = cap;
+    if (!reserve_items((void **)&ex->kernels, &ex->kernel_cap,
+                       ex->kernel_count + 1, sizeof(*ex->kernels))) {
+        set_error(error_message, "out of memory");
+        return CCW_ERR_OOM;
     }
     int id = ex->kernel_count;
     ccw_kernel *k = &ex->kernels[id];
@@ -442,8 +451,10 @@ static int refresh_capabilities(ccw_executor *ex, ccw_kernel *k)
     for (s7_pointer p = caps; s7_is_pair(p); p = s7_cdr(p)) n++;
     if (n == 0) return 0;
 
-    k->capabilities = (char **)calloc((size_t)n, sizeof(char *));
-    if (k->capabilities == NULL) return CCW_ERR_OOM;
+    int cap = 0;
+    if (!reserve_items((void **)&k->capabilities, &cap, n, sizeof(*k->capabilities)))
+        return CCW_ERR_OOM;
+    memset(k->capabilities, 0, (size_t)cap * sizeof(*k->capabilities));
     int i = 0;
     for (s7_pointer p = caps; s7_is_pair(p); p = s7_cdr(p)) {
         s7_pointer c = s7_car(p);

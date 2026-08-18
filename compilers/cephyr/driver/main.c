@@ -27,6 +27,7 @@
 #include "cephyr_driver.h"
 #include "../profile/cephyr_profile.h"
 #include "ketopt.h"
+#include "kstring.h"
 #include "kvec.h"
 
 enum {
@@ -99,38 +100,35 @@ static void print_help(const char *prog)
     printf("  --version      Show version\n");
 }
 
-typedef struct {
-    char **a;
-    size_t n;
-    size_t m;
-} cephyr_string_vector;
+typedef kvec_t(char *) cephyr_string_vector;
 
 static void string_vector_init(cephyr_string_vector *vector)
 {
-    memset(vector, 0, sizeof(*vector));
+    kv_init(*vector);
 }
 
 static void string_vector_destroy(cephyr_string_vector *vector)
 {
     for (size_t i = 0; i < vector->n; ++i) free(vector->a[i]);
-    free(vector->a);
-    memset(vector, 0, sizeof(*vector));
+    kv_destroy(*vector);
+    kv_init(*vector);
 }
 
 static int string_vector_push(cephyr_string_vector *vector, const char *value)
 {
-    char **next;
     char *copy;
     if (value == NULL || *value == '\0') return 0;
-    if (vector->n == vector->m) {
-        size_t next_capacity = vector->m ? vector->m * 2u : 4u;
-        next = (char **)realloc(vector->a, next_capacity * sizeof(*next));
-        if (next == NULL) return 0;
-        vector->a = next;
-        vector->m = next_capacity;
+    {
+        kstring_t text = { 0, 0, NULL };
+        if (kputs(value, &text) == EOF) return 0;
+        copy = ks_release(&text);
     }
-    copy = strdup(value);
     if (copy == NULL) return 0;
+    if (vector->n == vector->m &&
+        kv_resize(char *, *vector, vector->m ? vector->m * 2u : 4u) == NULL) {
+        free(copy);
+        return 0;
+    }
     vector->a[vector->n++] = copy;
     return 1;
 }
@@ -147,10 +145,12 @@ static int string_vector_push_csv(cephyr_string_vector *vector,
         comma = strchr(start, ',');
         length = comma ? (size_t)(comma - start) : strlen(start);
         if (length == 0) return 0;
-        piece = (char *)malloc(length + 1u);
+        {
+            kstring_t text = { 0, 0, NULL };
+            if (kputsn(start, (int)length, &text) == EOF) return 0;
+            piece = ks_release(&text);
+        }
         if (piece == NULL) return 0;
-        memcpy(piece, start, length);
-        piece[length] = '\0';
         if (!string_vector_push(vector, piece)) {
             free(piece);
             return 0;
@@ -172,17 +172,19 @@ static void request_stop_stage(cephyr_options *options,
 
 static char **normalize_long_options(int argc, char **argv, int *out_argc)
 {
-    char **normalized = (char **)calloc((size_t)argc + 1u,
-                                        sizeof(*normalized));
+    kvec_t(char *) vector = { 0, 0, NULL };
+    char **normalized;
     int count = 0;
-    if (normalized == NULL) return NULL;
+    if (kv_resize(char *, vector, (size_t)argc + 1u) == NULL) return NULL;
+    normalized = vector.a;
+    memset(normalized, 0, ((size_t)argc + 1u) * sizeof(*normalized));
     for (int i = 0; i < argc; ++i) {
         if (!strcmp(argv[i], "-Xassembler") ||
             !strcmp(argv[i], "-Xpreprocessor") ||
             !strcmp(argv[i], "-Xlinker")) {
             const char *name = argv[i] + 1;
             if (i + 1 >= argc) {
-                free(normalized);
+                kv_destroy(vector);
                 return NULL;
             }
             normalized[count++] = (char *)(name[1] == 'a' ?
@@ -262,7 +264,13 @@ static int run_profile_command(int argc, char **argv)
         }
     }
     if (explicit_profile != NULL)
-        profile_path = strdup(explicit_profile);
+        {
+            kstring_t path = { 0, 0, NULL };
+            if (explicit_profile == NULL || kputs(explicit_profile, &path) == EOF) {
+                return 1;
+            }
+            profile_path = ks_release(&path);
+        }
     else
         profile_path = cephyr_profile_discover(".", error, sizeof(error));
     memset(&profile, 0, sizeof(profile));

@@ -1,6 +1,7 @@
 #include "moonix_frontend.h"
 #include "../runtime/moonix_internal.h"
 #include "ccw_swaff.h"
+#include "kstring.h"
 #include <stdlib.h>
 #include <string.h>
 
@@ -82,14 +83,12 @@ moonix_status moonix_frontend_compile(moonix_state *state, const char *source,
             source_len >= 7u && memcmp(source, "return ", 7u) == 0) {
             const char prefix[] = "function __moonix_repl()\n";
             const char suffix[] = "\nend\n";
-            size_t wrapper_len = sizeof(prefix) - 1u + source_len +
-                                 sizeof(suffix) - 1u;
-            char *wrapper = (char *)malloc(wrapper_len + 1u);
-            if (wrapper != NULL) {
-                memcpy(wrapper, prefix, sizeof(prefix) - 1u);
-                memcpy(wrapper + sizeof(prefix) - 1u, source, source_len);
-                memcpy(wrapper + sizeof(prefix) - 1u + source_len,
-                       suffix, sizeof(suffix));
+            kstring_t wrapper_text = { 0, 0, NULL };
+            if (kputsn(prefix, (int)sizeof(prefix) - 1, &wrapper_text) != EOF &&
+                kputsn(source, (int)source_len, &wrapper_text) != EOF &&
+                kputsn(suffix, (int)sizeof(suffix) - 1, &wrapper_text) != EOF) {
+                char *wrapper = ks_release(&wrapper_text);
+                size_t wrapper_len = strlen(wrapper);
                 free(error);
                 error = NULL;
                 chunk->on1x_ir = ccw_swaff_lower(
@@ -97,7 +96,7 @@ moonix_status moonix_frontend_compile(moonix_state *state, const char *source,
                     chunk_name ? chunk_name : "moonix", CCW_PROFILE_ON1X,
                     CCW_SWAFF_REJECT_ON_ERROR, &report, &error);
                 free(wrapper);
-            }
+            } else free(wrapper_text.s);
         }
         if (chunk->on1x_ir == NULL) {
             if (report.missing_nodes > 0) {

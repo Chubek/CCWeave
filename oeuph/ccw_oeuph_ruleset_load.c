@@ -11,6 +11,7 @@
  * Every file MUST declare a ruleset name; rules are unordered within it. */
 
 #include "ccw_oeuph.h"
+#include "kstring.h"
 
 #include <ctype.h>
 #include <stdio.h>
@@ -49,11 +50,9 @@ static char *read_form(const char **p)
     }
     if (depth != 0) return NULL;
     size_t n = (size_t)(*p - start);
-    char *form = (char *)malloc(n + 1u);
-    if (form == NULL) return NULL;
-    memcpy(form, start, n);
-    form[n] = '\0';
-    return form;
+    kstring_t form = { 0, 0, NULL };
+    if (kputsn(start, (int)n, &form) == EOF) return NULL;
+    return ks_release(&form);
 }
 
 /* Copies the next whitespace-delimited token or balanced sub-form. */
@@ -73,36 +72,37 @@ static char *next_item(const char **p)
         while (**p != '\0' && !isspace((unsigned char)**p) && **p != ')') (*p)++;
     }
     size_t n = (size_t)(*p - start);
-    char *item = (char *)malloc(n + 1u);
-    if (item == NULL) return NULL;
-    memcpy(item, start, n);
-    item[n] = '\0';
-    return item;
+    kstring_t item = { 0, 0, NULL };
+    if (kputsn(start, (int)n, &item) == EOF) return NULL;
+    return ks_release(&item);
 }
 
 static char *read_whole_file(const char *path)
 {
     FILE *fp = fopen(path, "rb");
     if (fp == NULL) return NULL;
-    fseek(fp, 0, SEEK_END);
-    long size = ftell(fp);
-    rewind(fp);
-    if (size < 0) { fclose(fp); return NULL; }
-    char *buf = (char *)malloc((size_t)size + 1u);
-    if (buf == NULL) { fclose(fp); return NULL; }
-    size_t got = fread(buf, 1, (size_t)size, fp);
-    buf[got] = '\0';
+    kstring_t buf = { 0, 0, NULL };
+    char chunk[4096];
+    size_t got;
+    while ((got = fread(chunk, 1, sizeof(chunk), fp)) > 0) {
+        if (kputsn(chunk, (int)got, &buf) == EOF) {
+            free(buf.s);
+            fclose(fp);
+            return NULL;
+        }
+    }
     fclose(fp);
-    return buf;
+    return ks_release(&buf);
 }
 
 static void set_err(char **error_message, const char *msg)
 {
     if (error_message == NULL) return;
-    size_t n = strlen(msg) + 1u;
-    char *p = (char *)malloc(n);
-    if (p != NULL) memcpy(p, msg, n);
-    *error_message = p;
+    kstring_t copy = { 0, 0, NULL };
+    if (msg != NULL && kputs(msg, &copy) != EOF)
+        *error_message = ks_release(&copy);
+    else
+        *error_message = NULL;
 }
 
 ccw_oeuph_ruleset *ccw_oeuph_ruleset_load(const char *path, char **error_message)

@@ -5,6 +5,7 @@
 #define CCW_IR_INTERNAL_H
 
 #include "ccw_ir.h"
+#include "kvec.h"
 
 typedef struct {
     char *key;

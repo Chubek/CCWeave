@@ -6,6 +6,7 @@
  * degrades execution to T0 as required by §3. */
 
 #include "moonix_internal.h"
+#include "kstring.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -37,12 +38,12 @@ static int validate_on1x_plan(const ccw_plan *plan, char *error, size_t capacity
     size_t vm_count = 0;
     int has_ic = 0, has_barrier = 0, has_safepoint = 0;
 
-    copy = (char *)malloc(strlen(text) + 1u);
-    if (copy == NULL) {
+    kstring_t copy_text = { 0, 0, NULL };
+    if (kputs(text, &copy_text) == EOF) {
         snprintf(error, capacity, "out of memory validating plan");
         return 0;
     }
-    strcpy(copy, text);
+    copy = ks_release(&copy_text);
     for (line = strtok(copy, "\n"); line != NULL; line = strtok(NULL, "\n")) {
         plan_node node;
         node.rest[0] = '\0';
@@ -133,4 +134,3 @@ moonix_status moonix_jit_select_tier(moonix_state *state, moonix_tier tier)
     state->error[0] = '\0';
     return MOONIX_OK;
 }
-

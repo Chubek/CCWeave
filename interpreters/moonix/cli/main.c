@@ -1,5 +1,6 @@
 #include "moonix.h"
 #include "repl.h"
+#include "kstring.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -33,8 +34,8 @@ static int dump_bytecode(moonix_state *state, const char *input,
                          const char *output)
 {
     FILE *file;
-    long length;
-    char *source;
+    char buffer[4096];
+    kstring_t source = { 0, 0, NULL };
     moonix_chunk chunk;
     moonix_status status;
     file = fopen(input, "rb");
@@ -42,24 +43,24 @@ static int dump_bytecode(moonix_state *state, const char *input,
         perror(input);
         return 1;
     }
-    if (fseek(file, 0, SEEK_END) != 0 || (length = ftell(file)) < 0 ||
-        fseek(file, 0, SEEK_SET) != 0) {
-        fclose(file);
-        fprintf(stderr, "moonix: cannot read %s\n", input);
-        return 1;
-    }
-    source = (char *)malloc((size_t)length + 1u);
-    if (source == NULL ||
-        fread(source, 1, (size_t)length, file) != (size_t)length) {
-        free(source);
-        fclose(file);
-        fprintf(stderr, "moonix: cannot read %s\n", input);
-        return 1;
+    while (!feof(file)) {
+        size_t n = fread(buffer, 1, sizeof(buffer), file);
+        if (n != 0 && kputsn(buffer, (int)n, &source) == EOF) {
+            free(source.s);
+            fclose(file);
+            fprintf(stderr, "moonix: cannot read %s\n", input);
+            return 1;
+        }
+        if (ferror(file)) {
+            free(source.s);
+            fclose(file);
+            fprintf(stderr, "moonix: cannot read %s\n", input);
+            return 1;
+        }
     }
     fclose(file);
-    source[length] = '\0';
-    status = moonix_compile(state, source, (size_t)length, input, &chunk);
-    free(source);
+    status = moonix_compile(state, source.s, source.l, input, &chunk);
+    free(source.s);
     if (status != MOONIX_OK) return report(state, status);
     file = fopen(output, "wb");
     if (file == NULL) {

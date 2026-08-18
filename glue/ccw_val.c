@@ -2,17 +2,16 @@
  * Strings are copied at the boundary; each side frees its own copies. */
 
 #include "GlueSTD.h"
+#include "kstring.h"
 
 #include <stdlib.h>
-#include <string.h>
 
 static char *ccw_strdup_or_null(const char *s)
 {
     if (s == NULL) return NULL;
-    size_t n = strlen(s) + 1u;
-    char *p = (char *)malloc(n);
-    if (p != NULL) memcpy(p, s, n);
-    return p;
+    kstring_t copy = { 0, 0, NULL };
+    if (kputs(s, &copy) == EOF) return NULL;
+    return ks_release(&copy);
 }
 
 ccw_val ccw_nil(void)

@@ -1,6 +1,8 @@
 #define _POSIX_C_SOURCE 200809L
 #include "sched.h"
 #include "khash.h"
+#include "kstring.h"
+#include "kvec.h"
 #include <ctype.h>
 #include <limits.h>
 #include <stdio.h>
@@ -37,12 +39,23 @@ struct ccw_plan { char *text; };
 static void fail(ccw_sched_error *e, int code, const char *message) {
   if (e) { e->code = code; snprintf(e->message, sizeof(e->message), "%s", message); }
 }
-static char *xstrdup(const char *s) { return s ? strdup(s) : NULL; }
+static char *xstrdup(const char *s) {
+  kstring_t copy = { 0, 0, NULL };
+  if (!s || kputs(s, &copy) == EOF) return NULL;
+  return ks_release(&copy);
+}
 static int reserve(void **p, size_t *capacity, size_t need, size_t item_size) {
-  size_t n; void *q;
-  if (need <= *capacity) return 1;
+  size_t n;
+  kvec_t(unsigned char) bytes;
+  if (need <= *capacity && *p != NULL) return 1;
   n = *capacity ? *capacity * 2 : 16; while (n < need) n *= 2;
-  q = realloc(*p, n * item_size); if (!q) return 0; *p = q; *capacity = n; return 1;
+  bytes.n = 0;
+  bytes.m = *capacity * item_size;
+  bytes.a = (unsigned char *)*p;
+  if (kv_resize(unsigned char, bytes, n * item_size) == NULL) return 0;
+  *p = bytes.a;
+  *capacity = n;
+  return 1;
 }
 static char *strip(char *s) {
   char *end;
@@ -185,7 +198,10 @@ static int add_node(ccw_sched *s, unsigned kind, const char *name, char **member
   ++s->nn; *out = n->id; return 1;
 }
 static char **copy_strings(char **items, size_t n) {
-  char **copy = calloc(n ? n : 1, sizeof(*copy));
+  kvec_t(char *) values = { 0, 0, NULL };
+  if (kv_resize(char *, values, n ? n : 1) == NULL) return NULL;
+  char **copy = values.a;
+  memset(copy, 0, (n ? n : 1) * sizeof(*copy));
   if (!copy) return NULL;
   for (size_t i = 0; i < n; ++i) {
     copy[i] = xstrdup(items[i]);
@@ -293,15 +309,33 @@ static int acyclic(const ccw_sched *s) {
   free(in);return seen==s->nn;
 }
 int ccw_sched_seal(ccw_sched *s,ccw_plan **out,ccw_sched_error *e) {
-  size_t z=128,o; char *t; int useful=0;
+  kstring_t text = { 0, 0, NULL };
+  int useful=0;
   if(!can_mutate(s,e)||!out) return 0;
   for(size_t i=0;i<s->nn;i++) if(s->nodes[i].kind!=NODE_BARRIER) useful=1;
   if(!useful||!acyclic(s)){fail(e,6,useful?"plan contains a cycle":"plan contains no work nodes");return 0;}
-  for(size_t i=0;i<s->nn;i++){z+=strlen(s->nodes[i].name)+32;for(size_t j=0;j<s->nodes[i].nm;j++)z+=strlen(s->nodes[i].members[j])+1;}z+=s->ne*32;
-  t=malloc(z);if(!t){fail(e,1,"out of memory");return 0;}o=(size_t)snprintf(t,z,"CCW-SCHED-PLAN 1\nname %s\n",s->name);
-  for(size_t i=0;i<s->nn;i++){node*n=&s->nodes[i];o+=(size_t)snprintf(t+o,z-o,"node %u %u %s",n->id,n->kind,n->name);for(size_t j=0;j<n->nm;j++)o+=(size_t)snprintf(t+o,z-o," %s",n->members[j]);o+=(size_t)snprintf(t+o,z-o,"\n");}
-  for(size_t i=0;i<s->ne;i++)o+=(size_t)snprintf(t+o,z-o,"edge %u %u\n",s->edges[i].from,s->edges[i].to);
-  *out=malloc(sizeof(**out));if(!*out){free(t);fail(e,1,"out of memory");return 0;}(*out)->text=t;s->sealed=1;return 1;
+  if (ksprintf(&text, "CCW-SCHED-PLAN 1\nname %s\n", s->name) < 0)
+    goto oom;
+  for(size_t i=0;i<s->nn;i++){
+    node*n=&s->nodes[i];
+    if (ksprintf(&text, "node %u %u %s", n->id, n->kind, n->name) < 0)
+      goto oom;
+    for(size_t j=0;j<n->nm;j++)
+      if (ksprintf(&text, " %s", n->members[j]) < 0) goto oom;
+    if (kputc('\n', &text) == EOF) goto oom;
+  }
+  for(size_t i=0;i<s->ne;i++)
+    if (ksprintf(&text, "edge %u %u\n", s->edges[i].from, s->edges[i].to) < 0)
+      goto oom;
+  *out=malloc(sizeof(**out));
+  if(!*out){free(text.s);fail(e,1,"out of memory");return 0;}
+  (*out)->text=ks_release(&text);
+  s->sealed=1;
+  return 1;
+oom:
+  free(text.s);
+  fail(e,1,"out of memory");
+  return 0;
 }
 void ccw_plan_free(ccw_plan *p){if(p){free(p->text);free(p);}}
 const char *ccw_plan_text(const ccw_plan *p){return p?p->text:"";}
@@ -476,21 +510,14 @@ done:
 
 static char *path_join3(const char *a, const char *b, const char *c)
 {
-  size_t na, nb, nc, n;
-  char *out;
+  kstring_t out = { 0, 0, NULL };
   if (a == NULL || b == NULL || c == NULL) return NULL;
-  na = strlen(a);
-  nb = strlen(b);
-  nc = strlen(c);
-  n = na + nb + nc + 3;
-  out = (char *)malloc(n);
-  if (out == NULL) return NULL;
-  snprintf(out, n, "%s%s%s", a, (na && a[na - 1] == '/') ? "" : "/", b);
-  {
-    size_t used = strlen(out);
-    snprintf(out + used, n - used, "%s%s", (used && out[used - 1] == '/') ? "" : "/", c);
+  if (ksprintf(&out, "%s%s%s", a, (a[0] && a[strlen(a) - 1] == '/') ? "" : "/", b) < 0 ||
+      ksprintf(&out, "%s%s", (out.l && out.s[out.l - 1] == '/') ? "" : "/", c) < 0) {
+    free(out.s);
+    return NULL;
   }
-  return out;
+  return ks_release(&out);
 }
 
 static char *manifest_parent(const char *manifest_dir)

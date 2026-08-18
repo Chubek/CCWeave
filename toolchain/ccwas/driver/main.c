@@ -4,6 +4,8 @@
 #include "ccw_parse.h"
 #include "ccw_obj.h"
 #include "ketopt.h"
+#include "kstring.h"
+#include "kvec.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -34,25 +36,40 @@ static char *read_file(const char *path, char **error) {
   FILE *f = fopen(path, "rb");
   if (!f) {
     if (error) {
-      char buf[256];
-      snprintf(buf, sizeof(buf), "%s: %s", path, strerror(errno));
-      *error = strdup(buf);
+      kstring_t message = {0, 0, NULL};
+      if (ksprintf(&message, "%s: %s", path, strerror(errno)) < 0)
+        return NULL;
+      *error = ks_release(&message);
     }
     return NULL;
   }
-  fseek(f, 0, SEEK_END);
-  long n = ftell(f);
-  fseek(f, 0, SEEK_SET);
-  char *s = (char *)malloc((size_t)n + 1);
-  if (!s) {
-    fclose(f);
-    if (error) *error = strdup("out of memory");
-    return NULL;
+  kstring_t source = {0, 0, NULL};
+  char buffer[4096];
+  while (!feof(f)) {
+    size_t n = fread(buffer, 1, sizeof(buffer), f);
+    if (n != 0 && kputsn(buffer, (int)n, &source) == EOF) {
+      fclose(f);
+      free(source.s);
+      if (error) {
+        kstring_t message = {0, 0, NULL};
+        if (kputs("out of memory", &message) != EOF)
+          *error = ks_release(&message);
+      }
+      return NULL;
+    }
+    if (ferror(f)) {
+      fclose(f);
+      free(source.s);
+      if (error) {
+        kstring_t message = {0, 0, NULL};
+        if (ksprintf(&message, "%s: %s", path, strerror(errno)) >= 0)
+          *error = ks_release(&message);
+      }
+      return NULL;
+    }
   }
-  fread(s, 1, (size_t)n, f);
-  s[n] = '\0';
   fclose(f);
-  return s;
+  return ks_release(&source);
 }
 
 static ccw_arch_t parse_target(const char *t) {
@@ -99,7 +116,10 @@ int main(int argc, char *argv[]) {
       case 'T': opts.template = 1; break;
       case 'U': opts.unsafe_lua = 1; break;
       case 'D': {
-        opts.defs = (char **)realloc(opts.defs, (opts.ndefs + 1) * sizeof(char *));
+        kvec_t(char *) defs = {opts.ndefs, opts.ndefs, opts.defs};
+        if (kv_resize(char *, defs, defs.n + 1u) == NULL)
+          die("out of memory");
+        opts.defs = defs.a;
         opts.defs[opts.ndefs++] = s.arg;
         break;
       }
@@ -177,9 +197,19 @@ int main(int argc, char *argv[]) {
     }
     expanded = ccw_lccwas_take_buffer(&lc);
   } else {
-    expanded = strdup(source);
+    kstring_t copy = {0, 0, NULL};
+    if (kputs(source, &copy) == EOF)
+      expanded = NULL;
+    else
+      expanded = ks_release(&copy);
   }
   ccw_lccwas_seal(&lc);
+  if (expanded == NULL) {
+    fprintf(stderr, "ccwas: out of memory\n");
+    free(source);
+    ccw_lccwas_destroy(&lc);
+    return 1;
+  }
 
   /* Dump expanded output if requested */
   if (opts.keep_expanded) {

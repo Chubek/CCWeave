@@ -3,6 +3,7 @@
 
 #include "ccw_host_accessors.h"
 #include "ccw_ir.h"
+#include "kstring.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -23,10 +24,11 @@ void ccw_host_set_edit_hook(ccw_edit_hook hook, void *user_data)
 static ccw_status acc_fail(char **error_message, const char *msg)
 {
     if (error_message != NULL) {
-        size_t n = strlen(msg) + 1u;
-        char *p = (char *)malloc(n);
-        if (p != NULL) memcpy(p, msg, n);
-        *error_message = p;
+        kstring_t copy = { 0, 0, NULL };
+        if (msg != NULL && kputs(msg, &copy) != EOF)
+            *error_message = ks_release(&copy);
+        else
+            *error_message = NULL;
     }
     return CCW_ERR_ACCESSOR;
 }

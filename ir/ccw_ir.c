@@ -2,6 +2,8 @@
 
 #include "ccw_ir_internal.h"
 
+#include "kstring.h"
+
 #include <stdlib.h>
 #include <string.h>
 
@@ -10,27 +12,28 @@
 char *ccw_ir_strdup(const char *s)
 {
     if (s == NULL) return NULL;
-    size_t n = strlen(s) + 1u;
-    char *p = (char *)malloc(n);
-    if (p != NULL) memcpy(p, s, n);
-    return p;
+    kstring_t copy = { 0, 0, NULL };
+    if (kputs(s, &copy) == EOF) return NULL;
+    return ks_release(&copy);
 }
 
 void ccw_node_vec_push(ccw_node_vec *v, ccw_node n)
 {
-    if (v->count == v->cap) {
-        int cap = v->cap ? v->cap * 2 : 4;
-        ccw_node *items = (ccw_node *)realloc(v->items, (size_t)cap * sizeof(*items));
-        if (items == NULL) return;
-        v->items = items;
-        v->cap = cap;
-    }
-    v->items[v->count++] = n;
+    kvec_t(ccw_node) values = {
+        (size_t)v->count, (size_t)v->cap, v->items
+    };
+    kv_push(ccw_node, values, n);
+    v->items = values.a;
+    v->count = (int)values.n;
+    v->cap = (int)values.m;
 }
 
 static void ccw_node_vec_free(ccw_node_vec *v)
 {
-    free(v->items);
+    kvec_t(ccw_node) values = {
+        (size_t)v->count, (size_t)v->cap, v->items
+    };
+    kv_destroy(values);
     v->items = NULL;
     v->count = v->cap = 0;
 }
@@ -82,11 +85,13 @@ static ccw_status ccw_attrs_set(ccw_attrs *a, const char *key, const char *value
         }
     }
     if (a->count == a->cap) {
-        int cap = a->cap ? a->cap * 2 : 4;
-        ccw_attr *items = (ccw_attr *)realloc(a->items, (size_t)cap * sizeof(*items));
-        if (items == NULL) return CCW_ERR_OOM;
-        a->items = items;
-        a->cap = cap;
+        kvec_t(ccw_attr) items = {
+            (size_t)a->count, (size_t)a->cap, a->items
+        };
+        kv_push(ccw_attr, items, (ccw_attr){ 0 });
+        a->items = items.a;
+        a->cap = (int)items.m;
+        a->count = (int)items.n - 1;
     }
     char *k = ccw_ir_strdup(key);
     char *v = ccw_ir_strdup(value);
@@ -153,11 +158,13 @@ ccw_ir_node *ccw_ir_node_get_kind(const ccw_ir *ir, ccw_node id, ccw_node_kind k
 static ccw_ir_node *ccw_ir_node_new(ccw_ir *ir, ccw_node_kind kind)
 {
     if (ir->node_count == ir->node_cap) {
-        size_t cap = ir->node_cap ? ir->node_cap * 2 : 16;
-        ccw_ir_node *nodes = (ccw_ir_node *)realloc(ir->nodes, cap * sizeof(*nodes));
-        if (nodes == NULL) return NULL;
-        ir->nodes = nodes;
-        ir->node_cap = cap;
+        kvec_t(ccw_ir_node) nodes = {
+            ir->node_count, ir->node_cap, ir->nodes
+        };
+        kv_push(ccw_ir_node, nodes, (ccw_ir_node){ 0 });
+        ir->nodes = nodes.a;
+        ir->node_cap = nodes.m;
+        ir->node_count = nodes.n - 1;
     }
     ccw_ir_node *n = &ir->nodes[ir->node_count];
     memset(n, 0, sizeof(*n));

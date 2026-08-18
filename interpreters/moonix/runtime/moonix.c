@@ -1,5 +1,6 @@
 #include "moonix_internal.h"
 #include "../frontend/moonix_frontend.h"
+#include "kstring.h"
 
 #include <errno.h>
 #include <stdio.h>
@@ -27,7 +28,17 @@ static void value_clear(moonix_value *v) { if (v && v->kind == MV_STRING) free(v
 static moonix_value value_int(long long n) { moonix_value v={MV_INT,n,0,NULL}; return v; }
 static moonix_value value_bool(int b) { moonix_value v={MV_BOOL,0,b,NULL}; return v; }
 static moonix_value value_nil(void) { moonix_value v={MV_NIL,0,0,NULL}; return v; }
-static moonix_value value_copy(const moonix_value *v) { moonix_value out=*v; if(v->kind==MV_STRING) { size_t n=strlen(v->string?v->string:"")+1; out.string=(char*)malloc(n); if(out.string) memcpy(out.string,v->string?v->string:"",n); } return out; }
+static moonix_value value_copy(const moonix_value *v) {
+    moonix_value out=*v;
+    if(v->kind==MV_STRING) {
+        kstring_t copy = { 0, 0, NULL };
+        if (kputs(v->string ? v->string : "", &copy) == EOF)
+            out.string = NULL;
+        else
+            out.string = ks_release(&copy);
+    }
+    return out;
+}
 static moonix_value *find_global(lua_State *L, const char *name, int create) {
     size_t i;
     for(i=0;i<L->global_count;i++) if(strcmp(L->globals[i].name,name)==0) return &L->globals[i].value;
@@ -51,7 +62,11 @@ int moonix_lua_toboolean(const lua_State *L,int idx){idx=stack_index(L,idx);if(!
 const char *moonix_lua_tostring(const lua_State *L,int idx){static char buf[64];idx=stack_index(L,idx);if(!L||idx<=0||idx>L->top)return NULL;if(L->stack[idx-1].kind==MV_STRING)return L->stack[idx-1].string;if(L->stack[idx-1].kind==MV_INT){snprintf(buf,sizeof(buf),"%lld",L->stack[idx-1].integer);return buf;}return NULL;}
 void moonix_lua_insert(lua_State *L,int idx){moonix_value v;int i;if(!L||L->top==0||idx<1||idx>L->top)return;v=L->stack[L->top-1];for(i=L->top-1;i>=idx;i--)L->stack[i]=L->stack[i-1];L->stack[idx-1]=v;}
 
-static char *moonix_strdup(const char *s){size_t n;if(!s)return NULL;n=strlen(s)+1;char *p=(char*)malloc(n);if(p)memcpy(p,s,n);return p;}
+static char *moonix_strdup(const char *s){
+    kstring_t copy = { 0, 0, NULL };
+    if (!s || kputs(s, &copy) == EOF) return NULL;
+    return ks_release(&copy);
+}
 void moonix_set_error(moonix_state *s,const char *m){if(s)snprintf(s->error,sizeof(s->error),"%s",m?m:"unknown Moonix error");}
 void moonix_options_init(moonix_options *o){if(o){o->tier=MOONIX_TIER_T0;o->manifest_dir=MOONIX_DEFAULT_MANIFEST_DIR;o->sched_dir=MOONIX_DEFAULT_SCHED_DIR;}}
 static lua_State *lua_newstate_owned(void){return (lua_State*)calloc(1,sizeof(lua_State));}
@@ -118,7 +133,13 @@ static moonix_status execute_source(moonix_state*s,const char*src){
 }
 moonix_status moonix_load_chunk(moonix_state*s,const moonix_chunk*c){if(!s||!c||!c->data||c->size<12){if(s)moonix_set_error(s,"invalid Moonix bytecode");return MOONIX_ERR_ARGUMENT;}if(memcmp(c->data,"MOONIXBC",8)!=0||c->data[8]!=MOONIX_BYTECODE_VERSION){moonix_set_error(s,"Moonix bytecode version mismatch");return MOONIX_ERR_BYTECODE;}s->active_tier=(s->requested_tier==MOONIX_TIER_T1&&!c->t0_only&&c->on1x_ir&&s->plans[0])?MOONIX_TIER_T1:MOONIX_TIER_T0;s->error[0]=0;return execute_source(s,(const char*)c->data+12);}
 moonix_status moonix_load_buffer(moonix_state*s,const char*src,size_t n,const char*name){moonix_chunk c;moonix_status x=moonix_compile(s,src,n,name,&c);if(x==MOONIX_OK)x=moonix_load_chunk(s,&c);moonix_chunk_clear(&c);return x;}
-static char *read_file(const char*p,size_t*n){FILE*f=fopen(p,"rb");long z;char*d;if(!f)return NULL;if(fseek(f,0,SEEK_END)||((z=ftell(f))<0)||fseek(f,0,SEEK_SET)){fclose(f);return NULL;}d=(char*)malloc((size_t)z+1);if(!d||fread(d,1,(size_t)z,f)!=(size_t)z){free(d);fclose(f);return NULL;}d[z]=0;fclose(f);*n=(size_t)z;return d;}
+static char *read_file(const char*p,size_t*n){
+    FILE*f=fopen(p,"rb"); char chunk[4096]; size_t got; kstring_t data={0,0,NULL};
+    if(!f)return NULL;
+    while((got=fread(chunk,1,sizeof(chunk),f))>0)
+        if(kputsn(chunk,(int)got,&data)==EOF){free(data.s);fclose(f);return NULL;}
+    fclose(f); *n=data.l; return ks_release(&data);
+}
 moonix_status moonix_load_file(moonix_state*s,const char*p){size_t n;char*d;if(!s||!p)return MOONIX_ERR_ARGUMENT;d=read_file(p,&n);if(!d){snprintf(s->error,sizeof(s->error),"%s: %s",p,strerror(errno));return MOONIX_ERR_ARGUMENT;}moonix_status x=moonix_load_buffer(s,d,n,p);free(d);return x;}
 moonix_status moonix_pcall(moonix_state*s,int nargs,int nresults){(void)nargs;(void)nresults;if(!s)return MOONIX_ERR_ARGUMENT;s->error[0]=0;return MOONIX_OK;}
 moonix_status moonix_dostring(moonix_state*s,const char*src,const char*name){(void)name;if(!s||!src)return MOONIX_ERR_ARGUMENT;return execute_source(s,src);}

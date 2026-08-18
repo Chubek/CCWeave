@@ -1,6 +1,7 @@
 #include "lccwas.h"
 #include "lauxlib.h"
 #include "lualib.h"
+#include "kstring.h"
 #include <ctype.h>
 #include <errno.h>
 #include <stdarg.h>
@@ -8,25 +9,25 @@
 #include <string.h>
 #include <strings.h>
 
-static int grow(ccw_lccwas *c, size_t n) {
-  if (c->len + n + 1 <= c->cap) return 1;
-  size_t cap = c->cap ? c->cap : 256;
-  while (cap < c->len + n + 1) cap *= 2;
-  char *p = (char *)realloc(c->data, cap);
-  if (!p) return 0;
-  c->data = p; c->cap = cap; return 1;
-}
 static int append(ccw_lccwas *c, const char *s, size_t n) {
-  if (!grow(c,n)) return 0;
-  memcpy(c->data+c->len,s,n); c->len += n; c->data[c->len]=0; return 1;
+  kstring_t text = { c->len, c->cap, c->data };
+  if (kputsn(s, (int)n, &text) == EOF) return 0;
+  c->data = text.s; c->len = text.l; c->cap = text.m; return 1;
 }
 static int appendf(ccw_lccwas *c, const char *fmt, ...) {
-  va_list ap, aq; va_start(ap,fmt); va_copy(aq,ap);
-  int n=vsnprintf(NULL,0,fmt,ap); va_end(ap);
-  if(n<0 || !grow(c,(size_t)n)){va_end(aq);return 0;}
-  vsnprintf(c->data+c->len,(size_t)n+1,fmt,aq); va_end(aq); c->len+=(size_t)n; return 1;
+  kstring_t text = { c->len, c->cap, c->data };
+  va_list ap;
+  va_start(ap, fmt);
+  int n = kvsprintf(&text, fmt, ap);
+  va_end(ap);
+  if (n < 0) return 0;
+  c->data = text.s; c->len = text.l; c->cap = text.m; return 1;
 }
-static char *dupstr(const char *s) { size_t n=strlen(s)+1; char *p=malloc(n); if(p)memcpy(p,s,n); return p; }
+static char *dupstr(const char *s) {
+  kstring_t copy = { 0, 0, NULL };
+  if (!s || kputs(s, &copy) == EOF) return NULL;
+  return ks_release(&copy);
+}
 static int fail(char **e, const char *fmt, ...) {
   if (e) { va_list ap,aq; va_start(ap,fmt); va_copy(aq,ap); int n=vsnprintf(NULL,0,fmt,ap); va_end(ap);
     *e=(char*)malloc((size_t)n+1); if(*e)vsnprintf(*e,(size_t)n+1,fmt,aq); va_end(aq); }
@@ -87,7 +88,7 @@ static void register_module(ccw_lccwas*c) {
 void ccw_lccwas_init(ccw_lccwas*c,const char*arch,const char*syntax,const char*file,int unsafe){memset(c,0,sizeof(*c));c->arch=arch;c->syntax=syntax;c->file=dupstr(file?file:"<input>");c->unsafe=unsafe;c->L=luaL_newstate();if(!c->L)return;luaL_requiref(c->L,LUA_GNAME,luaopen_base,1);lua_pop(c->L,1);luaL_requiref(c->L,LUA_STRLIBNAME,luaopen_string,1);lua_pop(c->L,1);luaL_requiref(c->L,LUA_TABLIBNAME,luaopen_table,1);lua_pop(c->L,1);luaL_requiref(c->L,LUA_MATHLIBNAME,luaopen_math,1);lua_pop(c->L,1);luaL_requiref(c->L,LUA_UTF8LIBNAME,luaopen_utf8,1);lua_pop(c->L,1);if(!unsafe){lua_pushnil(c->L);lua_setglobal(c->L,"io");lua_pushnil(c->L);lua_setglobal(c->L,"os");lua_pushnil(c->L);lua_setglobal(c->L,"package");lua_pushnil(c->L);lua_setglobal(c->L,"require");lua_pushnil(c->L);lua_setglobal(c->L,"load");lua_pushnil(c->L);lua_setglobal(c->L,"loadfile");lua_pushnil(c->L);lua_setglobal(c->L,"dofile");lua_pushnil(c->L);lua_setglobal(c->L,"debug");}lua_pushlightuserdata(c->L,c);lua_setfield(c->L,LUA_REGISTRYINDEX,"ccw.lccwas.ctx");register_module(c);}
 void ccw_lccwas_destroy(ccw_lccwas*c){if(c->L)lua_close(c->L);free(c->data);free(c->file);for(size_t i=0;i<c->env_count;i++){free(c->env_keys[i]);free(c->env_vals[i]);}free(c->env_keys);free(c->env_vals);}
 int ccw_lccwas_define(ccw_lccwas*c,const char*k,const char*v){char**a=realloc(c->env_keys,(c->env_count+1)*sizeof(*a));char**b=realloc(c->env_vals,(c->env_count+1)*sizeof(*b));if(!a||!b)return 0;c->env_keys=a;c->env_vals=b;c->env_keys[c->env_count]=dupstr(k);c->env_vals[c->env_count]=dupstr(v);if(!c->env_keys[c->env_count]||!c->env_vals[c->env_count])return 0;c->env_count++;if(c->L){lua_getglobal(c->L,"ccwas");if(lua_istable(c->L,-1)){lua_getfield(c->L,-1,"env");if(lua_istable(c->L,-1)){lua_pushstring(c->L,v);lua_setfield(c->L,-2,k);}lua_pop(c->L,1);}lua_pop(c->L,1);}return 1;}
-static int run_chunk(ccw_lccwas*c,const char*chunk,size_t n,char**error){char *s=malloc(n+1);if(!s)return fail(error,"out of memory");memcpy(s,chunk,n);s[n]=0;int ok=luaL_loadbuffer(c->L,s,n,c->file)==LUA_OK&&lua_pcall(c->L,0,0,0)==LUA_OK;if(!ok){const char*e=lua_tostring(c->L,-1);int r=fail(error,"%s",e?e:"template error");lua_pop(c->L,1);free(s);return r;}free(s);return 1;}
+static int run_chunk(ccw_lccwas*c,const char*chunk,size_t n,char**error){kstring_t source={0,0,NULL};if(kputsn(chunk,(int)n,&source)==EOF)return fail(error,"out of memory");int ok=luaL_loadbuffer(c->L,source.s,n,c->file)==LUA_OK&&lua_pcall(c->L,0,0,0)==LUA_OK;if(!ok){const char*e=lua_tostring(c->L,-1);int r=fail(error,"%s",e?e:"template error");lua_pop(c->L,1);free(source.s);return r;}free(source.s);return 1;}
 int ccw_lccwas_expand_buffer(ccw_lccwas*c,const char*src,const char*file,char**error){if(!c||!c->L)return fail(error,"cannot create Lua state");free(c->file);c->file=dupstr(file?file:"<input>");const char*p=src;while(*p){const char*tag=strstr(p,"<?lua");if(!tag){if(!append(c,p,strlen(p)))return fail(error,"out of memory");break;}if(tag>p&&!append(c,p,(size_t)(tag-p)))return fail(error,"out of memory");const char*end=strstr(tag+5,"?>");if(!end)return fail(error,"%s: unterminated <?lua tag",c->file);const char*body=tag+5;while(body<end&&isspace((unsigned char)*body))body++;if(body<end&&*body=='='){body++;while(body<end&&isspace((unsigned char)*body))body++;size_t bn=(size_t)(end-body);char *expr=(char*)malloc(bn+13);if(!expr)return fail(error,"out of memory");memcpy(expr,"ccwas.emit(",11);memcpy(expr+11,body,bn);expr[11+bn]=')';expr[12+bn]=0;int ok=run_chunk(c,expr,12+bn,error);free(expr);if(!ok)return 0;}else if(!run_chunk(c,body,(size_t)(end-body),error))return 0;p=end+2;}return 1;}
 int ccw_lccwas_expand_file(ccw_lccwas*c,const char*path,char**error){FILE*f=fopen(path,"rb");if(!f)return fail(error,"%s: %s",path,strerror(errno));fseek(f,0,SEEK_END);long n=ftell(f);fseek(f,0,SEEK_SET);char*s=malloc((size_t)n+1);if(!s){fclose(f);return fail(error,"out of memory");}fread(s,1,(size_t)n,f);s[n]=0;fclose(f);int r=ccw_lccwas_expand_buffer(c,s,path,error);free(s);return r;}
 char*ccw_lccwas_take_buffer(ccw_lccwas*c){char*p=c->data;c->data=NULL;c->len=c->cap=0;return p;}void ccw_lccwas_seal(ccw_lccwas*c){c->sealed=1;}lua_State*ccw_lccwas_state(ccw_lccwas*c){return c->L;}

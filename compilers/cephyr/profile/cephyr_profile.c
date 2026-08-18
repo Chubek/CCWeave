@@ -11,6 +11,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "kstring.h"
+#include "kvec.h"
+
 typedef struct {
     const char *name;
     const char *capability;
@@ -74,13 +77,10 @@ static void profile_error(char *out, size_t capacity, const char *fmt, ...)
 
 static char *profile_strdup(const char *value)
 {
-    size_t n;
-    char *copy;
+    kstring_t copy = { 0, 0, NULL };
     if (value == NULL) return NULL;
-    n = strlen(value) + 1u;
-    copy = (char *)malloc(n);
-    if (copy != NULL) memcpy(copy, value, n);
-    return copy;
+    if (kputs(value, &copy) == EOF) return NULL;
+    return ks_release(&copy);
 }
 
 static int profile_set_string(char **dst, const char *src)
@@ -96,19 +96,18 @@ static int profile_set_string(char **dst, const char *src)
 
 static int profile_push_string(char ***items, size_t *count, const char *value)
 {
-    char **next;
     char *copy;
+    kvec_t(char *) vector = { *count, *count, *items };
     if (value == NULL) return 0;
     copy = profile_strdup(value);
     if (copy == NULL) return 0;
-    next = (char **)realloc(*items, (*count + 1u) * sizeof(*next));
-    if (next == NULL) {
+    if (kv_resize(char *, vector, vector.n + 1u) == NULL) {
         free(copy);
         return 0;
     }
-    next[*count] = copy;
-    *items = next;
-    ++*count;
+    vector.a[vector.n++] = copy;
+    *items = vector.a;
+    *count = vector.n;
     return 1;
 }
 
@@ -116,12 +115,13 @@ static int profile_push_kernel(cephyr_profile *profile,
                                const char *name, const char *capability,
                                const char *prefer)
 {
-    cephyr_profile_kernel *next;
     cephyr_profile_kernel *item;
-    next = (cephyr_profile_kernel *)realloc(
-        profile->kernels, (profile->kernel_count + 1u) * sizeof(*next));
-    if (next == NULL) return 0;
-    profile->kernels = next;
+    kvec_t(cephyr_profile_kernel) vector = {
+        profile->kernel_count, profile->kernel_count, profile->kernels
+    };
+    if (kv_resize(cephyr_profile_kernel, vector, vector.n + 1u) == NULL)
+        return 0;
+    profile->kernels = vector.a;
     item = &profile->kernels[profile->kernel_count];
     memset(item, 0, sizeof(*item));
     if ((name != NULL && !(item->name = profile_strdup(name))) ||
@@ -139,13 +139,14 @@ static int profile_push_kernel(cephyr_profile *profile,
 static int profile_push_command(cephyr_profile *profile,
                                 const char *name, const char *command)
 {
-    cephyr_profile_command *next;
     cephyr_profile_command *item;
+    kvec_t(cephyr_profile_command) vector = {
+        profile->command_count, profile->command_count, profile->commands
+    };
     if (name == NULL || command == NULL) return 0;
-    next = (cephyr_profile_command *)realloc(
-        profile->commands, (profile->command_count + 1u) * sizeof(*next));
-    if (next == NULL) return 0;
-    profile->commands = next;
+    if (kv_resize(cephyr_profile_command, vector, vector.n + 1u) == NULL)
+        return 0;
+    profile->commands = vector.a;
     item = &profile->commands[profile->command_count];
     item->name = profile_strdup(name);
     item->command = profile_strdup(command);

@@ -3,6 +3,7 @@
 
 #include "ccw_ir_internal.h"
 #include "mpc.h"
+#include "kstring.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -69,20 +70,23 @@ static char *unquote(const char *lit)
 {
     size_t n = strlen(lit);
     if (n < 2) return ccw_ir_strdup("");
-    char *out = (char *)malloc(n);
-    if (out == NULL) return NULL;
-    size_t w = 0;
+    kstring_t out = { 0, 0, NULL };
     for (size_t i = 1; i + 1 < n; i++) {
         char c = lit[i];
         if (c == '\\' && i + 2 < n) {
             char e = lit[++i];
-            out[w++] = (e == 'n') ? '\n' : e;
+            if (kputc((e == 'n') ? '\n' : e, &out) == EOF) {
+                free(out.s);
+                return NULL;
+            }
         } else {
-            out[w++] = c;
+            if (kputc(c, &out) == EOF) {
+                free(out.s);
+                return NULL;
+            }
         }
     }
-    out[w] = '\0';
-    return out;
+    return ks_release(&out);
 }
 
 static const char *sym_name(mpc_ast_t *node)
@@ -306,16 +310,19 @@ ccw_ir *ccw_ir_parse_file(const char *path, char **error_message)
     long size = ftell(fp);
     if (size < 0) { fclose(fp); return NULL; }
     rewind(fp);
-    char *buf = (char *)malloc((size_t)size + 1u);
-    if (buf == NULL) {
-        fclose(fp);
-        if (error_message) *error_message = ccw_ir_strdup("out of memory");
-        return NULL;
+    kstring_t buf = { 0, 0, NULL };
+    char chunk[4096];
+    size_t got;
+    while ((got = fread(chunk, 1, sizeof(chunk), fp)) > 0) {
+        if (kputsn(chunk, (int)got, &buf) == EOF) {
+            free(buf.s);
+            fclose(fp);
+            if (error_message) *error_message = ccw_ir_strdup("out of memory");
+            return NULL;
+        }
     }
-    size_t got = fread(buf, 1, (size_t)size, fp);
-    buf[got] = '\0';
     fclose(fp);
-    ccw_ir *ir = ccw_ir_parse(buf, error_message);
-    free(buf);
+    ccw_ir *ir = ccw_ir_parse(buf.s ? buf.s : "", error_message);
+    free(buf.s);
     return ir;
 }

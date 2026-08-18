@@ -7,6 +7,8 @@
 
 #include "GlueSTD.h"
 #include "ccw_host_accessors.h"
+#include "kstring.h"
+#include "kvec.h"
 
 #include <dirent.h>
 #include <stdarg.h>
@@ -18,26 +20,15 @@
 
 /* ---------- string builder ---------- */
 
-typedef struct { char *buf; size_t len, cap; } sb;
+typedef struct { kstring_t text; } sb;
 
 static void sb_add(sb *s, const char *fmt, ...)
 {
-    char tmp[1024];
     va_list ap;
     va_start(ap, fmt);
-    int n = vsnprintf(tmp, sizeof(tmp), fmt, ap);
+    int n = kvsprintf(&s->text, fmt, ap);
     va_end(ap);
-    if (n < 0) return;
-    if (s->len + (size_t)n + 1u > s->cap) {
-        size_t cap = s->cap ? s->cap : 1024;
-        while (cap < s->len + (size_t)n + 1u) cap *= 2;
-        char *b = (char *)realloc(s->buf, cap);
-        if (b == NULL) return;
-        s->buf = b;
-        s->cap = cap;
-    }
-    memcpy(s->buf + s->len, tmp, (size_t)n + 1u);
-    s->len += (size_t)n;
+    (void)n;
 }
 
 /* ---------- capability id grammar: [a-z0-9-]+(\.[a-z0-9-]+)+ ---------- */
@@ -86,10 +77,9 @@ static int compare_entries(const void *a, const void *b)
 static char *dup_str(const char *s)
 {
     if (s == NULL) return NULL;
-    size_t n = strlen(s) + 1u;
-    char *p = (char *)malloc(n);
-    if (p != NULL) memcpy(p, s, n);
-    return p;
+    kstring_t copy = { 0, 0, NULL };
+    if (kputs(s, &copy) == EOF) return NULL;
+    return ks_release(&copy);
 }
 
 /* The library name is recovered from the kernel's define-library form. */
@@ -106,10 +96,9 @@ static char *read_library_name(const char *path)
         const char *close = open ? strchr(open, ')') : NULL;
         if (open == NULL || close == NULL) continue;
         size_t n = (size_t)(close - open) + 1u;
-        found = (char *)malloc(n + 1u);
-        if (found == NULL) break;
-        memcpy(found, open, n);
-        found[n] = '\0';
+        kstring_t library = { 0, 0, NULL };
+        if (kputsn(open, (int)n, &library) == EOF) break;
+        found = ks_release(&library);
     }
     fclose(fp);
     return found;
@@ -131,26 +120,26 @@ static int collect_kernels(const char *root, const char *kernel_dir,
         fprintf(stderr, "ccw-manifest: cannot open %s\n", dir_path);
         return -1;
     }
-    kernel_entry *entries = NULL;
-    int count = 0, cap = 0;
+    kvec_t(kernel_entry) entries_vec = { 0, 0, NULL };
+    int count = 0;
     struct dirent *de;
     while ((de = readdir(d)) != NULL) {
         if (!ends_with_scm(de->d_name)) continue;
-        if (count == cap) {
-            cap = cap ? cap * 2 : 8;
-            kernel_entry *e = (kernel_entry *)realloc(entries, (size_t)cap * sizeof(*e));
-            if (e == NULL) { closedir(d); return -1; }
-            entries = e;
+        kv_pushp(kernel_entry, entries_vec);
+        if (entries_vec.a == NULL) {
+            closedir(d);
+            kv_destroy(entries_vec);
+            return -1;
         }
-        memset(&entries[count], 0, sizeof(entries[count]));
+        memset(&entries_vec.a[count], 0, sizeof(entries_vec.a[count]));
         char rel[1024];
         snprintf(rel, sizeof(rel), "%s/%s", kernel_dir, de->d_name);
-        entries[count].path = dup_str(rel);
+        entries_vec.a[count].path = dup_str(rel);
         count++;
     }
     closedir(d);
-    qsort(entries, (size_t)count, sizeof(*entries), compare_entries);
-    *out = entries;
+    qsort(entries_vec.a, (size_t)count, sizeof(*entries_vec.a), compare_entries);
+    *out = entries_vec.a;
     *out_count = count;
     return 0;
 }
@@ -182,7 +171,7 @@ static void emit_header(sb *s, const char *derivation)
 
 static char *render_kernel_yaml(const kernel_entry *entries, int count)
 {
-    sb s = { NULL, 0, 0 };
+    sb s = { { 0, 0, NULL } };
     emit_header(&s, "Source of truth: kernel-capabilities of each listed kernel.");
     sb_add(&s, "kernels:\n");
     for (int i = 0; i < count; i++) {
@@ -200,7 +189,7 @@ static char *render_kernel_yaml(const kernel_entry *entries, int count)
                 sb_add(&s, "      - %s\n", entries[i].caps[j]);
         }
     }
-    return s.buf ? s.buf : dup_str("");
+    return s.text.s ? ks_release(&s.text) : dup_str("");
 }
 
 /* Inverted index: capability -> providing kernels, both sorted. */
@@ -209,7 +198,11 @@ static char *render_capabilities_yaml(const kernel_entry *entries, int count)
     int total = 0;
     for (int i = 0; i < count; i++) total += entries[i].cap_count;
 
-    char **caps = (char **)calloc((size_t)(total > 0 ? total : 1), sizeof(char *));
+    kvec_t(char *) caps_vec = { 0, 0, NULL };
+    if (kv_resize(char *, caps_vec, (size_t)(total > 0 ? total : 1)) == NULL)
+        return NULL;
+    char **caps = caps_vec.a;
+    memset(caps, 0, (size_t)(total > 0 ? total : 1) * sizeof(*caps));
     int ncaps = 0;
     for (int i = 0; i < count; i++) {
         for (int j = 0; j < entries[i].cap_count; j++) {
@@ -221,7 +214,7 @@ static char *render_capabilities_yaml(const kernel_entry *entries, int count)
     }
     qsort(caps, (size_t)ncaps, sizeof(*caps), compare_strings);
 
-    sb s = { NULL, 0, 0 };
+    sb s = { { 0, 0, NULL } };
     emit_header(&s, "Inverted index derived from Kernel.yaml.");
     sb_add(&s, "capabilities:\n");
     for (int i = 0; i < ncaps; i++) {
@@ -231,8 +224,8 @@ static char *render_capabilities_yaml(const kernel_entry *entries, int count)
                 if (strcmp(entries[k].caps[j], caps[i]) == 0)
                     sb_add(&s, "    - %s\n", entries[k].path);
     }
-    free(caps);
-    return s.buf ? s.buf : dup_str("");
+    kv_destroy(caps_vec);
+    return s.text.s ? ks_release(&s.text) : dup_str("");
 }
 
 /* Cephyr profile v1 is shared by the YAML and TOML loaders.  JSON Schema
@@ -404,16 +397,18 @@ static char *read_file(const char *path)
 {
     FILE *fp = fopen(path, "rb");
     if (fp == NULL) return NULL;
-    fseek(fp, 0, SEEK_END);
-    long size = ftell(fp);
-    rewind(fp);
-    if (size < 0) { fclose(fp); return NULL; }
-    char *buf = (char *)malloc((size_t)size + 1u);
-    if (buf == NULL) { fclose(fp); return NULL; }
-    size_t got = fread(buf, 1, (size_t)size, fp);
-    buf[got] = '\0';
+    kstring_t buf = { 0, 0, NULL };
+    char chunk[4096];
+    size_t got;
+    while ((got = fread(chunk, 1, sizeof(chunk), fp)) > 0) {
+        if (kputsn(chunk, (int)got, &buf) == EOF) {
+            free(buf.s);
+            fclose(fp);
+            return NULL;
+        }
+    }
     fclose(fp);
-    return buf;
+    return ks_release(&buf);
 }
 
 static bool write_file(const char *path, const char *text)
@@ -448,7 +443,11 @@ static int populate(ccw_executor *ex, kernel_entry *e, const char *root)
 
     int n = ccw_kernel_capability_count(ex, id);
     if (n < 0) n = 0;
-    e->caps = (char **)calloc((size_t)(n > 0 ? n : 1), sizeof(char *));
+    kvec_t(char *) caps = { 0, 0, NULL };
+    if (kv_resize(char *, caps, (size_t)(n > 0 ? n : 1)) == NULL)
+        return -1;
+    e->caps = caps.a;
+    memset(e->caps, 0, (size_t)(n > 0 ? n : 1) * sizeof(*e->caps));
     for (int i = 0; i < n; i++) {
         const char *cap = ccw_kernel_capability(ex, id, i);
         if (cap == NULL) continue;

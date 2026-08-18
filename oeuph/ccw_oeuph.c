@@ -7,6 +7,8 @@
 
 #include "ccw_oeuph.h"
 #include "ccw_oeuph_pattern.h"
+#include "kstring.h"
+#include "kvec.h"
 
 #include <stdarg.h>
 #include <stdio.h>
@@ -35,6 +37,22 @@ typedef struct {
     int   *parent;         /* union-find over e-class ids */
     int    class_count;
 } egraph;
+
+static bool reserve_items(void **items, int *capacity, int needed,
+                          size_t item_size)
+{
+    if (needed <= *capacity && *items != NULL) return true;
+    int next = *capacity ? *capacity * 2 : 64;
+    while (next < needed) next *= 2;
+    kvec_t(unsigned char) bytes = {
+        0, (size_t)*capacity * item_size, *items
+    };
+    if (kv_resize(unsigned char, bytes, (size_t)next * item_size) == NULL)
+        return false;
+    *items = bytes.a;
+    *capacity = next;
+    return true;
+}
 
 static int eg_find(egraph *g, int c)
 {
@@ -74,13 +92,11 @@ static int eg_add_node(egraph *g, const enode *n)
         if (same) return i;
     }
     if (g->count == g->cap) {
-        int cap = g->cap ? g->cap * 2 : 64;
-        enode *nodes = (enode *)realloc(g->nodes, (size_t)cap * sizeof(*nodes));
-        int *parent = (int *)realloc(g->parent, (size_t)cap * sizeof(*parent));
-        if (nodes == NULL || parent == NULL) return -1;
-        g->nodes = nodes;
-        g->parent = parent;
-        g->cap = cap;
+        if (!reserve_items((void **)&g->nodes, &g->cap,
+                           g->count + 1, sizeof(*g->nodes)) ||
+            !reserve_items((void **)&g->parent, &g->cap,
+                           g->count + 1, sizeof(*g->parent)))
+            return -1;
     }
     int id = g->count++;
     g->nodes[id] = *n;
@@ -92,8 +108,14 @@ static int eg_add_node(egraph *g, const enode *n)
 
 static void eg_free(egraph *g)
 {
-    free(g->nodes);
-    free(g->parent);
+    kvec_t(enode) nodes = {
+        (size_t)g->count, (size_t)g->cap, g->nodes
+    };
+    kvec_t(int) parent = {
+        (size_t)g->count, (size_t)g->cap, g->parent
+    };
+    kv_destroy(nodes);
+    kv_destroy(parent);
     memset(g, 0, sizeof(*g));
 }
 
@@ -170,7 +192,10 @@ ccw_oeuph_ruleset *ccw_oeuph_ruleset_create(const char *name)
 void ccw_oeuph_ruleset_destroy(ccw_oeuph_ruleset *rs)
 {
     if (rs == NULL) return;
-    free(rs->rules);
+    kvec_t(ccw_rule) rules = {
+        (size_t)rs->count, (size_t)rs->cap, rs->rules
+    };
+    kv_destroy(rules);
     free(rs);
 }
 
@@ -192,10 +217,11 @@ static ccw_status rule_error(char **error_message, const char *fmt, ...)
         va_start(ap, fmt);
         vsnprintf(buf, sizeof(buf), fmt, ap);
         va_end(ap);
-        size_t n = strlen(buf) + 1u;
-        char *p = (char *)malloc(n);
-        if (p != NULL) memcpy(p, buf, n);
-        *error_message = p;
+        kstring_t message = { 0, 0, NULL };
+        if (kputs(buf, &message) != EOF)
+            *error_message = ks_release(&message);
+        else
+            *error_message = NULL;
     }
     return CCW_ERR_TYPE;
 }
@@ -220,13 +246,9 @@ ccw_status ccw_oeuph_rule_add(ccw_oeuph_ruleset *rs, const char *rule_name,
     rule.bidirectional = bidirectional;
     rule.side_condition = side_condition;
 
-    if (rs->count == rs->cap) {
-        int cap = rs->cap ? rs->cap * 2 : 16;
-        ccw_rule *r = (ccw_rule *)realloc(rs->rules, (size_t)cap * sizeof(*r));
-        if (r == NULL) return CCW_ERR_OOM;
-        rs->rules = r;
-        rs->cap = cap;
-    }
+    if (!reserve_items((void **)&rs->rules, &rs->cap,
+                       rs->count + 1, sizeof(*rs->rules)))
+        return CCW_ERR_OOM;
     rs->rules[rs->count++] = rule;
     return CCW_OK;
 }
@@ -572,15 +594,18 @@ ccw_status ccw_oeuph_run(ccw_ir *ir, const ccw_oeuph_ruleset *rs,
                 }
 
                 /* --- extraction --- */
-                int *best_node = (int *)malloc((size_t)g.count * sizeof(int));
-                int *best_cost = (int *)malloc((size_t)g.count * sizeof(int));
-                if (best_node != NULL && best_cost != NULL) {
-                    extract(&g, model, best_node, best_cost);
-                    int chosen = best_node[eg_find(&g, root_class)];
+                kvec_t(int) best_node = { 0, 0, NULL };
+                kvec_t(int) best_cost = { 0, 0, NULL };
+                bool have_best =
+                    kv_resize(int, best_node, (size_t)g.count) != NULL &&
+                    kv_resize(int, best_cost, (size_t)g.count) != NULL;
+                if (have_best) {
+                    extract(&g, model, best_node.a, best_cost.a);
+                    int chosen = best_node.a[eg_find(&g, root_class)];
                     if (chosen >= 0) writeback_instr(ir, ins, &g, chosen);
                 }
-                free(best_node);
-                free(best_cost);
+                kv_destroy(best_node);
+                kv_destroy(best_cost);
 
                 local.nodes += g.count;
                 local.classes += eg_class_count(&g);

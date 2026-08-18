@@ -8,6 +8,7 @@
 
 #include "ccw_swaff_internal.h"
 #include "ccw_kliche.h"
+#include "kstring.h"
 
 #include <errno.h>
 #include <limits.h>
@@ -25,10 +26,9 @@ const ccw_swaff_frontend *ccw_swaff_frontend_ocaml(void)
 static char *ocaml_strdup(const char *s)
 {
     if (s == NULL) return NULL;
-    size_t n = strlen(s) + 1u;
-    char *copy = (char *)malloc(n);
-    if (copy != NULL) memcpy(copy, s, n);
-    return copy;
+    kstring_t copy = { 0, 0, NULL };
+    if (kputs(s, &copy) == EOF) return NULL;
+    return ks_release(&copy);
 }
 
 static void ocaml_set_error(char **error_message, const char *message)
@@ -95,11 +95,9 @@ static char *node_text(TSNode node, const char *source, size_t source_len)
     if (ts_node_is_null(node) || end < start || (size_t)end > source_len)
         return NULL;
     size_t n = (size_t)(end - start);
-    char *text = (char *)malloc(n + 1u);
-    if (text == NULL) return NULL;
-    memcpy(text, source + start, n);
-    text[n] = '\0';
-    return text;
+    kstring_t text = { 0, 0, NULL };
+    if (kputsn(source + start, (int)n, &text) == EOF) return NULL;
+    return ks_release(&text);
 }
 
 static void lower_fail(ccw_ocaml_lower *ctx, const char *message)

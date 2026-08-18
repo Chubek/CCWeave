@@ -2,6 +2,7 @@
  * The printer's output is exactly what ir/ccw_ir_parse.c accepts. */
 
 #include "ccw_ir_internal.h"
+#include "kstring.h"
 
 #include <stdarg.h>
 #include <stdio.h>
@@ -9,44 +10,23 @@
 #include <string.h>
 
 typedef struct {
-    char  *buf;
-    size_t len;
-    size_t cap;
+    kstring_t text;
     bool   failed;
 } ccw_sb;
 
 static void sb_append(ccw_sb *sb, const char *s)
 {
     if (sb->failed || s == NULL) return;
-    size_t n = strlen(s);
-    if (sb->len + n + 1u > sb->cap) {
-        size_t cap = sb->cap ? sb->cap : 256;
-        while (cap < sb->len + n + 1u) cap *= 2;
-        char *buf = (char *)realloc(sb->buf, cap);
-        if (buf == NULL) { sb->failed = true; return; }
-        sb->buf = buf;
-        sb->cap = cap;
-    }
-    memcpy(sb->buf + sb->len, s, n + 1u);
-    sb->len += n;
+    if (kputs(s, &sb->text) == EOF) sb->failed = true;
 }
 
 static void sb_printf(ccw_sb *sb, const char *fmt, ...)
 {
-    char tmp[512];
     va_list ap;
     va_start(ap, fmt);
-    int n = vsnprintf(tmp, sizeof(tmp), fmt, ap);
+    int n = kvsprintf(&sb->text, fmt, ap);
     va_end(ap);
-    if (n < 0) { sb->failed = true; return; }
-    if ((size_t)n < sizeof(tmp)) { sb_append(sb, tmp); return; }
-    char *big = (char *)malloc((size_t)n + 1u);
-    if (big == NULL) { sb->failed = true; return; }
-    va_start(ap, fmt);
-    vsnprintf(big, (size_t)n + 1u, fmt, ap);
-    va_end(ap);
-    sb_append(sb, big);
-    free(big);
+    if (n < 0) sb->failed = true;
 }
 
 static void sb_indent(ccw_sb *sb, int depth)
@@ -125,7 +105,7 @@ static void print_instr(ccw_sb *sb, const ccw_ir *ir, ccw_node id, int depth)
 char *ccw_ir_print(const ccw_ir *ir)
 {
     if (ir == NULL) return NULL;
-    ccw_sb sb = { NULL, 0, 0, false };
+    ccw_sb sb = { { 0, 0, NULL }, false };
     sb_append(&sb, "(module ");
     sb_string(&sb, ir->name);
     sb_append(&sb, "\n");
@@ -165,7 +145,10 @@ char *ccw_ir_print(const ccw_ir *ir)
     }
     sb_append(&sb, ")\n");
 
-    if (sb.failed) { free(sb.buf); return NULL; }
-    if (sb.buf == NULL) sb.buf = ccw_ir_strdup("");
-    return sb.buf;
+    if (sb.failed) {
+        free(sb.text.s);
+        return NULL;
+    }
+    if (sb.text.s == NULL) return ccw_ir_strdup("");
+    return ks_release(&sb.text);
 }
