@@ -278,3 +278,11 @@ The initial kernel slice publishes explicit `nonaffine`/`unavailable` facts
 when a host has not registered an ISL fact accessor.  This preserves the
 ISLKERN deterministic soft-failure contract while allowing a later host
 integration to replace those payloads with canonical ISL strings.
+
+# 2026-08-18 — Run Cephyr's polyhedral tier at O2
+
+Cephyr wires `affine-extract`, `dep-poly`, `isl-schedule`, and `tile-plan`
+into the O2 Sched plan as a strict producer/consumer chain.  The ISL tier is
+not included in O0/O1 because ISLKERN describes dependence-aware scheduling
+and tiling as the expensive optimization tier; keeping it at O2 preserves
+the fast-pipeline contract while making the core-to-Tilly ordering explicit.

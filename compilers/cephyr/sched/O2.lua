@@ -26,6 +26,14 @@ local strength   = S:require { capability = "opt.strength-reduction" }
 local gvn        = S:require { capability = "opt.gvn" }
 local sccp       = S:require { capability = "opt.sccp" }
 
+-- Polyhedral loop tier (ISLKERN §3.2, §5).  These are deliberately kept in
+-- O2: affine extraction and dependence-aware scheduling are compile-time
+-- analyses whose cost is not appropriate for the fast O0/O1 pipelines.
+local affine_extract = S:require { capability = "analysis.affine" }
+local dep_poly       = S:require { capability = "analysis.dependence" }
+local isl_schedule   = S:require { capability = "opt.schedule" }
+local tile_plan      = S:require { capability = "opt.tiling" }
+
 -- Oeuph rewriting.
 local arith_rules    = S:rewrite "arith.*"
 local bitwise_rules  = S:rewrite "bitwise.*"
@@ -64,6 +72,14 @@ S:edge(gvn, sccp)
 S:edge(sccp, dce)
 S:edge(dce, strength)
 
+-- ISL's ordering is a strict producer/consumer chain.  Keeping it before
+-- pre-tilly ensures schedule-derived facts describe core IR and that any
+-- later Tilly lowering observes the same provenance boundary.
+S:edge(ssa_construct, affine_extract)
+S:edge(affine_extract, dep_poly)
+S:edge(dep_poly, isl_schedule)
+S:edge(isl_schedule, tile_plan)
+
 -- Oeuph rewrites run in parallel where unordered.
 S:edge(strength, arith_rules)
 S:edge(strength, bitwise_rules)
@@ -80,6 +96,7 @@ S:edge(bool_rules, pre_tilly)
 S:edge(cast_rules, pre_tilly)
 S:edge(norm_rules, pre_tilly)
 S:edge(mem_rules, pre_tilly)
+S:edge(tile_plan, pre_tilly)
 
 S:edge(pre_tilly, isel)
 S:edge(isel, ra)

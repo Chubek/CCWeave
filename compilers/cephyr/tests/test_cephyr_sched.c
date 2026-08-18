@@ -73,6 +73,42 @@ static void check_pipeline(const char *script, const char *label)
                   "%s must order pre-tilly before backend nodes", label);
     }
 
+    if (strcmp(label, "cephyr-o2") == 0) {
+        const char *plan = ccw_plan_text(first);
+        unsigned affine = 0;
+        unsigned dependence = 0;
+        unsigned schedule = 0;
+        unsigned tiling = 0;
+        char *node_copy = copy_string(plan);
+        for (char *line = strtok(node_copy, "\n"); line;
+             line = strtok(NULL, "\n")) {
+            unsigned id;
+            unsigned kind;
+            char name[256];
+            if (sscanf(line, "node %u %u %255s", &id, &kind, name) != 3)
+                continue;
+            if (strcmp(name, "affine-extract") == 0) affine = id;
+            else if (strcmp(name, "dep-poly") == 0) dependence = id;
+            else if (strcmp(name, "isl-schedule") == 0) schedule = id;
+            else if (strcmp(name, "tile-plan") == 0) tiling = id;
+        }
+        free(node_copy);
+        CCW_CHECK(strstr(plan, "affine-extract analysis.affine") != NULL,
+                  "%s must include affine extraction", label);
+        CCW_CHECK(strstr(plan, "dep-poly analysis.dependence") != NULL,
+                  "%s must include dependence analysis", label);
+        CCW_CHECK(strstr(plan, "isl-schedule opt.schedule") != NULL,
+                  "%s must include ISL scheduling", label);
+        CCW_CHECK(strstr(plan, "tile-plan opt.tiling") != NULL,
+                  "%s must include tile planning", label);
+        CCW_CHECK(affine != 0 && dependence != 0 && schedule != 0 &&
+                      tiling != 0 &&
+                      has_edge(plan, affine, dependence) &&
+                      has_edge(plan, dependence, schedule) &&
+                      has_edge(plan, schedule, tiling),
+                  "%s must preserve the ISL producer/consumer chain", label);
+    }
+
     char plan_path[256];
     snprintf(plan_path, sizeof(plan_path), "/tmp/ccw-%s-%ld.plan",
              label, (long)getpid());
