@@ -19,6 +19,8 @@ If this file and the specs conflict, the specs win. If the two specs
 conflict, `GLUESTD_H.md` wins for anything ABI-related. Do not invent
 behavior not covered by either; stop and ask instead.
 
+All the subsystems of CCWeave use `third_party/klib` facilities, e.g. `kstring`, `karena`, `khash`, etc.
+
 ## Repository layout (create exactly this; spec §8)
 
 ```
