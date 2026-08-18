@@ -12,6 +12,15 @@ typedef struct ccwld_expr ccwld_expr;
 typedef struct ccwld_link ccwld_link;
 typedef struct { int code; char message[512]; } ccwld_error;
 typedef struct { const char *kind, *format, *entry, *soname, *osabi; } ccwld_output;
+typedef struct {
+    const char *kind;
+    const char *format;
+    const char *entry;
+    const char *soname;
+    const char *osabi;
+    const char *const *search_paths;
+    size_t search_path_count;
+} ccwld_link_options;
 ccwld_plan *ccwld_plan_new(const char *target);
 void ccwld_plan_free(ccwld_plan *);
 int ccwld_plan_output(ccwld_plan *, const ccwld_output *, ccwld_error *);
@@ -33,6 +42,10 @@ int ccwld_plan_seal(ccwld_plan *, ccwld_error *);
 int ccwld_plan_serialize(const ccwld_plan *, char **out, size_t *len, ccwld_error *);
 int ccwld_plan_hash(const ccwld_plan *, char out[65]);
 int ccwld_link_run(ccwld_plan *, const char *output, ccwld_error *);
+/* Link an ordered list of object/archive paths without invoking a subprocess. */
+int ccwld_link_files(const char *target, const char *output,
+                     const char *const *inputs, size_t input_count,
+                     const ccwld_link_options *options, ccwld_error *);
 void ccwld_free(void *);
 int ccwld_run_lua(const char *, const char *, ccwld_plan **, ccwld_error *);
 int ccwld_run_script(const char *, const char *, const char *, ccwld_error *);

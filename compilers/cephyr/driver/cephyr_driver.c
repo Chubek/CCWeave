@@ -13,7 +13,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/wait.h>
 #include <unistd.h>
 
 #include "../cpp/cephyr_cpp.h"
@@ -27,6 +26,8 @@
 #include "../../../swaff/ccw_swaff.h"
 #include "../../../ir/ccw_ir.h"
 #include "../../../sched/sched.h"
+#include "../../../toolchain/ccwas/ccwas.h"
+#include "../../../toolchain/ccwld/ccwld.h"
 
 #include "kstring.h"
 #include "kvec.h"
@@ -69,6 +70,33 @@ static const cephyr_target_desc cephyr_targets[] = {
     { NULL, NULL }
 };
 
+static char *cephyr_find_program(const char *name)
+{
+    const char *path;
+    const char *p;
+    if (!name || !*name) return NULL;
+    if (strchr(name, '/'))
+        return access(name, X_OK) == 0 ? cephyr_driver_strdup(name) : NULL;
+    path = getenv("PATH");
+    if (!path) return NULL;
+    for (p = path; *p;) {
+        const char *end = strchr(p, ':');
+        size_t n = end ? (size_t)(end - p) : strlen(p);
+        char candidate[PATH_MAX];
+        if (n + 1 + strlen(name) + 1 <= sizeof(candidate)) {
+            if (n == 0)
+                snprintf(candidate, sizeof(candidate), "./%s", name);
+            else
+                snprintf(candidate, sizeof(candidate), "%.*s/%s",
+                         (int)n, p, name);
+            if (access(candidate, X_OK) == 0)
+                return cephyr_driver_strdup(candidate);
+        }
+        p = end ? end + 1 : p + strlen(p);
+    }
+    return NULL;
+}
+
 const char *cephyr_target_arch(const char *target_triple)
 {
     if (target_triple == NULL) return NULL;
@@ -101,22 +129,8 @@ const char *cephyr_discover_assembler(const char *target_triple)
         "x86_64-linux-gnu-as", "llvm-mc", NULL
     };
     for (int i = 0; candidates[i]; i++) {
-        char buf[256];
-        snprintf(buf, sizeof(buf), "which %s 2>/dev/null", candidates[i]);
-        FILE *fp = popen(buf, "r");
-        if (fp) {
-            if (fgets(buf, sizeof(buf), fp)) {
-                /* Strip newline */
-                size_t len = strlen(buf);
-                if (len > 0 && buf[len - 1] == '\n') buf[len - 1] = '\0';
-                int status = pclose(fp);
-                if (status == 0) {
-                    return cephyr_driver_strdup(buf);
-                }
-            } else {
-                pclose(fp);
-            }
-        }
+        char *found = cephyr_find_program(candidates[i]);
+        if (found) return found;
     }
     return cephyr_driver_strdup("ccwas");
 }
@@ -137,21 +151,8 @@ const char *cephyr_discover_linker(const char *target_triple)
         "lld", NULL
     };
     for (int i = 0; candidates[i]; i++) {
-        char buf[256];
-        snprintf(buf, sizeof(buf), "which %s 2>/dev/null", candidates[i]);
-        FILE *fp = popen(buf, "r");
-        if (fp) {
-            if (fgets(buf, sizeof(buf), fp)) {
-                size_t len = strlen(buf);
-                if (len > 0 && buf[len - 1] == '\n') buf[len - 1] = '\0';
-                int status = pclose(fp);
-                if (status == 0) {
-                    return cephyr_driver_strdup(buf);
-                }
-            } else {
-                pclose(fp);
-            }
-        }
+        char *found = cephyr_find_program(candidates[i]);
+        if (found) return found;
     }
     return cephyr_driver_strdup("ccwld"); /* fallback */
 }
@@ -439,33 +440,12 @@ static char *emit_target_assembly(const ccw_ir *ir, const char *triple)
     return ks_release(&out);
 }
 
-static int run_assembler_command(const char *command, const char *arch,
-                                 const char *assembly_path,
-                                 const char *object_path,
-                                 const cephyr_options *opts)
+static ccw_arch_t cephyr_ccwas_arch(const char *arch)
 {
-    kstring_t cmd = { 0, 0, NULL };
-    int status;
-    if (command == NULL || arch == NULL || assembly_path == NULL ||
-        object_path == NULL) return -1;
-#define CMD_APPEND(...) do { \
-        if (ksprintf(&cmd, __VA_ARGS__) < 0) { \
-            free(cmd.s); return -1; \
-        } \
-    } while (0)
-    /* CEPHYR_AS is intentionally a command string; append quoted file args. */
-    CMD_APPEND("%s --target=%s", command, arch);
-    for (int i = 0; opts != NULL && i < opts->assembler_option_count; ++i)
-        CMD_APPEND(" %s", opts->assembler_options[i]);
-    for (int i = 0; opts != NULL && i < opts->assembler_arg_count; ++i)
-        CMD_APPEND(" %s", opts->assembler_args[i]);
-    CMD_APPEND(" '%s' -o '%s'", assembly_path, object_path);
-#undef CMD_APPEND
-    status = system(cmd.s);
-    free(cmd.s);
-    if (status == -1) return -1;
-    if (WIFEXITED(status)) return WEXITSTATUS(status);
-    return 128 + (WIFSIGNALED(status) ? WTERMSIG(status) : 1);
+    if (strcmp(arch, "x86-64") == 0) return CCW_ARCH_X86_64;
+    if (strcmp(arch, "aarch64") == 0) return CCW_ARCH_AARCH64;
+    if (strcmp(arch, "riscv64") == 0) return CCW_ARCH_RISCV64;
+    return CCW_ARCH_WASM32;
 }
 
 /* ---------- Sched plan execution ---------- */
@@ -691,11 +671,16 @@ static cephyr_result cephyr_compile_inner(const cephyr_options *opts)
                 write_stage_text(assembly_path, assembly) != CEPHYR_SUCCESS) {
                 result = CEPHYR_ERR_ASSEMBLE;
             } else {
-                int arc = run_assembler_command(opts->assembler,
-                                                cephyr_target_arch(opts->target_triple),
-                                                assembly_path, object_path, opts);
-                if (arc != 0) {
-                    fprintf(stderr, "cephyr: assembler command failed (%d)\n", arc);
+                ccwas_options aopts = {
+                    cephyr_ccwas_arch(cephyr_target_arch(opts->target_triple)),
+                    "intel", CCW_FMT_ELF, NULL, 0, 0, 0, 0
+                };
+                char *assemble_error = NULL;
+                if (!ccwas_assemble_file(assembly_path, &aopts,
+                                         object_path, &assemble_error)) {
+                    fprintf(stderr, "cephyr: assembler error: %s\n",
+                            assemble_error ? assemble_error : "unknown error");
+                    ccwas_free_error(assemble_error);
                     result = CEPHYR_ERR_ASSEMBLE;
                 } else if (opts->output_path == NULL || strcmp(opts->output_path, "-") == 0) {
                     fprintf(stderr, "cephyr: assembled object written to %s\n", object_path);

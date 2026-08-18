@@ -51,3 +51,32 @@ int ccwld_plan_seal(ccwld_plan*p,ccwld_error*e){char*s;size_t n;if(!p||p->sealed
 int ccwld_plan_hash(const ccwld_plan*p,char out[65]){uint64_t h=1469598103934665603ULL;size_t i;if(!p||!out)return 0;const char*s=p->serialized;if(!s){if(!ccwld_plan_serialize(p,(char**)&s,&i,NULL))return 0;}for(i=0;s[i];i++){h^=(unsigned char)s[i];h*=1099511628211ULL;}snprintf(out,65,"%016llx%016llx%016llx%016llx",(unsigned long long)h,(unsigned long long)(h^0x9e3779b97f4a7c15ULL),(unsigned long long)(h*33),(unsigned long long)(~h));if(!p->serialized)free((void*)s);return 1;}
 static int phase(ccwld_plan*p,ccwld_phase ph,ccwld_error*e){size_t i;ccwld_link l={p,ph};for(i=0;i<p->nh;i++)if(p->hooks[i].phase==ph&&p->hooks[i].fn(ph,&l,p->hooks[i].user)!=0){err(e,5,"hook failed at phase %d",ph);return 0;}return 1;}
 int ccwld_link_run(ccwld_plan*p,const char*out,ccwld_error*e){FILE*f;char hash[65];char*s;size_t n;if(!p||!out){err(e,1,"invalid link request");return 0;}if(!p->sealed&&!ccwld_plan_seal(p,e))return 0;if(!phase(p,CCWLD_PHASE_RESOLVED,e)||!phase(p,CCWLD_PHASE_GC,e)||!phase(p,CCWLD_PHASE_LAYOUT,e)||!phase(p,CCWLD_PHASE_EMIT,e))return 0;if(!ccwld_plan_hash(p,hash)||!ccwld_plan_serialize(p,&s,&n,e))return 0;f=fopen(out,"wb");if(!f){free(s);err(e,6,"cannot write output '%s'",out);return 0;}fprintf(f,"CCWLD-OBJECT\nformat=%s\nkind=%s\nplan-hash=%s\nreproducible=true\n.note.ccw=%s\n",p->output.format,p->output.kind,hash,hash);fwrite(s,1,n,f);fputc('\n',f);fclose(f);free(s);return 1;}
+int ccwld_link_files(const char *target, const char *output,
+                     const char *const *inputs, size_t input_count,
+                     const ccwld_link_options *options, ccwld_error *e)
+{
+    ccwld_plan *p = ccwld_plan_new(target);
+    ccwld_output out;
+    int ok = 0;
+    if (!p || !output || (!inputs && input_count)) {
+        ccwld_plan_free(p);
+        err(e, 1, "invalid link request");
+        return 0;
+    }
+    out.kind = options && options->kind ? options->kind : "exe";
+    out.format = options && options->format ? options->format : "elf";
+    out.entry = options ? options->entry : NULL;
+    out.soname = options ? options->soname : NULL;
+    out.osabi = options ? options->osabi : NULL;
+    if (!ccwld_plan_output(p, &out, e)) goto done;
+    if (options) {
+        for (size_t i = 0; i < options->search_path_count; ++i)
+            if (!ccwld_plan_search_path(p, options->search_paths[i], e)) goto done;
+    }
+    for (size_t i = 0; i < input_count; ++i)
+        if (!ccwld_plan_input(p, inputs[i], 0, i == 0, e)) goto done;
+    ok = ccwld_link_run(p, output, e);
+done:
+    ccwld_plan_free(p);
+    return ok;
+}

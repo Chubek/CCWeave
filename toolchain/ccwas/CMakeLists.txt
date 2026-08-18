@@ -2,7 +2,17 @@ add_library(ccw_lccwas STATIC lccwas/lccwas.c)
 target_include_directories(ccw_lccwas PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/lccwas ${CMAKE_SOURCE_DIR}/third_party/lua)
 target_link_libraries(ccw_lccwas PUBLIC ccw_lua ccw_klib)
 
-set(CCWAS_POSIX_TARGETS ccw_lccwas)
+add_library(ccwas_api STATIC ccwas.c)
+target_include_directories(ccwas_api PUBLIC
+  ${CMAKE_CURRENT_SOURCE_DIR}
+  ${CMAKE_CURRENT_SOURCE_DIR}/lccwas
+  ${CMAKE_CURRENT_SOURCE_DIR}/parse
+  ${CMAKE_CURRENT_SOURCE_DIR}/sema
+  ${CMAKE_CURRENT_SOURCE_DIR}/obj
+  ${CMAKE_SOURCE_DIR}/third_party/klib)
+target_link_libraries(ccwas_api PUBLIC ccw_lccwas ccw_parse ccw_obj)
+
+set(CCWAS_POSIX_TARGETS ccw_lccwas ccwas_api)
 
 # --- ccwas sema library (symbol table, expression evaluator, ISA validation) ---
 add_library(ccw_sema STATIC
