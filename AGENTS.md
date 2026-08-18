@@ -14,12 +14,18 @@ tells you how to work in this repository. It is not the specification.
 4. `.agents/CEPHYR.md` -- the complete, normative specs for `compiler/cephyr`, the C compiler derived from the infrastructure
 5. `.agents/MOONIX.md` -- the complete, normative specs for `interpreters/moonix`, a JIT-backed Lua interpreter
 6. `.agents/CCWAS.md` and `.agents/LCCWAS.md` -- the complete, normative specs for `toolchain/ccwas` and `toolchain/ccwas/lccwas`, respectively
+7. `.agents/CCWLD.md` and `.agents/LCCWLD.md` -- the complete, normative specs for `toolchain/ccwld` and `toolchain/ccwld/lccwld`, respectively
 
 If this file and the specs conflict, the specs win. If the two specs
 conflict, `GLUESTD_H.md` wins for anything ABI-related. Do not invent
 behavior not covered by either; stop and ask instead.
 
-All the subsystems of CCWeave use `third_party/klib` facilities, e.g. `kstring`, `karena`, `khash`, etc.
+**Utility Library**
+All the subsystems of CCWeave use `third_party/klib` facilities, e.g. `kstring`, `karena`, `khash`, etc. Klib is a utility library, some libraries are header-only, but most are a pair of `.c` and `.h` files. Example uses:
+- `khash` can be used for symbol table hashing;
+- `karena` can be used for memory managment;
+- `kstring` can be used for a tagged string;
+...And so on.
 
 ## Repository layout (create exactly this; spec §8)
 
