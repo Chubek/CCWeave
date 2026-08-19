@@ -20,258 +20,315 @@
 
 /* ---------- string builder ---------- */
 
-typedef struct { kstring_t text; } sb;
-
-static void sb_add(sb *s, const char *fmt, ...)
+typedef struct
 {
-    va_list ap;
-    va_start(ap, fmt);
-    int n = kvsprintf(&s->text, fmt, ap);
-    va_end(ap);
-    (void)n;
+  kstring_t text;
+} sb;
+
+static void
+sb_add (sb *s, const char *fmt, ...)
+{
+  va_list ap;
+  va_start (ap, fmt);
+  int n = kvsprintf (&s->text, fmt, ap);
+  va_end (ap);
+  (void)n;
 }
 
 /* ---------- capability id grammar: [a-z0-9-]+(\.[a-z0-9-]+)+ ---------- */
 
-static bool capability_valid(const char *cap)
+static bool
+capability_valid (const char *cap)
 {
-    if (cap == NULL || *cap == '\0') return false;
-    int segments = 0, seglen = 0;
-    for (const char *p = cap; ; p++) {
-        if (*p == '\0' || *p == '.') {
-            if (seglen == 0) return false;
-            segments++;
-            seglen = 0;
-            if (*p == '\0') break;
-            continue;
+  if (cap == NULL || *cap == '\0')
+    return false;
+  int segments = 0, seglen = 0;
+  for (const char *p = cap;; p++)
+    {
+      if (*p == '\0' || *p == '.')
+        {
+          if (seglen == 0)
+            return false;
+          segments++;
+          seglen = 0;
+          if (*p == '\0')
+            break;
+          continue;
         }
-        bool ok = (*p >= 'a' && *p <= 'z') || (*p >= '0' && *p <= '9') || *p == '-';
-        if (!ok) return false;
-        seglen++;
+      bool ok
+          = (*p >= 'a' && *p <= 'z') || (*p >= '0' && *p <= '9') || *p == '-';
+      if (!ok)
+        return false;
+      seglen++;
     }
-    return segments >= 2;
+  return segments >= 2;
 }
 
 /* ---------- kernel discovery ---------- */
 
-typedef struct {
-    char  *path;         /* repo-relative, e.g. kernels/strength-reduce.scm */
-    char  *library;
-    char  *name;
-    char  *version;
-    char  *description;
-    char **caps;
-    int    cap_count;
+typedef struct
+{
+  char *path; /* repo-relative, e.g. kernels/strength-reduce.scm */
+  char *library;
+  char *name;
+  char *version;
+  char *description;
+  char **caps;
+  int cap_count;
 } kernel_entry;
 
-static int compare_strings(const void *a, const void *b)
+static int
+compare_strings (const void *a, const void *b)
 {
-    return strcmp(*(const char *const *)a, *(const char *const *)b);
+  return strcmp (*(const char *const *)a, *(const char *const *)b);
 }
 
-static int compare_entries(const void *a, const void *b)
+static int
+compare_entries (const void *a, const void *b)
 {
-    return strcmp(((const kernel_entry *)a)->path, ((const kernel_entry *)b)->path);
+  return strcmp (((const kernel_entry *)a)->path,
+                 ((const kernel_entry *)b)->path);
 }
 
-static char *dup_str(const char *s)
+static char *
+dup_str (const char *s)
 {
-    if (s == NULL) return NULL;
-    kstring_t copy = { 0, 0, NULL };
-    if (kputs(s, &copy) == EOF) return NULL;
-    return ks_release(&copy);
+  if (s == NULL)
+    return NULL;
+  kstring_t copy = { 0, 0, NULL };
+  if (kputs (s, &copy) == EOF)
+    return NULL;
+  return ks_release (&copy);
 }
 
 /* The library name is recovered from the kernel's define-library form. */
-static char *read_library_name(const char *path)
+static char *
+read_library_name (const char *path)
 {
-    FILE *fp = fopen(path, "rb");
-    if (fp == NULL) return NULL;
-    char line[1024];
-    char *found = NULL;
-    while (found == NULL && fgets(line, sizeof(line), fp) != NULL) {
-        const char *at = strstr(line, "define-library");
-        if (at == NULL) continue;
-        const char *open = strchr(at, '(');
-        const char *close = open ? strchr(open, ')') : NULL;
-        if (open == NULL || close == NULL) continue;
-        size_t n = (size_t)(close - open) + 1u;
-        kstring_t library = { 0, 0, NULL };
-        if (kputsn(open, (int)n, &library) == EOF) break;
-        found = ks_release(&library);
+  FILE *fp = fopen (path, "rb");
+  if (fp == NULL)
+    return NULL;
+  char line[1024];
+  char *found = NULL;
+  while (found == NULL && fgets (line, sizeof (line), fp) != NULL)
+    {
+      const char *at = strstr (line, "define-library");
+      if (at == NULL)
+        continue;
+      const char *open = strchr (at, '(');
+      const char *close = open ? strchr (open, ')') : NULL;
+      if (open == NULL || close == NULL)
+        continue;
+      size_t n = (size_t)(close - open) + 1u;
+      kstring_t library = { 0, 0, NULL };
+      if (kputsn (open, (int)n, &library) == EOF)
+        break;
+      found = ks_release (&library);
     }
-    fclose(fp);
-    return found;
+  fclose (fp);
+  return found;
 }
 
-static bool ends_with_scm(const char *name)
+static bool
+ends_with_scm (const char *name)
 {
-    size_t n = strlen(name);
-    return n > 4 && strcmp(name + n - 4, ".scm") == 0;
+  size_t n = strlen (name);
+  return n > 4 && strcmp (name + n - 4, ".scm") == 0;
 }
 
-static int collect_kernels(const char *root, const char *kernel_dir,
-                           kernel_entry **out, int *out_count)
+static int
+collect_kernels (const char *root, const char *kernel_dir, kernel_entry **out,
+                 int *out_count)
 {
-    char dir_path[1024];
-    snprintf(dir_path, sizeof(dir_path), "%s/%s", root, kernel_dir);
-    DIR *d = opendir(dir_path);
-    if (d == NULL) {
-        fprintf(stderr, "ccw-manifest: cannot open %s\n", dir_path);
-        return -1;
+  char dir_path[1024];
+  snprintf (dir_path, sizeof (dir_path), "%s/%s", root, kernel_dir);
+  DIR *d = opendir (dir_path);
+  if (d == NULL)
+    {
+      fprintf (stderr, "ccw-manifest: cannot open %s\n", dir_path);
+      return -1;
     }
-    kvec_t(kernel_entry) entries_vec = { 0, 0, NULL };
-    int count = 0;
-    struct dirent *de;
-    while ((de = readdir(d)) != NULL) {
-        if (!ends_with_scm(de->d_name)) continue;
-        kv_pushp(kernel_entry, entries_vec);
-        if (entries_vec.a == NULL) {
-            closedir(d);
-            kv_destroy(entries_vec);
-            return -1;
+  kvec_t (kernel_entry) entries_vec = { 0, 0, NULL };
+  int count = 0;
+  struct dirent *de;
+  while ((de = readdir (d)) != NULL)
+    {
+      if (!ends_with_scm (de->d_name))
+        continue;
+      kv_pushp (kernel_entry, entries_vec);
+      if (entries_vec.a == NULL)
+        {
+          closedir (d);
+          kv_destroy (entries_vec);
+          return -1;
         }
-        memset(&entries_vec.a[count], 0, sizeof(entries_vec.a[count]));
-        char rel[1024];
-        snprintf(rel, sizeof(rel), "%s/%s", kernel_dir, de->d_name);
-        entries_vec.a[count].path = dup_str(rel);
-        count++;
+      memset (&entries_vec.a[count], 0, sizeof (entries_vec.a[count]));
+      char rel[1024];
+      snprintf (rel, sizeof (rel), "%s/%s", kernel_dir, de->d_name);
+      entries_vec.a[count].path = dup_str (rel);
+      count++;
     }
-    closedir(d);
-    qsort(entries_vec.a, (size_t)count, sizeof(*entries_vec.a), compare_entries);
-    *out = entries_vec.a;
-    *out_count = count;
-    return 0;
+  closedir (d);
+  qsort (entries_vec.a, (size_t)count, sizeof (*entries_vec.a),
+         compare_entries);
+  *out = entries_vec.a;
+  *out_count = count;
+  return 0;
 }
 
-static void free_entries(kernel_entry *entries, int count)
+static void
+free_entries (kernel_entry *entries, int count)
 {
-    for (int i = 0; i < count; i++) {
-        free(entries[i].path);
-        free(entries[i].library);
-        free(entries[i].name);
-        free(entries[i].version);
-        free(entries[i].description);
-        for (int j = 0; j < entries[i].cap_count; j++) free(entries[i].caps[j]);
-        free(entries[i].caps);
+  for (int i = 0; i < count; i++)
+    {
+      free (entries[i].path);
+      free (entries[i].library);
+      free (entries[i].name);
+      free (entries[i].version);
+      free (entries[i].description);
+      for (int j = 0; j < entries[i].cap_count; j++)
+        free (entries[i].caps[j]);
+      free (entries[i].caps);
     }
-    free(entries);
+  free (entries);
 }
 
 /* ---------- YAML emission ---------- */
 
-static void emit_header(sb *s, const char *derivation)
+static void
+emit_header (sb *s, const char *derivation)
 {
-    sb_add(s, "# GENERATED by ccw-manifest — DO NOT EDIT.\n");
-    sb_add(s, "# %s\n", derivation);
-    sb_add(s, "# Regenerate: ccw-manifest ; verify: ccw-manifest --check\n");
-    sb_add(s, "generator: %s\n", CCW_MANIFEST_GENERATOR);
-    sb_add(s, "glue_abi: %d\n", CCW_GLUE_ABI_VERSION);
+  sb_add (s, "# GENERATED by ccw-manifest — DO NOT EDIT.\n");
+  sb_add (s, "# %s\n", derivation);
+  sb_add (s, "# Regenerate: ccw-manifest ; verify: ccw-manifest --check\n");
+  sb_add (s, "generator: %s\n", CCW_MANIFEST_GENERATOR);
+  sb_add (s, "glue_abi: %d\n", CCW_GLUE_ABI_VERSION);
 }
 
-static char *render_kernel_yaml(const kernel_entry *entries, int count)
+static char *
+render_kernel_yaml (const kernel_entry *entries, int count)
 {
-    sb s = { { 0, 0, NULL } };
-    emit_header(&s, "Source of truth: kernel-capabilities of each listed kernel.");
-    sb_add(&s, "kernels:\n");
-    for (int i = 0; i < count; i++) {
-        sb_add(&s, "  - path: %s\n", entries[i].path);
-        sb_add(&s, "    library: %s\n", entries[i].library ? entries[i].library : "()");
-        sb_add(&s, "    name: %s\n", entries[i].name ? entries[i].name : "");
-        sb_add(&s, "    version: %s\n", entries[i].version ? entries[i].version : "");
-        sb_add(&s, "    description: %s\n",
-               entries[i].description ? entries[i].description : "");
-        if (entries[i].cap_count == 0) {
-            sb_add(&s, "    capabilities: []\n");
-        } else {
-            sb_add(&s, "    capabilities:\n");
-            for (int j = 0; j < entries[i].cap_count; j++)
-                sb_add(&s, "      - %s\n", entries[i].caps[j]);
+  sb s = { { 0, 0, NULL } };
+  emit_header (&s,
+               "Source of truth: kernel-capabilities of each listed kernel.");
+  sb_add (&s, "kernels:\n");
+  for (int i = 0; i < count; i++)
+    {
+      sb_add (&s, "  - path: %s\n", entries[i].path);
+      sb_add (&s, "    library: %s\n",
+              entries[i].library ? entries[i].library : "()");
+      sb_add (&s, "    name: %s\n", entries[i].name ? entries[i].name : "");
+      sb_add (&s, "    version: %s\n",
+              entries[i].version ? entries[i].version : "");
+      sb_add (&s, "    description: %s\n",
+              entries[i].description ? entries[i].description : "");
+      if (entries[i].cap_count == 0)
+        {
+          sb_add (&s, "    capabilities: []\n");
+        }
+      else
+        {
+          sb_add (&s, "    capabilities:\n");
+          for (int j = 0; j < entries[i].cap_count; j++)
+            sb_add (&s, "      - %s\n", entries[i].caps[j]);
         }
     }
-    return s.text.s ? ks_release(&s.text) : dup_str("");
+  return s.text.s ? ks_release (&s.text) : dup_str ("");
 }
 
 /* Inverted index: capability -> providing kernels, both sorted. */
-static char *render_capabilities_yaml(const kernel_entry *entries, int count)
+static char *
+render_capabilities_yaml (const kernel_entry *entries, int count)
 {
-    int total = 0;
-    for (int i = 0; i < count; i++) total += entries[i].cap_count;
+  int total = 0;
+  for (int i = 0; i < count; i++)
+    total += entries[i].cap_count;
 
-    kvec_t(char *) caps_vec = { 0, 0, NULL };
-    if (kv_resize(char *, caps_vec, (size_t)(total > 0 ? total : 1)) == NULL)
-        return NULL;
-    char **caps = caps_vec.a;
-    memset(caps, 0, (size_t)(total > 0 ? total : 1) * sizeof(*caps));
-    int ncaps = 0;
-    for (int i = 0; i < count; i++) {
-        for (int j = 0; j < entries[i].cap_count; j++) {
-            bool seen = false;
-            for (int k = 0; k < ncaps; k++)
-                if (strcmp(caps[k], entries[i].caps[j]) == 0) { seen = true; break; }
-            if (!seen) caps[ncaps++] = entries[i].caps[j];
+  kvec_t (char *) caps_vec = { 0, 0, NULL };
+  if (kv_resize (char *, caps_vec, (size_t)(total > 0 ? total : 1)) == NULL)
+    return NULL;
+  char **caps = caps_vec.a;
+  memset (caps, 0, (size_t)(total > 0 ? total : 1) * sizeof (*caps));
+  int ncaps = 0;
+  for (int i = 0; i < count; i++)
+    {
+      for (int j = 0; j < entries[i].cap_count; j++)
+        {
+          bool seen = false;
+          for (int k = 0; k < ncaps; k++)
+            if (strcmp (caps[k], entries[i].caps[j]) == 0)
+              {
+                seen = true;
+                break;
+              }
+          if (!seen)
+            caps[ncaps++] = entries[i].caps[j];
         }
     }
-    qsort(caps, (size_t)ncaps, sizeof(*caps), compare_strings);
+  qsort (caps, (size_t)ncaps, sizeof (*caps), compare_strings);
 
-    sb s = { { 0, 0, NULL } };
-    emit_header(&s, "Inverted index derived from Kernel.yaml.");
-    sb_add(&s, "capabilities:\n");
-    /* Frontends are adapters, not kernels, but remain manifest-visible so
-     * scheduler/driver validation can feature-test them deterministically.
-     * frontend.delphi opened the tier; frontend.sml (D-0047, parse-only
-     * Parthia adapter) is its second entry. */
-    sb_add(&s, "  frontend.delphi: []\n");
-    sb_add(&s, "  frontend.sml: []\n");
-    for (int i = 0; i < ncaps; i++) {
-        sb_add(&s, "  %s:\n", caps[i]);
-        for (int k = 0; k < count; k++)
-            for (int j = 0; j < entries[k].cap_count; j++)
-                if (strcmp(entries[k].caps[j], caps[i]) == 0)
-                    sb_add(&s, "    - %s\n", entries[k].path);
+  sb s = { { 0, 0, NULL } };
+  emit_header (&s, "Inverted index derived from Kernel.yaml.");
+  sb_add (&s, "capabilities:\n");
+  /* Frontends are adapters, not kernels, but remain manifest-visible so
+   * scheduler/driver validation can feature-test them deterministically.
+   * frontend.delphi opened the tier; frontend.sml (D-0047, parse-only
+   * Parthia adapter) is its second entry. */
+  sb_add (&s, "  frontend.delphi: []\n");
+  sb_add (&s, "  frontend.sml: []\n");
+  for (int i = 0; i < ncaps; i++)
+    {
+      sb_add (&s, "  %s:\n", caps[i]);
+      for (int k = 0; k < count; k++)
+        for (int j = 0; j < entries[k].cap_count; j++)
+          if (strcmp (entries[k].caps[j], caps[i]) == 0)
+            sb_add (&s, "    - %s\n", entries[k].path);
     }
-    sb_add(&s, "stereotypes:\n");
-    sb_add(&s, "  oop:\n");
-    sb_add(&s, "    version: 0.1.0\n");
-    sb_add(&s, "    kernels:\n");
-    sb_add(&s, "      - oop-vtable-lower\n");
-    sb_add(&s, "      - oop-devirtualize\n");
-    sb_add(&s, "      - oop-null-check\n");
-    sb_add(&s, "      - exception-lower\n");
-    sb_add(&s, "    order:\n");
-    sb_add(&s, "      - [oop-devirtualize, oop-vtable-lower]\n");
-    sb_add(&s, "      - [oop-vtable-lower, oop-null-check]\n");
-    /* functional stereotype (D-0048): second instance of the stereotypes
-     * schema. Direct-style by decision (D-0049) — cps-convert is deliberately
-     * excluded; it stays individually requestable outside the bundle. */
-    sb_add(&s, "  functional:\n");
-    sb_add(&s, "    version: 0.1.0\n");
-    sb_add(&s, "    kernels:\n");
-    sb_add(&s, "      - pattern-match-lower\n");
-    sb_add(&s, "      - functional-pipeline-lower\n");
-    sb_add(&s, "      - inline\n");
-    sb_add(&s, "      - closure-convert\n");
-    sb_add(&s, "      - lambda-lift\n");
-    sb_add(&s, "      - tail-call\n");
-    sb_add(&s, "    order:\n");
-    sb_add(&s, "      - [pattern-match-lower, inline]\n");
-    sb_add(&s, "      - [inline, closure-convert]\n");
-    sb_add(&s, "      - [closure-convert, lambda-lift]\n");
-    sb_add(&s, "      - [lambda-lift, tail-call]\n");
-    kv_destroy(caps_vec);
-    return s.text.s ? ks_release(&s.text) : dup_str("");
+  sb_add (&s, "stereotypes:\n");
+  sb_add (&s, "  oop:\n");
+  sb_add (&s, "    version: 0.1.0\n");
+  sb_add (&s, "    kernels:\n");
+  sb_add (&s, "      - oop-vtable-lower\n");
+  sb_add (&s, "      - oop-devirtualize\n");
+  sb_add (&s, "      - oop-null-check\n");
+  sb_add (&s, "      - exception-lower\n");
+  sb_add (&s, "    order:\n");
+  sb_add (&s, "      - [oop-devirtualize, oop-vtable-lower]\n");
+  sb_add (&s, "      - [oop-vtable-lower, oop-null-check]\n");
+  /* functional stereotype (D-0048): second instance of the stereotypes
+   * schema. Direct-style by decision (D-0049) — cps-convert is deliberately
+   * excluded; it stays individually requestable outside the bundle. */
+  sb_add (&s, "  functional:\n");
+  sb_add (&s, "    version: 0.1.0\n");
+  sb_add (&s, "    kernels:\n");
+  sb_add (&s, "      - pattern-match-lower\n");
+  sb_add (&s, "      - functional-pipeline-lower\n");
+  sb_add (&s, "      - inline\n");
+  sb_add (&s, "      - closure-convert\n");
+  sb_add (&s, "      - lambda-lift\n");
+  sb_add (&s, "      - tail-call\n");
+  sb_add (&s, "    order:\n");
+  sb_add (&s, "      - [pattern-match-lower, inline]\n");
+  sb_add (&s, "      - [inline, closure-convert]\n");
+  sb_add (&s, "      - [closure-convert, lambda-lift]\n");
+  sb_add (&s, "      - [lambda-lift, tail-call]\n");
+  kv_destroy (caps_vec);
+  return s.text.s ? ks_release (&s.text) : dup_str ("");
 }
 
 /* Cephyr profile v1 is shared by the YAML and TOML loaders.  JSON Schema
  * describes their common data model rather than either surface syntax. */
-static char *render_cephyr_profile_schema(void)
+static char *
+render_cephyr_profile_schema (void)
 {
-    static const char schema[] =
-        "{\n"
+  static const char schema[]
+      = "{\n"
         "  \"$schema\": \"https://json-schema.org/draft/2020-12/schema\",\n"
-        "  \"$comment\": \"GENERATED by ccw-manifest — DO NOT EDIT. Regenerate with ccw-manifest; verify with ccw-manifest --check.\",\n"
+        "  \"$comment\": \"GENERATED by ccw-manifest — DO NOT EDIT. "
+        "Regenerate with ccw-manifest; verify with ccw-manifest --check.\",\n"
         "  \"title\": \"Cephyr Profile v1\",\n"
-        "  \"description\": \"Configuration schema shared by CEPHYR.yaml and CEPHYR.toml profiles.\",\n"
+        "  \"description\": \"Configuration schema shared by CEPHYR.yaml and "
+        "CEPHYR.toml profiles.\",\n"
         "  \"type\": \"object\",\n"
         "  \"additionalProperties\": false,\n"
         "  \"properties\": {\n"
@@ -297,18 +354,21 @@ static char *render_cephyr_profile_schema(void)
         "      \"default\": \"O0\"\n"
         "    },\n"
         "    \"preprocessor\": {\n"
-        "      \"description\": \"Preprocessor command, or ucpp for the built-in preprocessor.\",\n"
+        "      \"description\": \"Preprocessor command, or ucpp for the "
+        "built-in preprocessor.\",\n"
         "      \"type\": \"string\",\n"
         "      \"default\": \"ucpp\"\n"
         "    },\n"
         "    \"manifest_dir\": {\n"
-        "      \"description\": \"Manifest directory, resolved relative to the profile.\",\n"
+        "      \"description\": \"Manifest directory, resolved relative to "
+        "the profile.\",\n"
         "      \"type\": \"string\",\n"
         "      \"minLength\": 1,\n"
         "      \"default\": \"manifests\"\n"
         "    },\n"
         "    \"sched_script\": {\n"
-        "      \"description\": \"Sched script path, resolved relative to the profile.\",\n"
+        "      \"description\": \"Sched script path, resolved relative to the "
+        "profile.\",\n"
         "      \"type\": \"string\",\n"
         "      \"minLength\": 1\n"
         "    },\n"
@@ -324,7 +384,8 @@ static char *render_cephyr_profile_schema(void)
         "    },\n"
         "    \"include_paths\": { \"$ref\": \"#/$defs/stringArray\" },\n"
         "    \"defines\": { \"$ref\": \"#/$defs/stringArray\" },\n"
-        "    \"preprocessor_options\": { \"$ref\": \"#/$defs/stringArray\" },\n"
+        "    \"preprocessor_options\": { \"$ref\": \"#/$defs/stringArray\" "
+        "},\n"
         "    \"preprocessor_args\": { \"$ref\": \"#/$defs/stringArray\" },\n"
         "    \"assembler_options\": { \"$ref\": \"#/$defs/stringArray\" },\n"
         "    \"assembler_args\": { \"$ref\": \"#/$defs/stringArray\" },\n"
@@ -409,11 +470,13 @@ static char *render_cephyr_profile_schema(void)
         "            \"anyOf\": [\n"
         "              {\n"
         "                \"required\": [\"kernels\"],\n"
-        "                \"properties\": { \"kernels\": { \"minItems\": 1 } }\n"
+        "                \"properties\": { \"kernels\": { \"minItems\": 1 } "
+        "}\n"
         "              },\n"
         "              {\n"
         "                \"required\": [\"rewrites\"],\n"
-        "                \"properties\": { \"rewrites\": { \"minItems\": 1 } }\n"
+        "                \"properties\": { \"rewrites\": { \"minItems\": 1 } "
+        "}\n"
         "              }\n"
         "            ]\n"
         "          }\n"
@@ -422,167 +485,204 @@ static char *render_cephyr_profile_schema(void)
         "    }\n"
         "  ]\n"
         "}\n";
-    return dup_str(schema);
+  return dup_str (schema);
 }
 
 /* ---------- file helpers ---------- */
 
-static char *read_file(const char *path)
+static char *
+read_file (const char *path)
 {
-    FILE *fp = fopen(path, "rb");
-    if (fp == NULL) return NULL;
-    kstring_t buf = { 0, 0, NULL };
-    char chunk[4096];
-    size_t got;
-    while ((got = fread(chunk, 1, sizeof(chunk), fp)) > 0) {
-        if (kputsn(chunk, (int)got, &buf) == EOF) {
-            free(buf.s);
-            fclose(fp);
-            return NULL;
+  FILE *fp = fopen (path, "rb");
+  if (fp == NULL)
+    return NULL;
+  kstring_t buf = { 0, 0, NULL };
+  char chunk[4096];
+  size_t got;
+  while ((got = fread (chunk, 1, sizeof (chunk), fp)) > 0)
+    {
+      if (kputsn (chunk, (int)got, &buf) == EOF)
+        {
+          free (buf.s);
+          fclose (fp);
+          return NULL;
         }
     }
-    fclose(fp);
-    return ks_release(&buf);
+  fclose (fp);
+  return ks_release (&buf);
 }
 
-static bool write_file(const char *path, const char *text)
+static bool
+write_file (const char *path, const char *text)
 {
-    FILE *fp = fopen(path, "wb");
-    if (fp == NULL) return false;
-    size_t n = strlen(text);
-    bool ok = fwrite(text, 1, n, fp) == n;
-    fclose(fp);
-    return ok;
+  FILE *fp = fopen (path, "wb");
+  if (fp == NULL)
+    return false;
+  size_t n = strlen (text);
+  bool ok = fwrite (text, 1, n, fp) == n;
+  fclose (fp);
+  return ok;
 }
 
 /* ---------- main ---------- */
 
-static int populate(ccw_executor *ex, kernel_entry *e, const char *root)
+static int
+populate (ccw_executor *ex, kernel_entry *e, const char *root)
 {
-    char full[2048];
-    snprintf(full, sizeof(full), "%s/%s", root, e->path);
+  char full[2048];
+  snprintf (full, sizeof (full), "%s/%s", root, e->path);
 
-    char *err = NULL;
-    int id = ccw_kernel_load(ex, full, &err);
-    if (id < 0) {
-        fprintf(stderr, "ccw-manifest: %s: %s\n", e->path,
-                err ? err : "failed to load");
-        free(err);
-        return -1;
+  char *err = NULL;
+  int id = ccw_kernel_load (ex, full, &err);
+  if (id < 0)
+    {
+      fprintf (stderr, "ccw-manifest: %s: %s\n", e->path,
+               err ? err : "failed to load");
+      free (err);
+      return -1;
     }
-    free(err);
+  free (err);
 
-    e->library = read_library_name(full);
-    ccw_kernel_info(ex, id, &e->name, &e->version, &e->description);
+  e->library = read_library_name (full);
+  ccw_kernel_info (ex, id, &e->name, &e->version, &e->description);
 
-    int n = ccw_kernel_capability_count(ex, id);
-    if (n < 0) n = 0;
-    kvec_t(char *) caps = { 0, 0, NULL };
-    if (kv_resize(char *, caps, (size_t)(n > 0 ? n : 1)) == NULL)
-        return -1;
-    e->caps = caps.a;
-    memset(e->caps, 0, (size_t)(n > 0 ? n : 1) * sizeof(*e->caps));
-    for (int i = 0; i < n; i++) {
-        const char *cap = ccw_kernel_capability(ex, id, i);
-        if (cap == NULL) continue;
-        if (!capability_valid(cap)) {
-            fprintf(stderr,
-                    "ccw-manifest: %s: capability \"%s\" does not match "
-                    "[a-z0-9-]+(\\.[a-z0-9-]+)+\n", e->path, cap);
-            return -1;
+  int n = ccw_kernel_capability_count (ex, id);
+  if (n < 0)
+    n = 0;
+  kvec_t (char *) caps = { 0, 0, NULL };
+  if (kv_resize (char *, caps, (size_t)(n > 0 ? n : 1)) == NULL)
+    return -1;
+  e->caps = caps.a;
+  memset (e->caps, 0, (size_t)(n > 0 ? n : 1) * sizeof (*e->caps));
+  for (int i = 0; i < n; i++)
+    {
+      const char *cap = ccw_kernel_capability (ex, id, i);
+      if (cap == NULL)
+        continue;
+      if (!capability_valid (cap))
+        {
+          fprintf (stderr,
+                   "ccw-manifest: %s: capability \"%s\" does not match "
+                   "[a-z0-9-]+(\\.[a-z0-9-]+)+\n",
+                   e->path, cap);
+          return -1;
         }
-        e->caps[e->cap_count++] = dup_str(cap);
+      e->caps[e->cap_count++] = dup_str (cap);
     }
-    qsort(e->caps, (size_t)e->cap_count, sizeof(*e->caps), compare_strings);
+  qsort (e->caps, (size_t)e->cap_count, sizeof (*e->caps), compare_strings);
+  return 0;
+}
+
+static int
+report_diff (const char *path, const char *want, const char *have)
+{
+  if (have != NULL && strcmp (want, have) == 0)
     return 0;
+  fprintf (stderr, "ccw-manifest: %s is out of date%s\n", path,
+           have == NULL ? " (missing)" : "");
+  return 1;
 }
 
-static int report_diff(const char *path, const char *want, const char *have)
+int
+main (int argc, char **argv)
 {
-    if (have != NULL && strcmp(want, have) == 0) return 0;
-    fprintf(stderr, "ccw-manifest: %s is out of date%s\n", path,
-            have == NULL ? " (missing)" : "");
-    return 1;
-}
+  bool check = false;
+  const char *root = ".";
+  const char *kernel_dir = "kernels";
+  const char *manifest_dir = "manifests";
 
-int main(int argc, char **argv)
-{
-    bool check = false;
-    const char *root = ".";
-    const char *kernel_dir = "kernels";
-    const char *manifest_dir = "manifests";
-
-    for (int i = 1; i < argc; i++) {
-        if (strcmp(argv[i], "--check") == 0) check = true;
-        else if (strcmp(argv[i], "--root") == 0 && i + 1 < argc) root = argv[++i];
-        else if (strcmp(argv[i], "--kernels") == 0 && i + 1 < argc) kernel_dir = argv[++i];
-        else if (strcmp(argv[i], "--manifests") == 0 && i + 1 < argc) manifest_dir = argv[++i];
-        else {
-            fprintf(stderr, "usage: ccw-manifest [--check] [--root DIR] "
-                            "[--kernels DIR] [--manifests DIR]\n");
-            return 2;
+  for (int i = 1; i < argc; i++)
+    {
+      if (strcmp (argv[i], "--check") == 0)
+        check = true;
+      else if (strcmp (argv[i], "--root") == 0 && i + 1 < argc)
+        root = argv[++i];
+      else if (strcmp (argv[i], "--kernels") == 0 && i + 1 < argc)
+        kernel_dir = argv[++i];
+      else if (strcmp (argv[i], "--manifests") == 0 && i + 1 < argc)
+        manifest_dir = argv[++i];
+      else
+        {
+          fprintf (stderr, "usage: ccw-manifest [--check] [--root DIR] "
+                           "[--kernels DIR] [--manifests DIR]\n");
+          return 2;
         }
     }
 
-    kernel_entry *entries = NULL;
-    int count = 0;
-    if (collect_kernels(root, kernel_dir, &entries, &count) != 0) return 2;
+  kernel_entry *entries = NULL;
+  int count = 0;
+  if (collect_kernels (root, kernel_dir, &entries, &count) != 0)
+    return 2;
 
-    ccw_executor *ex = ccw_executor_create();
-    if (ex == NULL || ccw_executor_abi_version(ex) != CCW_GLUE_ABI_VERSION) {
-        fprintf(stderr, "ccw-manifest: executor ABI mismatch\n");
-        free_entries(entries, count);
-        return 2;
+  ccw_executor *ex = ccw_executor_create ();
+  if (ex == NULL || ccw_executor_abi_version (ex) != CCW_GLUE_ABI_VERSION)
+    {
+      fprintf (stderr, "ccw-manifest: executor ABI mismatch\n");
+      free_entries (entries, count);
+      return 2;
     }
-    if (ccw_host_register_core_accessors(ex) != CCW_OK) {
-        fprintf(stderr, "ccw-manifest: could not register core accessors\n");
-        ccw_executor_destroy(ex);
-        free_entries(entries, count);
-        return 2;
+  if (ccw_host_register_core_accessors (ex) != CCW_OK)
+    {
+      fprintf (stderr, "ccw-manifest: could not register core accessors\n");
+      ccw_executor_destroy (ex);
+      free_entries (entries, count);
+      return 2;
     }
 
-    int rc = 0;
-    for (int i = 0; i < count && rc == 0; i++)
-        if (populate(ex, &entries[i], root) != 0) rc = 2;
-    ccw_executor_destroy(ex);
-    if (rc != 0) { free_entries(entries, count); return rc; }
+  int rc = 0;
+  for (int i = 0; i < count && rc == 0; i++)
+    if (populate (ex, &entries[i], root) != 0)
+      rc = 2;
+  ccw_executor_destroy (ex);
+  if (rc != 0)
+    {
+      free_entries (entries, count);
+      return rc;
+    }
 
-    char *kernel_yaml = render_kernel_yaml(entries, count);
-    char *caps_yaml = render_capabilities_yaml(entries, count);
-    char *cephyr_schema = render_cephyr_profile_schema();
+  char *kernel_yaml = render_kernel_yaml (entries, count);
+  char *caps_yaml = render_capabilities_yaml (entries, count);
+  char *cephyr_schema = render_cephyr_profile_schema ();
 
-    char kpath[2048], cpath[2048], spath[2048];
-    snprintf(kpath, sizeof(kpath), "%s/%s/Kernel.yaml", root, manifest_dir);
-    snprintf(cpath, sizeof(cpath), "%s/%s/Capabilities.yaml", root, manifest_dir);
-    snprintf(spath, sizeof(spath), "%s/%s/CephyrProfile.schema.json",
-             root, manifest_dir);
+  char kpath[2048], cpath[2048], spath[2048];
+  snprintf (kpath, sizeof (kpath), "%s/%s/Kernel.yaml", root, manifest_dir);
+  snprintf (cpath, sizeof (cpath), "%s/%s/Capabilities.yaml", root,
+            manifest_dir);
+  snprintf (spath, sizeof (spath), "%s/%s/CephyrProfile.schema.json", root,
+            manifest_dir);
 
-    if (check) {
-        char *k_on_disk = read_file(kpath);
-        char *c_on_disk = read_file(cpath);
-        char *s_on_disk = read_file(spath);
-        rc = report_diff(kpath, kernel_yaml, k_on_disk);
-        rc |= report_diff(cpath, caps_yaml, c_on_disk);
-        rc |= report_diff(spath, cephyr_schema, s_on_disk);
-        free(k_on_disk);
-        free(c_on_disk);
-        free(s_on_disk);
-        if (rc == 0) printf("ccw-manifest: manifests are up to date\n");
-    } else {
-        if (!write_file(kpath, kernel_yaml) ||
-            !write_file(cpath, caps_yaml) ||
-            !write_file(spath, cephyr_schema)) {
-            fprintf(stderr, "ccw-manifest: could not write manifests\n");
-            rc = 2;
-        } else {
-            printf("ccw-manifest: wrote %s, %s, and %s (%d kernels)\n",
-                   kpath, cpath, spath, count);
+  if (check)
+    {
+      char *k_on_disk = read_file (kpath);
+      char *c_on_disk = read_file (cpath);
+      char *s_on_disk = read_file (spath);
+      rc = report_diff (kpath, kernel_yaml, k_on_disk);
+      rc |= report_diff (cpath, caps_yaml, c_on_disk);
+      rc |= report_diff (spath, cephyr_schema, s_on_disk);
+      free (k_on_disk);
+      free (c_on_disk);
+      free (s_on_disk);
+      if (rc == 0)
+        printf ("ccw-manifest: manifests are up to date\n");
+    }
+  else
+    {
+      if (!write_file (kpath, kernel_yaml) || !write_file (cpath, caps_yaml)
+          || !write_file (spath, cephyr_schema))
+        {
+          fprintf (stderr, "ccw-manifest: could not write manifests\n");
+          rc = 2;
+        }
+      else
+        {
+          printf ("ccw-manifest: wrote %s, %s, and %s (%d kernels)\n", kpath,
+                  cpath, spath, count);
         }
     }
 
-    free(kernel_yaml);
-    free(caps_yaml);
-    free(cephyr_schema);
-    free_entries(entries, count);
-    return rc;
+  free (kernel_yaml);
+  free (caps_yaml);
+  free (cephyr_schema);
+  free_entries (entries, count);
+  return rc;
 }

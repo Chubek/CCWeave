@@ -3,6 +3,6 @@
 
 #include "moonix.h"
 
-int moonix_repl(moonix_state *state);
+int moonix_repl (moonix_state *state);
 
 #endif

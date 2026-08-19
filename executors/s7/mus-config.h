@@ -6,11 +6,11 @@
 #define CCW_MUS_CONFIG_H
 
 #define HAVE_COMPLEX_NUMBERS 0
-#define HAVE_COMPLEX_TRIG    0
-#define WITH_GMP             0
+#define HAVE_COMPLEX_TRIG 0
+#define WITH_GMP 0
 #define WITH_MULTITHREAD_CHECKS 0
-#define WITH_SYSTEM_EXTRAS   0
-#define WITH_C_LOADER        0
-#define DISABLE_DEPRECATED   1
+#define WITH_SYSTEM_EXTRAS 0
+#define WITH_C_LOADER 0
+#define DISABLE_DEPRECATED 1
 
 #endif /* CCW_MUS_CONFIG_H */
