@@ -179,6 +179,18 @@ if(CCWEAVE_ENABLE_TREESITTER)
     POSITION_INDEPENDENT_CODE ON)
   ccw_vendored_target(ccw_tree_sitter_sml)
 
+  # --- vendored Delphi/Pascal grammar -------------------------------
+  add_library(ccw_tree_sitter_pascal STATIC
+    ${CCWEAVE_SWAFF_GRAMMARS}/tree-sitter-pascal/src/parser.c)
+  target_include_directories(ccw_tree_sitter_pascal
+    PUBLIC ${CCWEAVE_SWAFF_GRAMMARS}/tree-sitter-pascal/bindings/c
+    PRIVATE ${CCWEAVE_SWAFF_GRAMMARS}/tree-sitter-pascal/src)
+  set_target_properties(ccw_tree_sitter_pascal PROPERTIES
+    C_STANDARD 11
+    C_STANDARD_REQUIRED ON
+    POSITION_INDEPENDENT_CODE ON)
+  ccw_vendored_target(ccw_tree_sitter_pascal)
+
   # --- vendored Tree-sitter OCaml grammar (three sub-languages) ----------
   # ocaml (implementation files: .ml)
   add_library(ccw_tree_sitter_ocaml STATIC

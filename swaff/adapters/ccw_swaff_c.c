@@ -693,6 +693,9 @@ ccw_ir *ccw_swaff_lower(const ccw_swaff_frontend *fe,
     if (fe == ccw_swaff_frontend_sml())
         return ccw_swaff_lower_sml(fe, source, source_len, module_name,
                                    profile, policy, report, error_message);
+    if (fe == ccw_swaff_frontend_delphi())
+        return ccw_swaff_lower_delphi(fe, source, source_len, module_name,
+                                      profile, policy, report, error_message);
 
     ccw_swaff_report local;
     memset(&local, 0, sizeof(local));
@@ -809,6 +812,9 @@ ccw_ir *ccw_swaff_lower(const ccw_swaff_frontend *fe,
     if (fe == ccw_swaff_frontend_sml())
         return ccw_swaff_lower_sml(fe, source, source_len, module_name,
                                    profile, policy, report, error_message);
+    if (fe == ccw_swaff_frontend_delphi())
+        return ccw_swaff_lower_delphi(fe, source, source_len, module_name,
+                                      profile, policy, report, error_message);
     (void)fe; (void)source; (void)source_len; (void)module_name;
     (void)profile; (void)policy; (void)report;
     set_error(error_message,

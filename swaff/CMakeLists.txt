@@ -4,6 +4,7 @@ add_library(ccw_swaff STATIC
   adapters/ccw_swaff_lua.c
   adapters/ccw_swaff_ocaml.c
   adapters/ccw_swaff_sml.c
+  adapters/ccw_swaff_delphi.c
 )
 target_include_directories(ccw_swaff PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(ccw_swaff PUBLIC ccw_ir ccw_kliche ccw_klib)
@@ -15,5 +16,6 @@ if(CCWEAVE_ENABLE_TREESITTER)
     ccw_tree_sitter_c
     ccw_tree_sitter_lua
     ccw_tree_sitter_ocaml
-    ccw_tree_sitter_sml)
+    ccw_tree_sitter_sml
+    ccw_tree_sitter_pascal)
 endif()

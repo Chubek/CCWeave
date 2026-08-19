@@ -82,6 +82,9 @@ if(CCWEAVE_ENABLE_TREESITTER)
 
   ccw_add_test(test_swaff_sml test_swaff_sml.c)
   target_link_libraries(test_swaff_sml PRIVATE ccw_swaff)
+
+  ccw_add_test(test_swaff_delphi test_swaff_delphi.c)
+  target_link_libraries(test_swaff_delphi PRIVATE ccw_swaff)
 endif()
 
 # Manifests must regenerate identically and fail on drift (§4.2).
