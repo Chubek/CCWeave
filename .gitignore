@@ -50,3 +50,10 @@ lsan.log*
 __pycache__/
 *.pyc
 .venv/
+
+# Residue
+package-lock.json
+pnpm-lock.yaml
+yarn.lock
+node_modules/
+bunfig.toml
