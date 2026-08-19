@@ -5,6 +5,7 @@ generator: ccw-manifest/0.1
 glue_abi: 1
 capabilities:
   frontend.delphi: []
+  frontend.sml: []
   analysis.affine:
     - kernels/affine-extract.scm
   analysis.alias:
@@ -208,3 +209,17 @@ stereotypes:
     order:
       - [oop-devirtualize, oop-vtable-lower]
       - [oop-vtable-lower, oop-null-check]
+  functional:
+    version: 0.1.0
+    kernels:
+      - pattern-match-lower
+      - functional-pipeline-lower
+      - inline
+      - closure-convert
+      - lambda-lift
+      - tail-call
+    order:
+      - [pattern-match-lower, inline]
+      - [inline, closure-convert]
+      - [closure-convert, lambda-lift]
+      - [lambda-lift, tail-call]

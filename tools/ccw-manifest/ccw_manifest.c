@@ -218,8 +218,11 @@ static char *render_capabilities_yaml(const kernel_entry *entries, int count)
     emit_header(&s, "Inverted index derived from Kernel.yaml.");
     sb_add(&s, "capabilities:\n");
     /* Frontends are adapters, not kernels, but remain manifest-visible so
-     * scheduler/driver validation can feature-test them deterministically. */
+     * scheduler/driver validation can feature-test them deterministically.
+     * frontend.delphi opened the tier; frontend.sml (D-0047, parse-only
+     * Parthia adapter) is its second entry. */
     sb_add(&s, "  frontend.delphi: []\n");
+    sb_add(&s, "  frontend.sml: []\n");
     for (int i = 0; i < ncaps; i++) {
         sb_add(&s, "  %s:\n", caps[i]);
         for (int k = 0; k < count; k++)
@@ -238,6 +241,23 @@ static char *render_capabilities_yaml(const kernel_entry *entries, int count)
     sb_add(&s, "    order:\n");
     sb_add(&s, "      - [oop-devirtualize, oop-vtable-lower]\n");
     sb_add(&s, "      - [oop-vtable-lower, oop-null-check]\n");
+    /* functional stereotype (D-0048): second instance of the stereotypes
+     * schema. Direct-style by decision (D-0049) — cps-convert is deliberately
+     * excluded; it stays individually requestable outside the bundle. */
+    sb_add(&s, "  functional:\n");
+    sb_add(&s, "    version: 0.1.0\n");
+    sb_add(&s, "    kernels:\n");
+    sb_add(&s, "      - pattern-match-lower\n");
+    sb_add(&s, "      - functional-pipeline-lower\n");
+    sb_add(&s, "      - inline\n");
+    sb_add(&s, "      - closure-convert\n");
+    sb_add(&s, "      - lambda-lift\n");
+    sb_add(&s, "      - tail-call\n");
+    sb_add(&s, "    order:\n");
+    sb_add(&s, "      - [pattern-match-lower, inline]\n");
+    sb_add(&s, "      - [inline, closure-convert]\n");
+    sb_add(&s, "      - [closure-convert, lambda-lift]\n");
+    sb_add(&s, "      - [lambda-lift, tail-call]\n");
     kv_destroy(caps_vec);
     return s.text.s ? ks_release(&s.text) : dup_str("");
 }

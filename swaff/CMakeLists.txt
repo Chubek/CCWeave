@@ -4,6 +4,7 @@ add_library(ccw_swaff STATIC
   adapters/ccw_swaff_lua.c
   adapters/ccw_swaff_ocaml.c
   adapters/ccw_swaff_sml.c
+  adapters/ccw_swaff_sml_parse.c
   adapters/ccw_swaff_delphi.c
 )
 target_include_directories(ccw_swaff PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})

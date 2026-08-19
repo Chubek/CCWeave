@@ -10,6 +10,7 @@
 #define CCW_SWAFF_H
 
 #include "ccw_ir.h"
+#include "ccw_swaff_parse.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -42,8 +43,9 @@ const ccw_swaff_frontend *ccw_swaff_frontend_lua(void);
 /* The OCaml implementation frontend: tree-sitter-ocaml + functional
  * and control-flow Kliche construction patterns. */
 const ccw_swaff_frontend *ccw_swaff_frontend_ocaml(void);
-/* The Standard ML frontend: tree-sitter-sml + functional and
- * control-flow Kliche construction patterns. */
+/* The Standard ML compatibility lowering frontend.  New ML-family
+ * consumers, including Parthia, must use ccw_swaff_parse_sml below so the
+ * complete surface language (and especially modules) remains parse-only. */
 const ccw_swaff_frontend *ccw_swaff_frontend_sml(void);
 /* The Delphi/Pascal frontend: tree-sitter-pascal + imperative Kliche
  * lowering.  The vendored grammar is configured with Delphi extensions. */
@@ -61,6 +63,12 @@ ccw_ir *ccw_swaff_lower(const ccw_swaff_frontend *fe,
 
 /* True when this build has Tree-sitter frontends compiled in. */
 bool ccw_swaff_available(void);
+
+/* Parse-only SML '97 entry point.  This is the modular-interface-capable
+ * Swaff contract; it does not lower into Weave IR. */
+char *ccw_swaff_parse_sml(const char *source, size_t source_len,
+                          ccw_sml_parse_report *report,
+                          char **error_message);
 
 #ifdef __cplusplus
 }

@@ -226,6 +226,18 @@ Basis infix forms itself. Chained unresolved fixity, destructuring parameters,
 multi-clause pattern matching, and non-function top-level values are reported
 as unsupported rather than assigned semantics not specified by CCWeave.
 
+## 2026-08-19 — Parthia module boundary
+
+The SML parse-only adapter exposes a deterministic surface S-expression for
+structures, signatures, functors, signature constraints, and nested module
+expressions. Parthia consumes that representation and emits a compact
+signature-erased core fact description; this keeps Tree-sitter types confined
+to Swaff while the module system is removed before Kliche/IR lowering. Functor
+application facts are sorted by their surface application path, with duplicate
+paths receiving a stable suffix. This is the smallest ABI-neutral boundary
+consistent with the proposal's defunctorization requirement while typed core
+lowering continues to be staged independently.
+
 ## 2026-08-17 — Broadened codegen-* instruction coverage
 
 The request asked for the `codegen-*` kernels to cover "the majority of

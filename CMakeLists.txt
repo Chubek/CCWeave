@@ -247,6 +247,7 @@ add_subdirectory(toolchain/ccwld)
 add_subdirectory(compilers/cephyr)
 add_subdirectory(compilers/delphia)
 add_subdirectory(interpreters/moonix)
+add_subdirectory(interpreters/sml-parthia)
 add_subdirectory(docs)
 add_subdirectory(tools/ccw-manifest)
 
@@ -255,3 +256,5 @@ add_subdirectory(tests)
 add_subdirectory(compilers/cephyr/tests)
 add_subdirectory(compilers/delphia/tests)
 add_subdirectory(interpreters/moonix/tests)
+add_test(NAME sml-parthia
+         COMMAND $<TARGET_FILE:test_sml_parthia>)
