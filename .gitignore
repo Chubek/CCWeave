@@ -10,6 +10,8 @@ compilers/cephyr/sched/plans/
 *.dylib
 *.dll
 *.exe
+*.bin
+*.dat
 
 # CMake / Make / Ninja
 CMakeCache.txt
