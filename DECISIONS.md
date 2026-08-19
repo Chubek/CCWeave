@@ -286,3 +286,10 @@ into the O2 Sched plan as a strict producer/consumer chain.  The ISL tier is
 not included in O0/O1 because ISLKERN describes dependence-aware scheduling
 and tiling as the expensive optimization tier; keeping it at O2 preserves
 the fast-pipeline contract while making the core-to-Tilly ordering explicit.
+# D-0046 (2026-08-19): Delphia v0.1 compiler façade
+
+Delphia v0.1 uses the existing Delphi Swaff adapter as its frontend and
+emits deterministic target assembly stubs from validated Tilly IR. The
+adapter gate vector, OOP stereotype version, and manifest provenance are
+recorded in a `.note.ccw` assembly section. Full target instruction selection
+and link orchestration remain delegated to the existing CCWeave toolchain.

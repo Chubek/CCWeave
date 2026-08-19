@@ -217,6 +217,9 @@ static char *render_capabilities_yaml(const kernel_entry *entries, int count)
     sb s = { { 0, 0, NULL } };
     emit_header(&s, "Inverted index derived from Kernel.yaml.");
     sb_add(&s, "capabilities:\n");
+    /* Frontends are adapters, not kernels, but remain manifest-visible so
+     * scheduler/driver validation can feature-test them deterministically. */
+    sb_add(&s, "  frontend.delphi: []\n");
     for (int i = 0; i < ncaps; i++) {
         sb_add(&s, "  %s:\n", caps[i]);
         for (int k = 0; k < count; k++)
@@ -224,6 +227,17 @@ static char *render_capabilities_yaml(const kernel_entry *entries, int count)
                 if (strcmp(entries[k].caps[j], caps[i]) == 0)
                     sb_add(&s, "    - %s\n", entries[k].path);
     }
+    sb_add(&s, "stereotypes:\n");
+    sb_add(&s, "  oop:\n");
+    sb_add(&s, "    version: 0.1.0\n");
+    sb_add(&s, "    kernels:\n");
+    sb_add(&s, "      - oop-vtable-lower\n");
+    sb_add(&s, "      - oop-devirtualize\n");
+    sb_add(&s, "      - oop-null-check\n");
+    sb_add(&s, "      - exception-lower\n");
+    sb_add(&s, "    order:\n");
+    sb_add(&s, "      - [oop-devirtualize, oop-vtable-lower]\n");
+    sb_add(&s, "      - [oop-vtable-lower, oop-null-check]\n");
     kv_destroy(caps_vec);
     return s.text.s ? ks_release(&s.text) : dup_str("");
 }

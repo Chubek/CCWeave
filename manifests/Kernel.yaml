@@ -445,6 +445,13 @@ kernels:
     description: Devirtualizes calls carrying an explicit function target.
     capabilities:
       - opt.oop-devirtualization
+  - path: kernels/oop-interface-lower.scm
+    library: (ccweave kernel oop-interface-lower)
+    name: oop-interface-lower
+    version: 0.1.0
+    description: Lowers Delphi interface thunk and reference-count operations.
+    capabilities:
+      - lower.oop-interface
   - path: kernels/oop-null-check.scm
     library: (ccweave kernel oop-null-check)
     name: oop-null-check
@@ -452,6 +459,13 @@ kernels:
     description: Records object null checks that are immediately repeated.
     capabilities:
       - opt.oop-null-check-elimination
+  - path: kernels/oop-rtti-emit.scm
+    library: (ccweave kernel oop-rtti-emit)
+    name: oop-rtti-emit
+    version: 0.1.0
+    description: Emits deterministic RTTI tables for published Delphi members.
+    capabilities:
+      - lower.oop-rtti
   - path: kernels/oop-vtable-lower.scm
     library: (ccweave kernel oop-vtable-lower)
     name: oop-vtable-lower

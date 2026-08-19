@@ -15,6 +15,7 @@ tells you how to work in this repository. It is not the specification.
 5. `.agents/MOONIX.md` -- the complete, normative specs for `interpreters/moonix`, a JIT-backed Lua interpreter
 6. `.agents/CCWAS.md` and `.agents/LCCWAS.md` -- the complete, normative specs for `toolchain/ccwas` and `toolchain/ccwas/lccwas`, respectively
 7. `.agents/CCWLD.md` and `.agents/LCCWLD.md` -- the complete, normative specs for `toolchain/ccwld` and `toolchain/ccwld/lccwld`, respectively
+8. `.agents/DELPHIA.md` -- the complete, normative specs for `compilers/dephia`, a Delphi compiler similar to Cephyr's C compiler, but an OOP language
 
 If this file and the specs conflict, the specs win. If the two specs
 conflict, `GLUESTD_H.md` wins for anything ABI-related. Do not invent

@@ -4,6 +4,7 @@
 generator: ccw-manifest/0.1
 glue_abi: 1
 capabilities:
+  frontend.delphi: []
   analysis.affine:
     - kernels/affine-extract.scm
   analysis.alias:
@@ -84,6 +85,10 @@ capabilities:
     - kernels/functional-pipeline-lower.scm
   lower.lambda-lifting:
     - kernels/lambda-lift.scm
+  lower.oop-interface:
+    - kernels/oop-interface-lower.scm
+  lower.oop-rtti:
+    - kernels/oop-rtti-emit.scm
   lower.oop-vtable:
     - kernels/oop-vtable-lower.scm
   lower.overflow:
@@ -192,3 +197,14 @@ capabilities:
     - kernels/ic-install.scm
   vm.safepoint-insertion:
     - kernels/safepoint-insert.scm
+stereotypes:
+  oop:
+    version: 0.1.0
+    kernels:
+      - oop-vtable-lower
+      - oop-devirtualize
+      - oop-null-check
+      - exception-lower
+    order:
+      - [oop-devirtualize, oop-vtable-lower]
+      - [oop-vtable-lower, oop-null-check]
