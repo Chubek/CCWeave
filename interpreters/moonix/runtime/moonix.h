@@ -36,6 +36,11 @@ long long moonix_lua_tointeger(const lua_State *, int);
 int moonix_lua_toboolean(const lua_State *, int);
 const char *moonix_lua_tostring(const lua_State *, int);
 void moonix_lua_insert(lua_State *, int);
+void moonix_lua_pushinteger(lua_State *, long long);
+void moonix_lua_pushboolean(lua_State *, int);
+void moonix_lua_pushstring(lua_State *, const char *);
+void moonix_lua_pushnil(lua_State *);
+void moonix_lua_setglobal(lua_State *, const char *);
 #define lua_gettop moonix_lua_gettop
 #define lua_settop moonix_lua_settop
 #define lua_pop moonix_lua_pop
@@ -106,6 +111,29 @@ moonix_status moonix_pcall(moonix_state *state, int nargs, int nresults);
 moonix_status moonix_dostring(moonix_state *state, const char *source,
                               const char *chunk_name);
 moonix_status moonix_dofile(moonix_state *state, const char *path);
+
+/* Native extension and C interop ABI.  Extensions may be authored in C or
+ * C++; all values crossing this boundary are scalar stack values. */
+typedef int (*moonix_cfunction)(lua_State *state);
+typedef int (*moonix_extension_open)(moonix_state *state);
+typedef struct {
+    const char *name;
+    moonix_extension_open open;
+    void *userdata;
+} moonix_extension;
+/* Shared objects export:
+ *   const moonix_extension *moonix_extension_init(void); */
+moonix_status moonix_register_extension(moonix_state *, const moonix_extension *);
+moonix_status moonix_load_extension(moonix_state *, const char *path);
+moonix_status moonix_call_cfunction(moonix_state *, moonix_cfunction,
+                                    int nargs, int nresults);
+
+typedef void *moonix_ffi_library;
+moonix_ffi_library moonix_ffi_open(const char *path);
+void *moonix_ffi_symbol(moonix_ffi_library, const char *name);
+void moonix_ffi_close(moonix_ffi_library);
+moonix_status moonix_ffi_call_i64(void *symbol, const long long *args,
+                                  size_t nargs, long long *result);
 
 /* Runtime hook queried by vm.gc-barrier-insertion integrations. */
 int moonix_gc_barrier_check(const moonix_state *state,

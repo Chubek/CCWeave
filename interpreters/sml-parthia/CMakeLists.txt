@@ -7,6 +7,9 @@ target_include_directories(sml_parthia PUBLIC
   ${CMAKE_SOURCE_DIR}/swaff)
 target_link_libraries(sml_parthia PUBLIC ccw_swaff ccw_klib)
 target_link_libraries(sml_parthia PUBLIC ccw_sched)
+if(CMAKE_DL_LIBS)
+  target_link_libraries(sml_parthia PUBLIC ${CMAKE_DL_LIBS})
+endif()
 
 add_executable(sml-parthia
   cli/main.c

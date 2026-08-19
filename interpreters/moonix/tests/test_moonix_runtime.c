@@ -84,6 +84,37 @@ static void check_goto_fallback(void)
     moonix_close(state);
 }
 
+static int extension_add(lua_State *lua)
+{
+    long long a = lua_tointeger(lua, 1), b = lua_tointeger(lua, 2);
+    lua_settop(lua, 0); moonix_lua_pushinteger(lua, a + b); return 1;
+}
+static int extension_open(moonix_state *state)
+{
+    lua_State *lua = moonix_lua_state(state);
+    moonix_lua_pushinteger(lua, 7);
+    moonix_lua_setglobal(lua, "extension_marker");
+    return 0;
+}
+static void check_native_apis(void)
+{
+    moonix_options options; moonix_extension ext; moonix_state *state;
+    moonix_options_init(&options); state = moonix_newstate(&options);
+    ext.name = "test"; ext.open = extension_open; ext.userdata = NULL;
+    CCW_CHECK(state && moonix_register_extension(state, &ext) == MOONIX_OK,
+              "Moonix extension registration failed");
+    if (state) {
+        lua_State *lua = moonix_lua_state(state);
+        lua_getglobal(lua, "extension_marker");
+        CCW_CHECK(lua_tointeger(lua, -1) == 7, "extension initializer did not run");
+        lua_settop(lua, 0); moonix_lua_pushinteger(lua, 2);
+        moonix_lua_pushinteger(lua, 3);
+        CCW_CHECK(moonix_call_cfunction(state, extension_add, 2, 1) == MOONIX_OK &&
+                      lua_tointeger(lua, -1) == 5, "C interop call failed");
+        moonix_close(state);
+    }
+}
+
 int main(void)
 {
     check_core_semantics(MOONIX_TIER_T0);
@@ -91,5 +122,6 @@ int main(void)
     check_core_semantics(MOONIX_TIER_T2);
     check_exclusions();
     check_goto_fallback();
+    check_native_apis();
     return ccw_test_report("moonix-runtime");
 }

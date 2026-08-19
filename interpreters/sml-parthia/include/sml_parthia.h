@@ -18,6 +18,26 @@ extern "C" {
 #endif
 
 typedef struct ccw_sml_parthia_program ccw_sml_parthia_program;
+typedef struct ccw_sml_parthia_runtime ccw_sml_parthia_runtime;
+typedef enum {
+    CCW_SML_NIL = 0, CCW_SML_INT = 1, CCW_SML_BOOL = 2,
+    CCW_SML_REAL = 3, CCW_SML_POINTER = 4
+} ccw_sml_value_kind;
+typedef struct {
+    ccw_sml_value_kind kind;
+    long long integer;
+    double real;
+    void *pointer;
+} ccw_sml_value;
+typedef int (*ccw_sml_native_fn)(const ccw_sml_value *, size_t,
+                                 ccw_sml_value *, size_t, void *);
+typedef struct {
+    const char *name;
+    ccw_sml_native_fn invoke;
+    void *userdata;
+} ccw_sml_extension;
+/* Shared objects export:
+ *   const ccw_sml_extension *ccw_sml_parthia_extension_init(void); */
 
 typedef struct {
     ccw_sml_parse_report parse;
@@ -63,6 +83,21 @@ int ccw_sml_parthia_sharing_count(
     const ccw_sml_parthia_program *program);
 int ccw_sml_parthia_wheretype_count(
     const ccw_sml_parthia_program *program);
+
+ccw_sml_parthia_runtime *ccw_sml_parthia_runtime_new(void);
+void ccw_sml_parthia_runtime_free(ccw_sml_parthia_runtime *);
+int ccw_sml_parthia_register_extension(ccw_sml_parthia_runtime *,
+                                       const ccw_sml_extension *);
+int ccw_sml_parthia_call_native(ccw_sml_parthia_runtime *, const char *,
+                                const ccw_sml_value *, size_t,
+                                ccw_sml_value *, size_t);
+int ccw_sml_parthia_load_extension(ccw_sml_parthia_runtime *, const char *);
+typedef void *ccw_sml_ffi_library;
+ccw_sml_ffi_library ccw_sml_parthia_ffi_open(const char *);
+void *ccw_sml_parthia_ffi_symbol(ccw_sml_ffi_library, const char *);
+void ccw_sml_parthia_ffi_close(ccw_sml_ffi_library);
+int ccw_sml_parthia_ffi_call_i64(void *, const long long *, size_t,
+                                 long long *);
 
 #ifdef __cplusplus
 }

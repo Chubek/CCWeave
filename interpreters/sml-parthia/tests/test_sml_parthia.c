@@ -4,6 +4,17 @@
 #include <stdlib.h>
 #include <string.h>
 
+static int add_native(const ccw_sml_value *args, size_t nargs,
+                      ccw_sml_value *results, size_t nresults, void *user)
+{
+    (void)user;
+    if (nargs != 2 || nresults != 1 || args[0].kind != CCW_SML_INT ||
+        args[1].kind != CCW_SML_INT) return 1;
+    results[0].kind = CCW_SML_INT;
+    results[0].integer = args[0].integer + args[1].integer;
+    return 0;
+}
+
 int main(void)
 {
     const char *source =
@@ -55,6 +66,21 @@ int main(void)
               "Parthia did not emit the signature-erased core");
     CCW_CHECK(strstr(core, "(instance fct.MakeSet)") != NULL,
               "functor instance name was not derived from its application path");
+
+    {
+        ccw_sml_parthia_runtime *runtime = ccw_sml_parthia_runtime_new();
+        ccw_sml_extension extension = {"add", add_native, NULL};
+        ccw_sml_value args[2] = {{CCW_SML_INT, 2, 0.0, NULL},
+                                 {CCW_SML_INT, 3, 0.0, NULL}};
+        ccw_sml_value result = {0};
+        CCW_CHECK(runtime != NULL &&
+                      ccw_sml_parthia_register_extension(runtime, &extension) &&
+                      ccw_sml_parthia_call_native(runtime, "add", args, 2,
+                                                  &result, 1) &&
+                      result.kind == CCW_SML_INT && result.integer == 5,
+                  "Parthia native extension/C interop failed");
+        ccw_sml_parthia_runtime_free(runtime);
+    }
 
     ccw_sml_parthia_program_destroy(program);
     return ccw_test_report("sml-parthia");

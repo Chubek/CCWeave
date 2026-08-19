@@ -15,12 +15,24 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#if defined(__unix__) || defined(__APPLE__)
+#include <dlfcn.h>
+#endif
 
 struct ccw_sml_parthia_program {
     char *surface_ast;
     char *core_ast;
     ccw_sml_parthia_report report;
 };
+
+typedef struct sml_ext_entry {
+    char *name;
+    ccw_sml_native_fn invoke;
+    void *userdata;
+    void *handle;
+    struct sml_ext_entry *next;
+} sml_ext_entry;
+struct ccw_sml_parthia_runtime { sml_ext_entry *extensions; };
 
 static char *dup_text(const char *text)
 {
@@ -294,4 +306,104 @@ int ccw_sml_parthia_wheretype_count(
     const ccw_sml_parthia_program *program)
 {
     return program == NULL ? 0 : program->report.parse.wheretype_count;
+}
+
+ccw_sml_parthia_runtime *ccw_sml_parthia_runtime_new(void)
+{
+    return (ccw_sml_parthia_runtime *)calloc(1, sizeof(ccw_sml_parthia_runtime));
+}
+void ccw_sml_parthia_runtime_free(ccw_sml_parthia_runtime *runtime)
+{
+    sml_ext_entry *e, *n;
+    if (!runtime) return;
+    for (e = runtime->extensions; e; e = n) {
+        n = e->next; free(e->name);
+#if defined(__unix__) || defined(__APPLE__)
+        if (e->handle) dlclose(e->handle);
+#endif
+        free(e);
+    }
+    free(runtime);
+}
+int ccw_sml_parthia_register_extension(ccw_sml_parthia_runtime *runtime,
+                                       const ccw_sml_extension *extension)
+{
+    sml_ext_entry *entry;
+    if (!runtime || !extension || !extension->name || !*extension->name ||
+        !extension->invoke) return 0;
+    entry = (sml_ext_entry *)calloc(1, sizeof(*entry));
+    if (!entry) return 0;
+    entry->name = dup_text(extension->name);
+    if (!entry->name) { free(entry); return 0; }
+    entry->invoke = extension->invoke; entry->userdata = extension->userdata;
+    entry->next = runtime->extensions; runtime->extensions = entry;
+    return 1;
+}
+int ccw_sml_parthia_call_native(ccw_sml_parthia_runtime *runtime,
+                                const char *name, const ccw_sml_value *args,
+                                size_t nargs, ccw_sml_value *results,
+                                size_t nresults)
+{
+    sml_ext_entry *e;
+    if (!runtime || !name || (nargs && !args) || (nresults && !results)) return 0;
+    for (e = runtime->extensions; e; e = e->next)
+        if (strcmp(e->name, name) == 0)
+            return e->invoke(args, nargs, results, nresults, e->userdata) == 0;
+    return 0;
+}
+int ccw_sml_parthia_load_extension(ccw_sml_parthia_runtime *runtime,
+                                   const char *path)
+{
+#if defined(__unix__) || defined(__APPLE__)
+    void *handle;
+    const ccw_sml_extension *(*init_fn)(void);
+    const ccw_sml_extension *extension;
+    if (!runtime || !path) return 0;
+    handle = dlopen(path, RTLD_NOW | RTLD_LOCAL);
+    if (!handle) return 0;
+    *(void **)(&init_fn) = dlsym(handle, "ccw_sml_parthia_extension_init");
+    extension = init_fn ? init_fn() : NULL;
+    if (!extension || !ccw_sml_parthia_register_extension(runtime, extension)) {
+        dlclose(handle); return 0;
+    }
+    runtime->extensions->handle = handle;
+    return 1;
+#else
+    (void)runtime; (void)path; return 0;
+#endif
+}
+
+ccw_sml_ffi_library ccw_sml_parthia_ffi_open(const char *path)
+{
+#if defined(__unix__) || defined(__APPLE__)
+    return dlopen(path ? path : NULL, RTLD_NOW | RTLD_LOCAL);
+#else
+    (void)path; return NULL;
+#endif
+}
+void *ccw_sml_parthia_ffi_symbol(ccw_sml_ffi_library library, const char *name)
+{
+#if defined(__unix__) || defined(__APPLE__)
+    return library && name ? dlsym(library, name) : NULL;
+#else
+    (void)library; (void)name; return NULL;
+#endif
+}
+void ccw_sml_parthia_ffi_close(ccw_sml_ffi_library library)
+{
+#if defined(__unix__) || defined(__APPLE__)
+    if (library) dlclose(library);
+#else
+    (void)library;
+#endif
+}
+int ccw_sml_parthia_ffi_call_i64(void *symbol, const long long *args,
+                                 size_t nargs, long long *result)
+{
+    if (!symbol || !result || nargs > 3 || (nargs && !args)) return 0;
+    if (nargs == 0) *result = ((long long (*)(void))symbol)();
+    else if (nargs == 1) *result = ((long long (*)(long long))symbol)(args[0]);
+    else if (nargs == 2) *result = ((long long (*)(long long,long long))symbol)(args[0],args[1]);
+    else *result = ((long long (*)(long long,long long,long long))symbol)(args[0],args[1],args[2]);
+    return 1;
 }

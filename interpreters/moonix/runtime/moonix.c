@@ -6,6 +6,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#if defined(__unix__) || defined(__APPLE__)
+#include <dlfcn.h>
+#endif
 
 #ifndef MOONIX_DEFAULT_MANIFEST_DIR
 #define MOONIX_DEFAULT_MANIFEST_DIR "manifests"
@@ -23,6 +26,11 @@ struct moonix_lua_state {
     moonix_value stack[64];
     int top;
 };
+typedef struct moonix_loaded_extension {
+    char *name;
+    void *handle;
+    struct moonix_loaded_extension *next;
+} moonix_loaded_extension;
 
 static void value_clear(moonix_value *v) { if (v && v->kind == MV_STRING) free(v->string); if (v) memset(v, 0, sizeof(*v)); }
 static moonix_value value_int(long long n) { moonix_value v={MV_INT,n,0,NULL}; return v; }
@@ -39,6 +47,7 @@ static moonix_value value_copy(const moonix_value *v) {
     }
     return out;
 }
+static char *moonix_strdup(const char *s);
 static moonix_value *find_global(lua_State *L, const char *name, int create) {
     size_t i;
     for(i=0;i<L->global_count;i++) if(strcmp(L->globals[i].name,name)==0) return &L->globals[i].value;
@@ -61,6 +70,11 @@ long long moonix_lua_tointeger(const lua_State *L,int idx){idx=stack_index(L,idx
 int moonix_lua_toboolean(const lua_State *L,int idx){idx=stack_index(L,idx);if(!L||idx<=0||idx>L->top)return 0;return L->stack[idx-1].kind==MV_BOOL?L->stack[idx-1].boolean:L->stack[idx-1].kind!=MV_NIL;}
 const char *moonix_lua_tostring(const lua_State *L,int idx){static char buf[64];idx=stack_index(L,idx);if(!L||idx<=0||idx>L->top)return NULL;if(L->stack[idx-1].kind==MV_STRING)return L->stack[idx-1].string;if(L->stack[idx-1].kind==MV_INT){snprintf(buf,sizeof(buf),"%lld",L->stack[idx-1].integer);return buf;}return NULL;}
 void moonix_lua_insert(lua_State *L,int idx){moonix_value v;int i;if(!L||L->top==0||idx<1||idx>L->top)return;v=L->stack[L->top-1];for(i=L->top-1;i>=idx;i--)L->stack[i]=L->stack[i-1];L->stack[idx-1]=v;}
+void moonix_lua_pushinteger(lua_State *L,long long n){if(L&&L->top<64)L->stack[L->top++]=value_int(n);}
+void moonix_lua_pushboolean(lua_State *L,int b){if(L&&L->top<64)L->stack[L->top++]=value_bool(b);}
+void moonix_lua_pushstring(lua_State *L,const char *s){moonix_value v;if(!L||L->top>=64)return;v.kind=MV_STRING;v.string=moonix_strdup(s?s:"");L->stack[L->top++]=v;}
+void moonix_lua_pushnil(lua_State *L){if(L&&L->top<64)L->stack[L->top++]=value_nil();}
+void moonix_lua_setglobal(lua_State *L,const char *name){moonix_value v;if(!L||!name||L->top<1)return;v=L->stack[--L->top];set_global(L,name,v);}
 
 static char *moonix_strdup(const char *s){
     kstring_t copy = { 0, 0, NULL };
@@ -79,7 +93,22 @@ moonix_state *moonix_newstate(const moonix_options *in){
     if(!s->lua||!s->manifest_dir||!s->sched_dir||!moonix_install_stdlib(s)){moonix_close(s);return NULL;}
     s->requested_tier=MOONIX_TIER_T0;s->active_tier=MOONIX_TIER_T0;if(moonix_set_tier(s,in->tier)!=MOONIX_OK){moonix_close(s);return NULL;}return s;
 }
-void moonix_close(moonix_state *s){if(!s)return;ccw_plan_free(s->plans[0]);ccw_plan_free(s->plans[1]);lua_close_owned(s->lua);free(s->manifest_dir);free(s->sched_dir);free(s);}
+void moonix_close(moonix_state *s)
+{
+    moonix_loaded_extension *e, *n;
+    if (!s) return;
+    ccw_plan_free(s->plans[0]); ccw_plan_free(s->plans[1]);
+    lua_close_owned(s->lua); free(s->manifest_dir); free(s->sched_dir);
+    e = (moonix_loaded_extension *)s->extensions;
+    while (e) {
+        n = e->next; free(e->name);
+#if defined(__unix__) || defined(__APPLE__)
+        if (e->handle) dlclose(e->handle);
+#endif
+        free(e); e = n;
+    }
+    free(s);
+}
 lua_State *moonix_lua_state(moonix_state *s){return s?s->lua:NULL;}
 const char *moonix_last_error(const moonix_state *s){return s?s->error:"invalid Moonix state";}
 const char *moonix_status_string(moonix_status x){switch(x){case MOONIX_OK:return"success";case MOONIX_ERR_ARGUMENT:return"invalid argument";case MOONIX_ERR_OOM:return"out of memory";case MOONIX_ERR_SYNTAX:return"syntax error";case MOONIX_ERR_RUNTIME:return"runtime error";case MOONIX_ERR_FRONTEND:return"frontend error";case MOONIX_ERR_SCHED:return"scheduler error";case MOONIX_ERR_BYTECODE:return"invalid bytecode";case MOONIX_ERR_UNSUPPORTED:return"not supported in this phase";default:return"unknown Moonix status";}}
@@ -145,3 +174,106 @@ moonix_status moonix_pcall(moonix_state*s,int nargs,int nresults){(void)nargs;(v
 moonix_status moonix_dostring(moonix_state*s,const char*src,const char*name){(void)name;if(!s||!src)return MOONIX_ERR_ARGUMENT;return execute_source(s,src);}
 moonix_status moonix_dofile(moonix_state*s,const char*p){return moonix_load_file(s,p);}
 int moonix_gc_barrier_check(const moonix_state*s,uint64_t a,uint64_t b){(void)s;return a!=0&&b!=0;}
+
+moonix_status moonix_register_extension(moonix_state *s,
+                                         const moonix_extension *ext)
+{
+    moonix_loaded_extension *entry;
+    if (!s || !ext || !ext->name || !*ext->name || !ext->open) {
+        if (s) moonix_set_error(s, "invalid Moonix extension descriptor");
+        return MOONIX_ERR_ARGUMENT;
+    }
+    entry = (moonix_loaded_extension *)calloc(1, sizeof(*entry));
+    if (!entry) { moonix_set_error(s, "out of memory"); return MOONIX_ERR_OOM; }
+    entry->name = moonix_strdup(ext->name);
+    if (!entry->name) { free(entry); moonix_set_error(s, "out of memory"); return MOONIX_ERR_OOM; }
+    entry->next = (moonix_loaded_extension *)s->extensions;
+    s->extensions = entry;
+    if (ext->open(s) != 0) {
+        s->extensions = entry->next;
+        free(entry->name); free(entry);
+        moonix_set_error(s, "Moonix extension initialization failed");
+        return MOONIX_ERR_RUNTIME;
+    }
+    return MOONIX_OK;
+}
+
+moonix_status moonix_load_extension(moonix_state *s, const char *path)
+{
+#if defined(__unix__) || defined(__APPLE__)
+    void *handle;
+    const moonix_extension *(*init_fn)(void);
+    moonix_extension ext;
+    if (!s || !path) return MOONIX_ERR_ARGUMENT;
+    handle = dlopen(path, RTLD_NOW | RTLD_LOCAL);
+    if (!handle) { moonix_set_error(s, dlerror()); return MOONIX_ERR_RUNTIME; }
+    *(void **)(&init_fn) = dlsym(handle, "moonix_extension_init");
+    if (!init_fn) { moonix_set_error(s, "Moonix extension entry point not found"); dlclose(handle); return MOONIX_ERR_RUNTIME; }
+    /* The init symbol returns a descriptor by value through a stable pointer. */
+    if (!init_fn()) { moonix_set_error(s, "Moonix extension returned no descriptor"); dlclose(handle); return MOONIX_ERR_RUNTIME; }
+    ext = *init_fn();
+    if (moonix_register_extension(s, &ext) != MOONIX_OK) { dlclose(handle); return MOONIX_ERR_RUNTIME; }
+    ((moonix_loaded_extension *)s->extensions)->handle = handle;
+    return MOONIX_OK;
+#else
+    (void)s; (void)path; return MOONIX_ERR_UNSUPPORTED;
+#endif
+}
+
+moonix_status moonix_call_cfunction(moonix_state *s, moonix_cfunction fn,
+                                    int nargs, int nresults)
+{
+    int returned;
+    if (!s || !fn || nargs < 0 || nresults < 0 || nargs > s->lua->top)
+        return MOONIX_ERR_ARGUMENT;
+    returned = fn(s->lua);
+    if (returned < 0 || (nresults != 0 && returned != nresults)) {
+        moonix_set_error(s, "Moonix native call returned an invalid result count");
+        return MOONIX_ERR_RUNTIME;
+    }
+    return MOONIX_OK;
+}
+
+moonix_ffi_library moonix_ffi_open(const char *path)
+{
+#if defined(__unix__) || defined(__APPLE__)
+    return dlopen(path ? path : NULL, RTLD_NOW | RTLD_LOCAL);
+#else
+    (void)path; return NULL;
+#endif
+}
+void *moonix_ffi_symbol(moonix_ffi_library library, const char *name)
+{
+#if defined(__unix__) || defined(__APPLE__)
+    return library && name ? dlsym(library, name) : NULL;
+#else
+    (void)library; (void)name; return NULL;
+#endif
+}
+void moonix_ffi_close(moonix_ffi_library library)
+{
+#if defined(__unix__) || defined(__APPLE__)
+    if (library) dlclose(library);
+#else
+    (void)library;
+#endif
+}
+moonix_status moonix_ffi_call_i64(void *symbol, const long long *args,
+                                  size_t nargs, long long *result)
+{
+    size_t i;
+    long long (*fn0)(void) = (long long (*)(void))symbol;
+    if (!symbol || !result || nargs > 8 || (nargs && !args)) return MOONIX_ERR_ARGUMENT;
+    /* The fixed arity trampolines avoid aggregate marshalling and cover the
+     * scalar ABI used by the runtimes. */
+    switch (nargs) {
+    case 0: *result = fn0(); break;
+    case 1: *result = ((long long (*)(long long))symbol)(args[0]); break;
+    case 2: *result = ((long long (*)(long long,long long))symbol)(args[0],args[1]); break;
+    case 3: *result = ((long long (*)(long long,long long,long long))symbol)(args[0],args[1],args[2]); break;
+    default:
+        for (i = 0; i < nargs; i++) (void)i;
+        return MOONIX_ERR_UNSUPPORTED;
+    }
+    return MOONIX_OK;
+}

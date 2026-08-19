@@ -1,5 +1,19 @@
 # Decisions
 
+## 2026-08-19 — Scalar native extensions and FFI for Moonix and Parthia
+
+Moonix and SML-Parthia expose a shared-shaped, C-linkage extension boundary
+usable from both C and C++: extensions register named native entry points and
+may also be loaded from a shared object through one version-independent init
+symbol.  Calls exchange only scalar values (Moonix's Lua stack, or Parthia's
+tagged `ccw_sml_value`), so aggregates and ownership-bearing objects never
+cross the ABI.  Each runtime also provides a deliberately narrow, portable
+integer FFI (`*_ffi_call_i64`) with explicit arity limits; unsupported
+platforms return the runtime's unsupported/failure status rather than
+silently emulating a foreign call.  This is the smallest contract consistent
+with the language runtimes and can be extended without changing existing
+entry points.
+
 ## 2026-08-17 — Cephyr uses CCWAS as its default assembler
 
 Cephyr resolves `toolchain/ccwas` first for assembly tooling. A profile-provided

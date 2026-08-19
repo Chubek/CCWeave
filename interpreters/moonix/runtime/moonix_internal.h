@@ -13,6 +13,7 @@ struct moonix_state {
     ccw_plan *plans[2];
     char plan_hashes[2][65];
     char error[512];
+    void *extensions;
 };
 
 void moonix_set_error(moonix_state *state, const char *message);
