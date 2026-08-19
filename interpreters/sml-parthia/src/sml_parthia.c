@@ -8,6 +8,8 @@
  */
 
 #include "sml_parthia.h"
+#include "ccw_dynalo_bridge.h"
+#include "dyncall.h"
 #include "kstring.h"
 #include "sched.h"
 
@@ -16,9 +18,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
-#if defined(__unix__) || defined(__APPLE__)
-#include <dlfcn.h>
-#endif
 
 struct ccw_sml_parthia_program {
     char *surface_ast;
@@ -445,9 +444,7 @@ void ccw_sml_parthia_runtime_free(ccw_sml_parthia_runtime *runtime)
     if (!runtime) return;
     for (e = runtime->extensions; e; e = n) {
         n = e->next; free(e->name);
-#if defined(__unix__) || defined(__APPLE__)
-        if (e->handle) dlclose(e->handle);
-#endif
+        ccw_dynalo_close(e->handle);
         free(e);
     }
     free(runtime);
@@ -481,56 +478,48 @@ int ccw_sml_parthia_call_native(ccw_sml_parthia_runtime *runtime,
 int ccw_sml_parthia_load_extension(ccw_sml_parthia_runtime *runtime,
                                    const char *path)
 {
-#if defined(__unix__) || defined(__APPLE__)
     void *handle;
     const ccw_sml_extension *(*init_fn)(void);
     const ccw_sml_extension *extension;
     if (!runtime || !path) return 0;
-    handle = dlopen(path, RTLD_NOW | RTLD_LOCAL);
+    handle = ccw_dynalo_open(path, NULL);
     if (!handle) return 0;
-    *(void **)(&init_fn) = dlsym(handle, "ccw_sml_parthia_extension_init");
+    *(void **)(&init_fn) = ccw_dynalo_symbol(
+        handle, "ccw_sml_parthia_extension_init", NULL);
     extension = init_fn ? init_fn() : NULL;
     if (!extension || !ccw_sml_parthia_register_extension(runtime, extension)) {
-        dlclose(handle); return 0;
+        ccw_dynalo_close(handle); return 0;
     }
     runtime->extensions->handle = handle;
     return 1;
-#else
-    (void)runtime; (void)path; return 0;
-#endif
 }
 
 ccw_sml_ffi_library ccw_sml_parthia_ffi_open(const char *path)
 {
-#if defined(__unix__) || defined(__APPLE__)
-    return dlopen(path ? path : NULL, RTLD_NOW | RTLD_LOCAL);
-#else
-    (void)path; return NULL;
-#endif
+    return ccw_dynalo_open(path, NULL);
 }
 void *ccw_sml_parthia_ffi_symbol(ccw_sml_ffi_library library, const char *name)
 {
-#if defined(__unix__) || defined(__APPLE__)
-    return library && name ? dlsym(library, name) : NULL;
-#else
-    (void)library; (void)name; return NULL;
-#endif
+    return ccw_dynalo_symbol(library, name, NULL);
 }
 void ccw_sml_parthia_ffi_close(ccw_sml_ffi_library library)
 {
-#if defined(__unix__) || defined(__APPLE__)
-    if (library) dlclose(library);
-#else
-    (void)library;
-#endif
+    ccw_dynalo_close(library);
 }
 int ccw_sml_parthia_ffi_call_i64(void *symbol, const long long *args,
                                  size_t nargs, long long *result)
 {
-    if (!symbol || !result || nargs > 3 || (nargs && !args)) return 0;
-    if (nargs == 0) *result = ((long long (*)(void))symbol)();
-    else if (nargs == 1) *result = ((long long (*)(long long))symbol)(args[0]);
-    else if (nargs == 2) *result = ((long long (*)(long long,long long))symbol)(args[0],args[1]);
-    else *result = ((long long (*)(long long,long long,long long))symbol)(args[0],args[1],args[2]);
+    size_t i;
+    DCint error;
+    DCCallVM *vm;
+    if (!symbol || !result || nargs > 8 || (nargs && !args)) return 0;
+    vm = dcNewCallVM(4096);
+    if (!vm) return 0;
+    dcMode(vm, DC_CALL_C_DEFAULT);
+    for (i = 0; i < nargs; ++i) dcArgLongLong(vm, (DClonglong)args[i]);
+    *result = (long long)dcCallLongLong(vm, (DCpointer)symbol);
+    error = dcGetError(vm);
+    dcFree(vm);
+    if (error != DC_ERROR_NONE) return 0;
     return 1;
 }

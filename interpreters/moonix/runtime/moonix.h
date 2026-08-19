@@ -113,7 +113,8 @@ moonix_status moonix_dostring(moonix_state *state, const char *source,
 moonix_status moonix_dofile(moonix_state *state, const char *path);
 
 /* Native extension and C interop ABI.  Extensions may be authored in C or
- * C++; all values crossing this boundary are scalar stack values. */
+ * C++; loading is backed by dynalo and all values crossing this boundary are
+ * scalar stack values.  The scalar FFI below is dispatched through dyncall. */
 typedef int (*moonix_cfunction)(lua_State *state);
 typedef int (*moonix_extension_open)(moonix_state *state);
 typedef struct {

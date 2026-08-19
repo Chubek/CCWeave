@@ -10,6 +10,8 @@ libcyaml      2.0.0-devel                                     third_party/libcya
 tomlc99       vendored C99 snapshot                           third_party/tomlc99
 isl           0.0-ccw-436547d (GMP; pinned options)            third_party/isl
 linenoise-ng  git-tree fa12beb021ea4ad0fc5d6c2afc3ee8192c4bf386  third_party/linenoise-ng
+dynalo       1.0.3 (vendored snapshot)                  third_party/dynalo
+dyncall      vendored snapshot (C call VM)               third_party/dyncall
 #
 tree-sitter   0.27.0 (language ABI 15)                  third_party/tree-sitter
 tree-sitter-c 0.24.1 (generated language ABI 14)        swaff/grammars/tree-sitter-c

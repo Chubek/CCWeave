@@ -5,7 +5,11 @@ add_library(sml_parthia STATIC
 target_include_directories(sml_parthia PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}/include
   ${CMAKE_SOURCE_DIR}/swaff)
-target_link_libraries(sml_parthia PUBLIC ccw_swaff ccw_klib)
+target_include_directories(sml_parthia PRIVATE
+  ${CMAKE_SOURCE_DIR}/glue
+  ${CMAKE_SOURCE_DIR}/third_party/dyncall/dyncall)
+target_link_libraries(sml_parthia PUBLIC ccw_swaff ccw_klib
+  ccw_dynalo dyncall_s)
 target_link_libraries(sml_parthia PUBLIC ccw_sched)
 if(CMAKE_DL_LIBS)
   target_link_libraries(sml_parthia PUBLIC ${CMAKE_DL_LIBS})

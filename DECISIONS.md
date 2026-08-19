@@ -1,5 +1,18 @@
 # Decisions
 
+## 2026-08-19 — dynalo/dyncall back the Moonix and Parthia interop layers
+
+Moonix and SML-Parthia retain their stable C-linkage native-extension,
+C-interoperability, and scalar FFI entry points, but their implementations no
+longer call platform `dlopen`/`dlsym` APIs or cast fixed-arity function
+pointers.  Shared-library handles and exported symbols are acquired through
+the vendored dynalo C++ bridge, while integer FFI calls use vendored dyncall
+call VMs with the platform's default C calling convention and an eight-argument
+scalar limit.  This keeps C and C++ extensions interoperable, makes loading
+portable across supported hosts, and gives the FFI its ABI-correct marshalling
+without allowing aggregates or ownership-bearing values across the language
+boundaries.
+
 ## 2026-08-19 — Parthia REPL directives
 
 The Parthia REPL now treats lines beginning with `#` as immediate directives,

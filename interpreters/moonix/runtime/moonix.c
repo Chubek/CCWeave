@@ -1,14 +1,13 @@
 #include "moonix_internal.h"
 #include "../frontend/moonix_frontend.h"
+#include "ccw_dynalo_bridge.h"
+#include "dyncall.h"
 #include "kstring.h"
 
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#if defined(__unix__) || defined(__APPLE__)
-#include <dlfcn.h>
-#endif
 
 #ifndef MOONIX_DEFAULT_MANIFEST_DIR
 #define MOONIX_DEFAULT_MANIFEST_DIR "manifests"
@@ -102,9 +101,7 @@ void moonix_close(moonix_state *s)
     e = (moonix_loaded_extension *)s->extensions;
     while (e) {
         n = e->next; free(e->name);
-#if defined(__unix__) || defined(__APPLE__)
-        if (e->handle) dlclose(e->handle);
-#endif
+        ccw_dynalo_close(e->handle);
         free(e); e = n;
     }
     free(s);
@@ -200,24 +197,35 @@ moonix_status moonix_register_extension(moonix_state *s,
 
 moonix_status moonix_load_extension(moonix_state *s, const char *path)
 {
-#if defined(__unix__) || defined(__APPLE__)
+    const char *load_error = NULL;
+    const char *symbol_error = NULL;
     void *handle;
     const moonix_extension *(*init_fn)(void);
     moonix_extension ext;
     if (!s || !path) return MOONIX_ERR_ARGUMENT;
-    handle = dlopen(path, RTLD_NOW | RTLD_LOCAL);
-    if (!handle) { moonix_set_error(s, dlerror()); return MOONIX_ERR_RUNTIME; }
-    *(void **)(&init_fn) = dlsym(handle, "moonix_extension_init");
-    if (!init_fn) { moonix_set_error(s, "Moonix extension entry point not found"); dlclose(handle); return MOONIX_ERR_RUNTIME; }
+    handle = ccw_dynalo_open(path, &load_error);
+    if (!handle) { moonix_set_error(s, load_error ? load_error : "Moonix extension load failed"); return MOONIX_ERR_RUNTIME; }
+    *(void **)(&init_fn) = ccw_dynalo_symbol(handle, "moonix_extension_init",
+                                             &symbol_error);
+    if (!init_fn) {
+        moonix_set_error(s, symbol_error ? symbol_error :
+                         "Moonix extension entry point not found");
+        ccw_dynalo_close(handle);
+        return MOONIX_ERR_RUNTIME;
+    }
     /* The init symbol returns a descriptor by value through a stable pointer. */
-    if (!init_fn()) { moonix_set_error(s, "Moonix extension returned no descriptor"); dlclose(handle); return MOONIX_ERR_RUNTIME; }
+    if (!init_fn()) {
+        moonix_set_error(s, "Moonix extension returned no descriptor");
+        ccw_dynalo_close(handle);
+        return MOONIX_ERR_RUNTIME;
+    }
     ext = *init_fn();
-    if (moonix_register_extension(s, &ext) != MOONIX_OK) { dlclose(handle); return MOONIX_ERR_RUNTIME; }
+    if (moonix_register_extension(s, &ext) != MOONIX_OK) {
+        ccw_dynalo_close(handle);
+        return MOONIX_ERR_RUNTIME;
+    }
     ((moonix_loaded_extension *)s->extensions)->handle = handle;
     return MOONIX_OK;
-#else
-    (void)s; (void)path; return MOONIX_ERR_UNSUPPORTED;
-#endif
 }
 
 moonix_status moonix_call_cfunction(moonix_state *s, moonix_cfunction fn,
@@ -236,44 +244,34 @@ moonix_status moonix_call_cfunction(moonix_state *s, moonix_cfunction fn,
 
 moonix_ffi_library moonix_ffi_open(const char *path)
 {
-#if defined(__unix__) || defined(__APPLE__)
-    return dlopen(path ? path : NULL, RTLD_NOW | RTLD_LOCAL);
-#else
-    (void)path; return NULL;
-#endif
+    return ccw_dynalo_open(path, NULL);
 }
 void *moonix_ffi_symbol(moonix_ffi_library library, const char *name)
 {
-#if defined(__unix__) || defined(__APPLE__)
-    return library && name ? dlsym(library, name) : NULL;
-#else
-    (void)library; (void)name; return NULL;
-#endif
+    return ccw_dynalo_symbol(library, name, NULL);
 }
 void moonix_ffi_close(moonix_ffi_library library)
 {
-#if defined(__unix__) || defined(__APPLE__)
-    if (library) dlclose(library);
-#else
-    (void)library;
-#endif
+    ccw_dynalo_close(library);
 }
 moonix_status moonix_ffi_call_i64(void *symbol, const long long *args,
                                   size_t nargs, long long *result)
 {
-    size_t i;
-    long long (*fn0)(void) = (long long (*)(void))symbol;
     if (!symbol || !result || nargs > 8 || (nargs && !args)) return MOONIX_ERR_ARGUMENT;
-    /* The fixed arity trampolines avoid aggregate marshalling and cover the
-     * scalar ABI used by the runtimes. */
-    switch (nargs) {
-    case 0: *result = fn0(); break;
-    case 1: *result = ((long long (*)(long long))symbol)(args[0]); break;
-    case 2: *result = ((long long (*)(long long,long long))symbol)(args[0],args[1]); break;
-    case 3: *result = ((long long (*)(long long,long long,long long))symbol)(args[0],args[1],args[2]); break;
-    default:
-        for (i = 0; i < nargs; i++) (void)i;
-        return MOONIX_ERR_UNSUPPORTED;
+    {
+        DCCallVM *vm = dcNewCallVM(4096);
+        size_t i;
+        DCint error;
+        if (!vm) return MOONIX_ERR_OOM;
+        dcMode(vm, DC_CALL_C_DEFAULT);
+        for (i = 0; i < nargs; ++i) dcArgLongLong(vm, (DClonglong)args[i]);
+        *result = (long long)dcCallLongLong(vm, (DCpointer)symbol);
+        error = dcGetError(vm);
+        if (error != DC_ERROR_NONE) {
+            dcFree(vm);
+            return MOONIX_ERR_RUNTIME;
+        }
+        dcFree(vm);
     }
     return MOONIX_OK;
 }

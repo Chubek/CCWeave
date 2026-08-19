@@ -98,6 +98,8 @@ int ccw_sml_parthia_call_native(ccw_sml_parthia_runtime *, const char *,
                                 const ccw_sml_value *, size_t,
                                 ccw_sml_value *, size_t);
 int ccw_sml_parthia_load_extension(ccw_sml_parthia_runtime *, const char *);
+/* Shared objects are loaded through the vendored dynalo bridge; scalar calls
+ * use dyncall and never marshal aggregate values across this C ABI. */
 typedef void *ccw_sml_ffi_library;
 ccw_sml_ffi_library ccw_sml_parthia_ffi_open(const char *);
 void *ccw_sml_parthia_ffi_symbol(ccw_sml_ffi_library, const char *);

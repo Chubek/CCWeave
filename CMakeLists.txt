@@ -114,6 +114,37 @@ target_include_directories(ccw_s7 PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/executors/s
 set_target_properties(ccw_s7 PROPERTIES C_EXTENSIONS ON)
 target_compile_definitions(ccw_s7 PUBLIC WITH_C_LOADER=0 WITH_SYSTEM_EXTRAS=0)
 ccw_vendored_target(ccw_s7)
+
+# --- vendored dynamic interop ---------------------------------------------
+# dynalo is header-only and supplies the C++ loader bridge; dyncall supplies
+# the ABI-correct scalar call VM used by the language FFI layers.
+add_library(ccw_dynalo STATIC glue/ccw_dynalo_bridge.cpp)
+target_include_directories(ccw_dynalo PUBLIC
+  ${CMAKE_CURRENT_SOURCE_DIR}/glue
+  ${CCWEAVE_THIRD_PARTY}/dynalo/include)
+set_target_properties(ccw_dynalo PROPERTIES
+  CXX_STANDARD 11
+  CXX_STANDARD_REQUIRED ON
+  CXX_EXTENSIONS OFF
+  POSITION_INDEPENDENT_CODE ON)
+if(CMAKE_DL_LIBS)
+  target_link_libraries(ccw_dynalo PUBLIC ${CMAKE_DL_LIBS})
+endif()
+
+add_library(dyncall_s STATIC
+  ${CCWEAVE_THIRD_PARTY}/dyncall/dyncall/dyncall_call.S
+  ${CCWEAVE_THIRD_PARTY}/dyncall/dyncall/dyncall_vector.c
+  ${CCWEAVE_THIRD_PARTY}/dyncall/dyncall/dyncall_struct.c
+  ${CCWEAVE_THIRD_PARTY}/dyncall/dyncall/dyncall_api.c
+  ${CCWEAVE_THIRD_PARTY}/dyncall/dyncall/dyncall_callvm.c
+  ${CCWEAVE_THIRD_PARTY}/dyncall/dyncall/dyncall_callvm_base.c
+  ${CCWEAVE_THIRD_PARTY}/dyncall/dyncall/dyncall_callf.c)
+set_source_files_properties(
+  ${CCWEAVE_THIRD_PARTY}/dyncall/dyncall/dyncall_call.S
+  PROPERTIES LANGUAGE C)
+target_include_directories(dyncall_s PUBLIC
+  ${CCWEAVE_THIRD_PARTY}/dyncall/dyncall)
+ccw_vendored_target(dyncall_s)
 find_library(CCW_M_LIB m)
 if(CCW_M_LIB)
   target_link_libraries(ccw_s7 PUBLIC ${CCW_M_LIB})
