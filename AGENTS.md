@@ -37,6 +37,7 @@ ccweave/
   executors/s7/         # reference executor
   kernels/              # *.scm R7RS kernel libraries
   manifests/            # GENERATED ONLY — never hand-edit
+  stdlib-salvo          # Collection of standard libraries for languages
   ir/                   # Weave IR core + tilly/ + on1x/ profiles
   kliche/               # functional/, imperative/, oop/ stereotypes
   swaff/                # grammars/ + adapters/
@@ -87,6 +88,8 @@ the next begins; later stages depend on earlier ones.
    diagnostics.
 9. **Kliche** stereotypes, then **Swaff** frontends (Tree-sitter
    grammar + lowering adapter) last.
+10. **stdlib-salvo**, collection of standard libraries for the supported 
+   compilers and interpreters.
 
 ## Hard rules (violating any of these is a broken build)
 
