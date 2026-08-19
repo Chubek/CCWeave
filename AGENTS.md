@@ -30,6 +30,14 @@ All the subsystems of CCWeave use `third_party/klib` facilities, e.g. `kstring`,
 - `kstring` can be used for a tagged string;
 ...And so on.
 
+**Formatting**
+Whenever the agent finishes creating or editing a C/C++ file, it must run `clang-format --style=GNU -i <file>` on that file. This tool is installed on this environment.
+
+**Kimi 3 and GLM 5.2**
+These models don't have access to Bash on this environment. They must either:
+1. Circumvent Bash, and run commands through `/bin/bash` directly, without passing it through `bwrap`;
+2. Live the running of commands to Claude Code's tasks/subtasks.
+
 ## Repository layout (create exactly this; spec §8)
 
 ```
