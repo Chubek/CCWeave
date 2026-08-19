@@ -2,7 +2,7 @@
 
 /* Cephyr CLI entry point.
  *
- * Usage: cephyr [options] <source.c>
+ * Usage: cephyr [options] <source>
  *
  * Options:
  *   -o <file>      Output file (default: a.out)
@@ -68,7 +68,7 @@ static const ko_longopt_t cephyr_long_options[] = {
 static void print_help(const char *prog)
 {
     printf("Cephyr C compiler v0.1.0 — CCWeave-based C17 compiler\n");
-    printf("Usage: %s [options] <source.c>\n\n", prog);
+    printf("Usage: %s [options] <source>\n\n", prog);
     printf("Options:\n");
     printf("  -o <file>      Output file (default: stdout)\n");
     printf("  -O0, -O1, -O2  Optimization level (default: -O0)\n");
@@ -89,6 +89,8 @@ static void print_help(const char *prog)
     printf("  -S/-s          Emit assembly and stop before assembling\n");
     printf("  -E             Preprocess only\n");
     printf("  -c             Compile only (don't link)\n");
+    printf("  .s/.as/.asm    Assemble directly with CCWas by default\n");
+    printf("  .S             Preprocess, then assemble\n");
     printf("  --emit-ir      Dump Weave IR text\n");
     printf("  --target <t>   Target triple (default: x86_64-linux-gnu)\n");
     printf("  --lstriples     List supported target triples and exit\n");
@@ -96,6 +98,7 @@ static void print_help(const char *prog)
     printf("  --profile <p>  Load CEPHYR.yaml/toml profile\n");
     printf("Environment:\n");
     printf("  CEPHYR_AS, CEPHYR_LD      Override assembler/linker discovery\n");
+    printf("  CEPHYR_AS_EXTENSIONS      Comma-separated extra assembler suffixes\n");
     printf("  CEPHYR_STDLIB_MANIFEST    Stdlib manifest (default: in-tree\n");
     printf("                            stdlib-salvo/libc/Libc.yaml)\n");
     printf("  profile init [--yaml|--toml]\n");

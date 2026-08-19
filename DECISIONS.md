@@ -342,4 +342,16 @@ spec is silent:
   `CEPHYR_STDLIB_MANIFEST=<build>/stdlib-salvo/libc/Libc.yaml` consumes
   the freshly built archive. errno and the allocator are
   single-threaded; stdio is unbuffered; `%f`/`%e`/`%g` await a
-  salvo-libm.
+ salvo-libm.
+
+# 2026-08-19 — Cephyr assembly input classification and linking
+
+Cephyr treats `.s`, `.as`, and `.asm` as assembler inputs without
+preprocessing.  `.S` is preprocessed first using `CEPHYR_CPP` (or the
+configured preprocessor, with the system `cpp -E -P` fallback for assembly
+syntax).  Additional suffixes can be registered through the
+`CEPHYR_AS_EXTENSIONS` comma-separated environment variable.  Assembly is
+assembled with the in-process CCWas API by default; an explicitly configured
+`CEPHYR_AS`/profile assembler is invoked as an external command.  A normal
+assembly invocation then passes the resulting object through CCWld with
+`_main` as the default entry symbol; `-c` retains compile-only behavior.

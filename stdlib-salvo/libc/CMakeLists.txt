@@ -54,13 +54,17 @@ else()
 endif()
 
 if(SALVO_CRT0_SOURCE)
-  add_library(salvo_crt0 OBJECT ${SALVO_CRT0_SOURCE})
-  add_custom_command(TARGET salvo_crt0 POST_BUILD
+  set(SALVO_CRT0_OBJECT ${CMAKE_CURRENT_BINARY_DIR}/lib/crt0.o)
+  add_custom_command(
+    OUTPUT ${SALVO_CRT0_OBJECT}
     COMMAND ${CMAKE_COMMAND} -E make_directory
             ${CMAKE_CURRENT_BINARY_DIR}/lib
-    COMMAND ${CMAKE_COMMAND} -E copy
-            $<TARGET_OBJECTS:salvo_crt0>
-            ${CMAKE_CURRENT_BINARY_DIR}/lib/crt0.o)
+    COMMAND ${CMAKE_ASM_COMPILER} -c
+            ${CMAKE_CURRENT_SOURCE_DIR}/${SALVO_CRT0_SOURCE}
+            -o ${SALVO_CRT0_OBJECT}
+    DEPENDS ${SALVO_CRT0_SOURCE}
+    VERBATIM)
+  add_custom_target(salvo_crt0 ALL DEPENDS ${SALVO_CRT0_OBJECT})
 endif()
 
 # Build-tree manifest with resolved include paths; point

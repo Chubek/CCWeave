@@ -82,6 +82,7 @@ typedef struct {
     bool               manifest_explicit;
     /* Toolchain discovery */
     const char        *assembler;         /* system assembler (NULL = discover) */
+    bool               assembler_external; /* invoke assembler as a command */
     const char        *linker;            /* system linker (NULL = discover) */
 } cephyr_options;
 

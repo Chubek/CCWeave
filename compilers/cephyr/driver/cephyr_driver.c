@@ -13,6 +13,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/wait.h>
 #include <unistd.h>
 
 #include "../cpp/cephyr_cpp.h"
@@ -399,6 +400,132 @@ static char *read_file(const char *path, size_t *out_len)
     return ks_release(&text);
 }
 
+static const char *source_extension(const char *path)
+{
+    const char *slash;
+    const char *dot;
+    if (path == NULL) return NULL;
+    slash = strrchr(path, '/');
+    dot = strrchr(path, '.');
+    if (dot == NULL || (slash != NULL && dot < slash) || dot[1] == '\0')
+        return "";
+    return dot;
+}
+
+static int extension_in_list(const char *extension, const char *list)
+{
+    const char *p = list;
+    if (extension == NULL || list == NULL) return 0;
+    while (*p != '\0') {
+        const char *start;
+        size_t length;
+        while (*p == ',' || *p == ':' || *p == ';' ||
+               *p == ' ' || *p == '\t')
+            ++p;
+        start = p;
+        while (*p != '\0' && *p != ',' && *p != ':' && *p != ';' &&
+               *p != ' ' && *p != '\t')
+            ++p;
+        length = (size_t)(p - start);
+        if (length != 0 && strlen(extension) == length &&
+            strncmp(extension, start, length) == 0)
+            return 1;
+    }
+    return 0;
+}
+
+static int is_assembly_source(const char *path)
+{
+    const char *extension = source_extension(path);
+    const char *extra = getenv("CEPHYR_AS_EXTENSIONS");
+    if (extension == NULL) return 0;
+    if (!strcmp(extension, ".s") || !strcmp(extension, ".as") ||
+        !strcmp(extension, ".asm") || !strcmp(extension, ".S"))
+        return 1;
+    return extension_in_list(extension, extra);
+}
+
+static int is_preprocessed_assembly_source(const char *path)
+{
+    return source_extension(path) != NULL &&
+           !strcmp(source_extension(path), ".S");
+}
+
+static int shell_append_quoted(kstring_t *command, const char *value)
+{
+    const char *p;
+    if (value == NULL) return 0;
+    if (kputc('\'', command) == EOF) return 0;
+    for (p = value; *p != '\0'; ++p) {
+        if (*p == '\'') {
+            if (kputs("'\\''", command) == EOF) return 0;
+        } else if (kputc(*p, command) == EOF) {
+            return 0;
+        }
+    }
+    return kputc('\'', command) != EOF;
+}
+
+static int run_external_assembler(const cephyr_options *opts,
+                                  const char *input_path,
+                                  const char *output_path)
+{
+    kstring_t command = { 0, 0, NULL };
+    int status;
+    if (opts == NULL || opts->assembler == NULL ||
+        input_path == NULL || output_path == NULL)
+        return 0;
+    if (kputs(opts->assembler, &command) == EOF) goto oom;
+    for (int i = 0; i < opts->assembler_option_count; ++i) {
+        if (kputc(' ', &command) == EOF ||
+            !shell_append_quoted(&command, opts->assembler_options[i]))
+            goto oom;
+    }
+    for (int i = 0; i < opts->assembler_arg_count; ++i) {
+        if (kputc(' ', &command) == EOF ||
+            !shell_append_quoted(&command, opts->assembler_args[i]))
+            goto oom;
+    }
+    if (kputs(" -o ", &command) == EOF ||
+        !shell_append_quoted(&command, output_path) ||
+        kputc(' ', &command) == EOF ||
+        !shell_append_quoted(&command, input_path) ||
+        kputc('\0', &command) == EOF)
+        goto oom;
+    status = system(command.s);
+    free(command.s);
+    return status >= 0 && WIFEXITED(status) && WEXITSTATUS(status) == 0;
+oom:
+    free(command.s);
+    return 0;
+}
+
+static cephyr_result link_object(const cephyr_options *opts,
+                                const char *object_path)
+{
+    const char *inputs[1] = { object_path };
+    ccwld_link_options link_options;
+    ccwld_error error;
+    const char *output_path = opts->output_path;
+    const char *kind = opts->shared ? "dso" : opts->pie ? "pie" : "exe";
+    memset(&link_options, 0, sizeof(link_options));
+    memset(&error, 0, sizeof(error));
+    if (output_path == NULL || strcmp(output_path, "-") == 0)
+        output_path = "a.out";
+    link_options.kind = kind;
+    link_options.format = "elf";
+    link_options.entry = "_main";
+    link_options.search_paths = opts->library_paths;
+    link_options.search_path_count = (size_t)opts->library_path_count;
+    if (!ccwld_link_files(opts->target_triple, output_path, inputs, 1,
+                          &link_options, &error)) {
+        fprintf(stderr, "cephyr: linker error: %s\n",
+                error.message[0] ? error.message : "unknown error");
+        return CEPHYR_ERR_LINK;
+    }
+    return CEPHYR_SUCCESS;
+}
+
 static cephyr_result write_stage_text(const char *path, const char *text)
 {
     FILE *out;
@@ -468,6 +595,120 @@ static ccw_arch_t cephyr_ccwas_arch(const char *arch)
     if (strcmp(arch, "aarch64") == 0) return CCW_ARCH_AARCH64;
     if (strcmp(arch, "riscv64") == 0) return CCW_ARCH_RISCV64;
     return CCW_ARCH_WASM32;
+}
+
+static cephyr_result compile_assembly_source(const cephyr_options *opts)
+{
+    char *source = NULL;
+    char *preprocessed = NULL;
+    char *error_message = NULL;
+    char input_template[] = "/tmp/cephyr-asm-input-XXXXXX";
+    char object_template[] = "/tmp/cephyr-asm-object-XXXXXX";
+    const char *assembly_text;
+    char *input_path = NULL;
+    char *object_path = NULL;
+    int fd = -1;
+    cephyr_result result = CEPHYR_SUCCESS;
+
+    source = read_file(opts->source_path, NULL);
+    if (source == NULL) {
+        fprintf(stderr, "cephyr: error: cannot read assembly file '%s'\n",
+                opts->source_path);
+        return CEPHYR_ERR_INTERNAL;
+    }
+    assembly_text = source;
+
+    if (is_preprocessed_assembly_source(opts->source_path)) {
+        const char *cpp_command = opts->cpp_command;
+        if (cpp_command == NULL || *cpp_command == '\0')
+            cpp_command = "cpp -E -P";
+        if (cpp_command != NULL) {
+            preprocessed = cephyr_cpp_external_with_options(
+                opts->source_path, cpp_command,
+                opts->preprocessor_options, opts->preprocessor_option_count,
+                opts->preprocessor_args, opts->preprocessor_arg_count,
+                &error_message);
+            if (preprocessed == NULL) {
+                fprintf(stderr, "cephyr: preprocessor error: %s\n",
+                        error_message ? error_message : "unknown error");
+                free(error_message);
+                free(source);
+                return CEPHYR_ERR_PREPROCESSOR;
+            }
+        } else {
+            cephyr_cpp_result cpp = cephyr_cpp_preprocess_with_options(
+                source, strlen(source), opts->source_path,
+                opts->include_paths, opts->include_path_count,
+                opts->defines, opts->define_count,
+                opts->preprocessor_options, opts->preprocessor_option_count,
+                opts->preprocessor_args, opts->preprocessor_arg_count);
+            if (cpp.error_message != NULL) {
+                fprintf(stderr, "cephyr: preprocessor error: %s\n",
+                        cpp.error_message);
+                cephyr_cpp_result_free(&cpp);
+                free(source);
+                return CEPHYR_ERR_PREPROCESSOR;
+            }
+            preprocessed = cpp.text;
+            cpp.text = NULL;
+            cephyr_cpp_result_free(&cpp);
+        }
+        assembly_text = preprocessed;
+    }
+
+    if (opts->stop_stage == CEPHYR_STOP_PREPROCESS)
+        result = write_stage_text(opts->output_path, assembly_text);
+    else if (opts->stop_stage == CEPHYR_STOP_ASSEMBLER_SCRIPT)
+        result = write_stage_text(opts->output_path, assembly_text);
+    else {
+        if (opts->stop_stage == CEPHYR_STOP_LINK &&
+            opts->output_path != NULL && strcmp(opts->output_path, "-") != 0)
+            object_path = cephyr_driver_strdup(opts->output_path);
+        else {
+            fd = mkstemp(object_template);
+            if (fd >= 0) close(fd);
+            object_path = fd >= 0 ? cephyr_driver_strdup(object_template) : NULL;
+        }
+        fd = mkstemp(input_template);
+        if (fd >= 0) close(fd);
+        input_path = fd >= 0 ? cephyr_driver_strdup(input_template) : NULL;
+        if (object_path == NULL || input_path == NULL ||
+            write_stage_text(input_path, assembly_text) != CEPHYR_SUCCESS) {
+            result = CEPHYR_ERR_ASSEMBLE;
+        } else if (opts->assembler_external) {
+            if (!run_external_assembler(opts, input_path, object_path)) {
+                fprintf(stderr, "cephyr: assembler error invoking '%s'\n",
+                        opts->assembler ? opts->assembler : "(null)");
+                result = CEPHYR_ERR_ASSEMBLE;
+            }
+        } else {
+            ccwas_options aopts = {
+                cephyr_ccwas_arch(cephyr_target_arch(opts->target_triple)),
+                "intel", CCW_FMT_ELF, NULL, 0, 0, 0, 0
+            };
+            if (!ccwas_assemble_file(input_path, &aopts, object_path,
+                                     &error_message)) {
+                fprintf(stderr, "cephyr: assembler error: %s\n",
+                        error_message ? error_message : "unknown error");
+                ccwas_free_error(error_message);
+                result = CEPHYR_ERR_ASSEMBLE;
+            }
+        }
+        if (result == CEPHYR_SUCCESS &&
+            opts->stop_stage == CEPHYR_STOP_NONE)
+            result = link_object(opts, object_path);
+        if (!opts->keep_temp && input_path != NULL) unlink(input_path);
+        if (!opts->keep_temp &&
+            (opts->stop_stage != CEPHYR_STOP_LINK ||
+             opts->output_path == NULL) &&
+            object_path != NULL)
+            unlink(object_path);
+    }
+    free(input_path);
+    free(object_path);
+    free(preprocessed);
+    free(source);
+    return result;
 }
 
 /* ---------- Sched plan execution ---------- */
@@ -566,6 +807,9 @@ static cephyr_result cephyr_compile_inner(const cephyr_options *opts)
                 opts->target_triple ? opts->target_triple : "");
         return CEPHYR_ERR_INTERNAL;
     }
+
+    if (is_assembly_source(opts->source_path))
+        return compile_assembly_source(opts);
 
     /* Step 1: Read source file */
     source_text = read_file(opts->source_path, &source_len);
@@ -818,17 +1062,31 @@ cephyr_result cephyr_compile(const cephyr_options *opts)
     if (!opts->target_explicit && profile.target_triple != NULL)
         effective.target_triple = profile.target_triple;
     if (!opts->cpp_explicit) {
-        if (profile.preprocessor != NULL &&
+        const char *environment_cpp = getenv("CEPHYR_CPP");
+        if (environment_cpp != NULL && *environment_cpp != '\0')
+            effective.cpp_command = environment_cpp;
+        else if (profile.preprocessor != NULL &&
             strcmp(profile.preprocessor, "ucpp") != 0 &&
             profile.preprocessor[0] != '\0')
             effective.cpp_command = profile.preprocessor;
         else
             effective.cpp_command = NULL;
     }
-    if (getenv("CEPHYR_AS") != NULL && *getenv("CEPHYR_AS") != '\0')
+    if (opts->assembler != NULL)
+    {
+        effective.assembler = opts->assembler;
+        effective.assembler_external = true;
+    }
+    else if (getenv("CEPHYR_AS") != NULL && *getenv("CEPHYR_AS") != '\0')
+    {
         effective.assembler = getenv("CEPHYR_AS");
+        effective.assembler_external = true;
+    }
     else if (opts->assembler == NULL && profile.assembler != NULL)
+    {
         effective.assembler = profile.assembler;
+        effective.assembler_external = true;
+    }
     if (getenv("CEPHYR_LD") != NULL && *getenv("CEPHYR_LD") != '\0')
         effective.linker = getenv("CEPHYR_LD");
     else if (opts->linker == NULL && profile.linker != NULL)

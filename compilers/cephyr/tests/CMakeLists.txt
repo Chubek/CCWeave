@@ -51,3 +51,9 @@ add_test(NAME test_cephyr_cli
           $<TARGET_FILE:cephyr>)
 set_tests_properties(test_cephyr_cli PROPERTIES
   WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+
+add_test(NAME test_cephyr_assembly
+  COMMAND sh ${CMAKE_CURRENT_SOURCE_DIR}/test_cephyr_assembly.sh
+          $<TARGET_FILE:cephyr> $<TARGET_FILE:ccwas>)
+set_tests_properties(test_cephyr_assembly PROPERTIES
+  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
