@@ -305,3 +305,41 @@ emits deterministic target assembly stubs from validated Tilly IR. The
 adapter gate vector, OOP stereotype version, and manifest provenance are
 recorded in a `.note.ccw` assembly section. Full target instruction selection
 and link orchestration remain delegated to the existing CCWeave toolchain.
+
+# 2026-08-19 — stdlib-salvo/libc and Cephyr stdlib manifests
+
+stdlib-salvo/libc (`salvoc`) is a freestanding Linux LP64 libc
+(x86-64/aarch64/riscv64) accompanying Cephyr: own headers, syscall layer
+via per-arch inline asm, crt0 + `__libc_start_main`, and a core subset
+(string, ctype, errno, stdlib, unbuffered stdio with integer-only
+formatting, unistd, time, assert). Interpretations recorded while the
+spec is silent:
+
+- **Stdlib manifest schema (version 1)** lives in
+  `stdlib-salvo/libc/Libc.yaml`: `include_dirs`, `library_paths`,
+  `libraries`, `start_files`, plus optional `targets` sequences merged
+  after the global lists on an exact triple match. It is hand-authored
+  configuration (like `CEPHYR.yaml`), not a generated `manifests/`
+  artifact. Entries resolve relative to the manifest file; absolute
+  entries pass through; `libraries` entries are `-l` names, not paths.
+- **Discovery**: Cephyr loads the manifest from the new
+  `cephyr_options.stdlib_manifest` field, else `$CEPHYR_STDLIB_MANIFEST`,
+  else discovers `stdlib-salvo/libc/Libc.yaml` (then `../stdlib-salvo/...`)
+  relative to the working directory — mirroring the Sched-script
+  search convention. Explicit manifests are authoritative (load failure
+  is a compile error); the in-tree default is advisory (absence or
+  malformation compiles without stdlib wiring).
+- **Merge order**: stdlib include dirs come after profile/CLI `-I`
+  paths (user paths win); stdlib `library_paths`/`libraries` come after
+  profile/CLI ones (libc links last). `start_files` is a new retained
+  driver channel, like `-L`/`-l`, pending link orchestration — Cephyr
+  deliberately still stops before linking, so today the manifest's
+  operative effect is the preprocessor include path.
+- **Build boundary**: salvo-libc is compiled by the host toolchain
+  (`-ffreestanding -nostdinc`); Cephyr's Swaff C adapter does not yet
+  accept the inline-asm syscall layer. The build configures a second
+  manifest in the build tree with an absolute include path so
+  `CEPHYR_STDLIB_MANIFEST=<build>/stdlib-salvo/libc/Libc.yaml` consumes
+  the freshly built archive. errno and the allocator are
+  single-threaded; stdio is unbuffered; `%f`/`%e`/`%g` await a
+  salvo-libm.

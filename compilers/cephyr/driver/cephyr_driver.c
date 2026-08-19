@@ -22,6 +22,7 @@
 #include "../include/cephyr-module.h"
 #include "../stdmodule/cephyr_stdmodule.h"
 #include "../profile/cephyr_profile.h"
+#include "../stdlib/cephyr_stdlib.h"
 
 #include "../../../swaff/ccw_swaff.h"
 #include "../../../ir/ccw_ir.h"
@@ -254,6 +255,27 @@ static int merge_string_lists(const char *const *first, size_t first_count,
     *out = merged.a;
     *out_count = (int)total;
     return 1;
+}
+
+/* Three-source merge (profile + CLI + stdlib manifest). The stdlib lists
+ * always come last: user -I paths win over system includes, and the
+ * standard library archives link after user libraries. */
+static int merge_string_lists3(const char *const *first, size_t first_count,
+                               const char *const *second, size_t second_count,
+                               const char *const *third, size_t third_count,
+                               const char ***out, int *out_count)
+{
+    const char **head = NULL;
+    int head_count = 0;
+    int ok;
+
+    ok = merge_string_lists(first, first_count, second, second_count,
+                            &head, &head_count);
+    if (!ok) return 0;
+    ok = merge_string_lists((const char *const *)head, (size_t)head_count,
+                            third, third_count, out, out_count);
+    free(head);
+    return ok;
 }
 
 static int write_explicit_sched_script(const cephyr_profile *profile,
@@ -707,6 +729,7 @@ cephyr_result cephyr_compile(const cephyr_options *opts)
 {
     cephyr_profile profile;
     cephyr_options effective;
+    cephyr_stdlib stdlib;
     char profile_error_message[512] = {0};
     char *profile_path = NULL;
     char *resolved_manifest = NULL;
@@ -714,6 +737,9 @@ cephyr_result cephyr_compile(const cephyr_options *opts)
     char *generated_sched = NULL;
     char *discovered_assembler = NULL;
     char *discovered_linker = NULL;
+    char *stdlib_manifest = NULL;
+    int stdlib_explicit = 0;
+    int stdlib_loaded = 0;
     const char **include_paths = NULL;
     const char **defines = NULL;
     const char **preprocessor_options = NULL;
@@ -741,6 +767,7 @@ cephyr_result cephyr_compile(const cephyr_options *opts)
         return CEPHYR_ERR_INTERNAL;
     }
     memset(&profile, 0, sizeof(profile));
+    cephyr_stdlib_init(&stdlib);
     if (opts->profile_path != NULL) {
         profile_path = cephyr_driver_strdup(opts->profile_path);
         if (profile_path == NULL ||
@@ -844,20 +871,54 @@ cephyr_result cephyr_compile(const cephyr_options *opts)
         effective.manifest_dir = resolved_manifest;
     }
 
+    /* Stdlib wiring: an explicit manifest (API field or
+     * $CEPHYR_STDLIB_MANIFEST) must load; the in-tree Salvo default is
+     * advisory so external build trees without stdlib-salvo still work. */
+    if (opts->stdlib_manifest != NULL) {
+        stdlib_manifest = cephyr_driver_strdup(opts->stdlib_manifest);
+        stdlib_explicit = 1;
+        if (stdlib_manifest == NULL) goto oom;
+    } else {
+        stdlib_manifest = cephyr_stdlib_discover_manifest(&stdlib_explicit);
+    }
+    if (stdlib_manifest != NULL) {
+        char stdlib_error[256] = {0};
+        if (cephyr_stdlib_load(stdlib_manifest, effective.target_triple,
+                               &stdlib, stdlib_error,
+                               sizeof(stdlib_error))) {
+            stdlib_loaded = 1;
+        } else if (stdlib_explicit) {
+            fprintf(stderr, "cephyr: stdlib manifest error: %s\n",
+                    stdlib_error[0] ? stdlib_error :
+                    "cannot load stdlib manifest");
+            result = CEPHYR_ERR_INTERNAL;
+            goto cleanup;
+        }
+    }
+
     include_count = profile.include_path_count +
                     (size_t)(opts->include_path_count > 0 ?
-                             opts->include_path_count : 0);
+                             opts->include_path_count : 0) +
+                    (stdlib_loaded ? stdlib.include_dir_count : 0);
     define_count = profile.define_count +
                    (size_t)(opts->define_count > 0 ? opts->define_count : 0);
     if (include_count != 0) {
+        size_t user_include_count = (size_t)(opts->include_path_count > 0 ?
+                                             opts->include_path_count : 0);
         include_paths = (const char **)malloc(include_count *
                                                sizeof(*include_paths));
         if (include_paths == NULL) goto oom;
         for (size_t i = 0; i < profile.include_path_count; ++i)
             include_paths[i] = profile.include_paths[i];
-        for (size_t i = 0; i < (size_t)opts->include_path_count; ++i)
+        for (size_t i = 0; i < user_include_count; ++i)
             include_paths[profile.include_path_count + i] =
                 opts->include_paths[i];
+        /* Stdlib headers come last so user -I paths take precedence. */
+        if (stdlib_loaded)
+            for (size_t i = 0; i < stdlib.include_dir_count; ++i)
+                include_paths[profile.include_path_count +
+                              user_include_count + i] =
+                    stdlib.include_dirs[i];
         effective.include_paths = include_paths;
         effective.include_path_count = (int)include_count;
     }
@@ -908,18 +969,26 @@ cephyr_result cephyr_compile(const cephyr_options *opts)
                             (size_t)(opts->linker_arg_count > 0 ?
                                      opts->linker_arg_count : 0),
                             &linker_args, &linker_arg_count) ||
-        !merge_string_lists((const char *const *)profile.library_paths,
-                            profile.library_path_count,
-                            opts->library_paths,
-                            (size_t)(opts->library_path_count > 0 ?
-                                     opts->library_path_count : 0),
-                            &library_paths, &library_path_count) ||
-        !merge_string_lists((const char *const *)profile.libraries,
-                            profile.library_count,
-                            opts->libraries,
-                            (size_t)(opts->library_count > 0 ?
-                                     opts->library_count : 0),
-                            &libraries, &library_count)) {
+        !merge_string_lists3((const char *const *)profile.library_paths,
+                             profile.library_path_count,
+                             opts->library_paths,
+                             (size_t)(opts->library_path_count > 0 ?
+                                      opts->library_path_count : 0),
+                             stdlib_loaded ?
+                                 (const char *const *)stdlib.library_paths :
+                                 NULL,
+                             stdlib_loaded ? stdlib.library_path_count : 0,
+                             &library_paths, &library_path_count) ||
+        !merge_string_lists3((const char *const *)profile.libraries,
+                             profile.library_count,
+                             opts->libraries,
+                             (size_t)(opts->library_count > 0 ?
+                                      opts->library_count : 0),
+                             stdlib_loaded ?
+                                 (const char *const *)stdlib.libraries :
+                                 NULL,
+                             stdlib_loaded ? stdlib.library_count : 0,
+                             &libraries, &library_count)) {
         goto oom;
     }
     effective.preprocessor_options = preprocessor_options;
@@ -938,6 +1007,12 @@ cephyr_result cephyr_compile(const cephyr_options *opts)
     effective.library_path_count = library_path_count;
     effective.libraries = libraries;
     effective.library_count = library_count;
+    if (stdlib_loaded) {
+        /* Retained on the driver configuration until link orchestration
+         * lands, like the -L/-l channels before it. */
+        effective.start_files = (const char *const *)stdlib.start_files;
+        effective.start_file_count = (int)stdlib.start_file_count;
+    }
 
     if (opts->sched_script != NULL) {
         effective.sched_script = opts->sched_script;
@@ -980,6 +1055,8 @@ cleanup:
     free(linker_args);
     free(library_paths);
     free(libraries);
+    free(stdlib_manifest);
+    cephyr_stdlib_destroy(&stdlib);
     cephyr_profile_destroy(&profile);
     free(profile_path);
     return result;

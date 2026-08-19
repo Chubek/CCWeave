@@ -252,6 +252,8 @@ add_subdirectory(docs)
 add_subdirectory(tools/ccw-manifest)
 
 enable_testing()
+# stage 10: standard libraries for the supported compilers/interpreters
+add_subdirectory(stdlib-salvo)
 add_subdirectory(tests)
 add_subdirectory(compilers/cephyr/tests)
 add_subdirectory(compilers/delphia/tests)

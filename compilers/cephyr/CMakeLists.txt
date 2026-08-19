@@ -73,12 +73,21 @@ add_library(cephyr_stdmodule STATIC stdmodule/cephyr_stdmodule.c)
 target_include_directories(cephyr_stdmodule PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include
   ${CMAKE_CURRENT_SOURCE_DIR}/stdmodule)
 
+# --- stdlib manifest (stdlib-salvo wiring) ---
+add_library(cephyr_stdlib STATIC stdlib/cephyr_stdlib.c)
+target_include_directories(cephyr_stdlib PUBLIC
+  ${CMAKE_CURRENT_SOURCE_DIR}/stdlib
+  ${CMAKE_SOURCE_DIR}/third_party/libcyaml/include
+  ${CMAKE_SOURCE_DIR}/third_party/klib)
+target_link_libraries(cephyr_stdlib PUBLIC cephyr_cyaml ccw_klib)
+
 # --- driver ---
 add_library(cephyr_driver STATIC driver/cephyr_driver.c)
 target_include_directories(cephyr_driver PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/driver
   ${CMAKE_CURRENT_SOURCE_DIR}/cpp ${CMAKE_CURRENT_SOURCE_DIR}/sema
   ${CMAKE_CURRENT_SOURCE_DIR}/lower ${CMAKE_CURRENT_SOURCE_DIR}/include
   ${CMAKE_CURRENT_SOURCE_DIR}/stdmodule
+  ${CMAKE_CURRENT_SOURCE_DIR}/stdlib
   ${CMAKE_CURRENT_SOURCE_DIR}/profile
   ${CMAKE_SOURCE_DIR}/swaff ${CMAKE_SOURCE_DIR}/ir ${CMAKE_SOURCE_DIR}/sched)
 target_include_directories(cephyr_driver PUBLIC
@@ -87,8 +96,8 @@ target_include_directories(cephyr_driver PRIVATE
   ${CMAKE_SOURCE_DIR}/toolchain/ccwas
   ${CMAKE_SOURCE_DIR}/toolchain/ccwld)
 target_link_libraries(cephyr_driver PUBLIC cephyr_cpp cephyr_sema cephyr_lower
-  cephyr_stdmodule cephyr_profile ccw_ir ccw_swaff ccw_sched ccw_klib
-  ccwas_api ccwld)
+  cephyr_stdmodule cephyr_stdlib cephyr_profile ccw_ir ccw_swaff ccw_sched
+  ccw_klib ccwas_api ccwld)
 add_dependencies(cephyr_driver ccwas)
 target_compile_definitions(cephyr_driver PRIVATE
   CEPHYR_DEFAULT_ASSEMBLER_PATH="$<TARGET_FILE:ccwas>"

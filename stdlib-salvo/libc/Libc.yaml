@@ -1,0 +1,38 @@
+# Salvo libc — stdlib manifest for Cephyr (schema version 1).
+#
+# Hand-authored configuration (like CEPHYR.yaml), NOT a generated
+# artifact of manifests/. Cephyr loads this file when
+# CEPHYR_STDLIB_MANIFEST is unset and it is discoverable from the
+# working directory. Paths are relative to this file's directory.
+#
+# include_dirs  — prepended to the preprocessor's system include search
+# library_paths — handed to the linker as -L paths
+# libraries     — handed to the linker as -l names (resolved against
+#                 library_paths), linked after user libraries
+# start_files   — object files linked before all other inputs (crt0)
+# targets       — optional per-triple sequences, merged after the global
+#                 lists when the compile target matches `triple` exactly
+version: 1
+name: salvo-libc
+description: CCWeave Salvo C standard library for Cephyr (Linux, LP64)
+
+include_dirs:
+  - include
+
+library_paths:
+  - lib
+
+libraries:
+  - salvoc
+
+start_files:
+  - lib/crt0.o
+
+targets:
+  - triple: x86_64-linux-gnu
+  - triple: x86_64-unknown-linux-gnu
+  - triple: x86_64-pc-linux-gnu
+  - triple: aarch64-linux-gnu
+  - triple: aarch64-unknown-linux-gnu
+  - triple: riscv64-linux-gnu
+  - triple: riscv64-unknown-linux-gnu

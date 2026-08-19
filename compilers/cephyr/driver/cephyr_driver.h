@@ -58,6 +58,8 @@ typedef struct {
     int                library_path_count;
     const char *const *libraries;         /* -l names */
     int                library_count;
+    const char *const *start_files;       /* crt start files, linked first */
+    int                start_file_count;
     bool               pic;
     bool               pie;
     bool               shared;
@@ -71,6 +73,9 @@ typedef struct {
     const char        *sched_script;      /* custom Sched script (NULL = use O{N}.lua) */
     const char        *profile_path;      /* CEPHYR.yaml/.toml override */
     const char        *manifest_dir;      /* manifest directory */
+    const char        *stdlib_manifest;   /* stdlib manifest (NULL = discover
+                                           * via $CEPHYR_STDLIB_MANIFEST or
+                                           * stdlib-salvo/libc/Libc.yaml) */
     bool               opt_level_explicit;
     bool               target_explicit;
     bool               cpp_explicit;

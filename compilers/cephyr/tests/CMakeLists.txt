@@ -23,6 +23,13 @@ target_link_libraries(test_cephyr_lower PRIVATE cephyr_lower ccw_kliche)
 cephyr_add_test(test_cephyr_stdmodule test_cephyr_stdmodule.c)
 target_link_libraries(test_cephyr_stdmodule PRIVATE cephyr_stdmodule)
 
+cephyr_add_test(test_cephyr_stdlib test_cephyr_stdlib.c)
+target_include_directories(test_cephyr_stdlib PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/../stdlib)
+target_link_libraries(test_cephyr_stdlib PRIVATE cephyr_stdlib)
+target_compile_definitions(test_cephyr_stdlib PRIVATE
+  CEPHYR_STDLIB_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
+
 cephyr_add_test(test_cephyr_sched test_cephyr_sched.c)
 target_link_libraries(test_cephyr_sched PRIVATE ccw_sched)
 target_compile_definitions(test_cephyr_sched PRIVATE

@@ -1,0 +1,21 @@
+version: 1
+name: fixture-libc
+description: stdlib manifest fixture for cephyr_stdlib tests
+include_dirs:
+  - include
+  - /absolute/include
+library_paths:
+  - lib
+libraries:
+  - salvoc
+start_files:
+  - lib/crt0.o
+targets:
+  - triple: x86_64-linux-gnu
+    include_dirs:
+      - arch/x86_64/include
+    start_files:
+      - arch/x86_64/crt0.o
+  - triple: riscv64-linux-gnu
+    libraries:
+      - salvoc-riscv

@@ -94,6 +94,10 @@ static void print_help(const char *prog)
     printf("  --lstriples     List supported target triples and exit\n");
     printf("  --cpp <cmd>    Use external preprocessor\n");
     printf("  --profile <p>  Load CEPHYR.yaml/toml profile\n");
+    printf("Environment:\n");
+    printf("  CEPHYR_AS, CEPHYR_LD      Override assembler/linker discovery\n");
+    printf("  CEPHYR_STDLIB_MANIFEST    Stdlib manifest (default: in-tree\n");
+    printf("                            stdlib-salvo/libc/Libc.yaml)\n");
     printf("  profile init [--yaml|--toml]\n");
     printf("  run <command>  Run a named profile command\n");
     printf("  --help         Show this help\n");
