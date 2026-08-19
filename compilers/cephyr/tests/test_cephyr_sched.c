@@ -79,6 +79,12 @@ static void check_pipeline(const char *script, const char *label)
         unsigned dependence = 0;
         unsigned schedule = 0;
         unsigned tiling = 0;
+        unsigned vec_width = 0;
+        unsigned loops = 0;
+        unsigned vec_legality = 0;
+        unsigned vec_plan = 0;
+        unsigned vec_reduce = 0;
+        unsigned vec_lower = 0;
         char *node_copy = copy_string(plan);
         for (char *line = strtok(node_copy, "\n"); line;
              line = strtok(NULL, "\n")) {
@@ -91,6 +97,12 @@ static void check_pipeline(const char *script, const char *label)
             else if (strcmp(name, "dep-poly") == 0) dependence = id;
             else if (strcmp(name, "isl-schedule") == 0) schedule = id;
             else if (strcmp(name, "tile-plan") == 0) tiling = id;
+            else if (strcmp(name, "vec-width") == 0) vec_width = id;
+            else if (strcmp(name, "loop-detect") == 0) loops = id;
+            else if (strcmp(name, "vec-legality") == 0) vec_legality = id;
+            else if (strcmp(name, "loop-vectorize") == 0) vec_plan = id;
+            else if (strcmp(name, "vec-reduce") == 0) vec_reduce = id;
+            else if (strcmp(name, "vec-lower-simde") == 0) vec_lower = id;
         }
         free(node_copy);
         CCW_CHECK(strstr(plan, "affine-extract analysis.affine") != NULL,
@@ -107,6 +119,14 @@ static void check_pipeline(const char *script, const char *label)
                       has_edge(plan, dependence, schedule) &&
                       has_edge(plan, schedule, tiling),
                   "%s must preserve the ISL producer/consumer chain", label);
+        CCW_CHECK(vec_width != 0 && loops != 0 && vec_legality != 0 &&
+                      vec_plan != 0 && vec_reduce != 0 && vec_lower != 0 &&
+                      has_edge(plan, loops, vec_legality) &&
+                      has_edge(plan, vec_legality, vec_plan) &&
+                      has_edge(plan, vec_plan, vec_reduce) &&
+                      has_edge(plan, vec_reduce, vec_lower) &&
+                      has_edge(plan, vec_lower, barrier),
+                  "%s must include the SIMD producer/consumer chain", label);
     }
 
     char plan_path[256];

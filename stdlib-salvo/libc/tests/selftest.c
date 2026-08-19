@@ -11,6 +11,8 @@
 #include <stdio.h>
 #include <errno.h>
 #include <limits.h>
+#include <immintrin.h>
+#include <arm_neon.h>
 
 static int int_cmp(const void *a, const void *b)
 {
@@ -112,6 +114,19 @@ int main(void)
         if (devnull == NULL) return 30;
         if (fprintf(devnull, "discard %d\n", 1) < 0) return 31;
         if (fclose(devnull) != 0) return 32;
+    }
+
+    /* portable SIMD intrinsic surface */
+    {
+        float a[4] = { 1, 2, 3, 4 }, b[4] = { 5, 6, 7, 8 }, out[4];
+        __m128 x = _mm_add_ps(_mm_loadu_ps(a), _mm_loadu_ps(b));
+        _mm_storeu_ps(out, x);
+        if (out[0] != 6.0f || out[3] != 12.0f) return 33;
+        {
+            float32x4_t n = vaddq_f32(vld1q_f32(a), vdupq_n_f32(1.0f));
+            vst1q_f32(out, n);
+            if (out[0] != 2.0f || out[3] != 5.0f) return 34;
+        }
     }
 
     return 0;

@@ -417,6 +417,13 @@ kernels:
     description: Publishes conservative factor-two candidates for self-loop blocks.
     capabilities:
       - opt.loop-unroll
+  - path: kernels/loop-vectorize.scm
+    library: (ccweave kernel loop-vectorize)
+    name: loop-vectorize
+    version: 0.1.0
+    description: Applies conservative width-explicit vector operations to legal loops.
+    capabilities:
+      - opt.loop-vectorize
   - path: kernels/mem2reg.scm
     library: (ccweave kernel mem2reg)
     name: mem2reg
@@ -704,3 +711,31 @@ kernels:
     description: Lowers generic va-list operations to explicit varargs runtime operations.
     capabilities:
       - lower.varargs
+  - path: kernels/vec-legality.scm
+    library: (ccweave kernel vec-legality)
+    name: vec-legality
+    version: 0.1.0
+    description: Publishes conservative legality facts for self-evident single-block loops.
+    capabilities:
+      - analysis.vectorizable
+  - path: kernels/vec-lower-simde.scm
+    library: (ccweave kernel vec-lower-simde)
+    name: vec-lower-simde
+    version: 0.1.0
+    description: Lowers width-explicit vector IR operations through the SIMDe Glue surface.
+    capabilities:
+      - lower.vector-simde
+  - path: kernels/vec-reduce.scm
+    library: (ccweave kernel vec-reduce)
+    name: vec-reduce
+    version: 0.1.0
+    description: Marks ordered vector reductions and their scalar-tail policy.
+    capabilities:
+      - opt.vector-reduction
+  - path: kernels/vec-width.scm
+    library: (ccweave kernel vec-width)
+    name: vec-width
+    version: 0.1.0
+    description: Publishes deterministic target-keyed vector widths and lane counts.
+    capabilities:
+      - analysis.vector-width

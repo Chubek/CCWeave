@@ -46,8 +46,41 @@ typedef enum {
     CCW_ERR_ARITY         = -7,  /* accessor called with wrong arg count   */
     CCW_ERR_OOM           = -8,
     CCW_E_ISL_NONAFFINE   = -9,  /* region cannot be represented affinely */
-    CCW_E_ISL_QUOTA       = -10  /* deterministic ISL operation quota    */
+    CCW_E_ISL_QUOTA       = -10, /* deterministic ISL operation quota    */
+    CCW_E_VEC_ILLEGAL      = -11 /* vector op reached lowering without map */
 } ccw_status;
+
+/* ---------- portable SIMD value surface (SIMDe-backed) ----------
+ *
+ * These are fixed-width value types, deliberately separate from ccw_val.
+ * They never cross the Scheme boundary.  The implementation stores the
+ * corresponding SIMDe native/emulated value in the byte representation.
+ */
+typedef struct { unsigned char bytes[16]; } ccw_v128;
+typedef struct { unsigned char bytes[32]; } ccw_v256;
+
+ccw_v128 ccw_simde_load(const void *p);
+ccw_v128 ccw_simde_loadu(const void *p);
+void     ccw_simde_store(void *p, ccw_v128 v);
+void     ccw_simde_storeu(void *p, ccw_v128 v);
+ccw_v256 ccw_simde_load256(const void *p);
+ccw_v256 ccw_simde_loadu256(const void *p);
+void     ccw_simde_store256(void *p, ccw_v256 v);
+void     ccw_simde_storeu256(void *p, ccw_v256 v);
+
+ccw_v128 ccw_simde_add_i32x4(ccw_v128 a, ccw_v128 b);
+ccw_v128 ccw_simde_sub_i32x4(ccw_v128 a, ccw_v128 b);
+ccw_v128 ccw_simde_mul_i32x4(ccw_v128 a, ccw_v128 b);
+ccw_v128 ccw_simde_add_f32x4(ccw_v128 a, ccw_v128 b);
+ccw_v128 ccw_simde_sub_f32x4(ccw_v128 a, ccw_v128 b);
+ccw_v128 ccw_simde_mul_f32x4(ccw_v128 a, ccw_v128 b);
+ccw_v128 ccw_simde_div_f32x4(ccw_v128 a, ccw_v128 b);
+ccw_v256 ccw_simde_add_f32x8(ccw_v256 a, ccw_v256 b);
+ccw_v256 ccw_simde_mul_f32x8(ccw_v256 a, ccw_v256 b);
+ccw_v128 ccw_simde_shuffle(ccw_v128 a, const int indices[4]);
+ccw_v128 ccw_simde_select(ccw_v128 mask, ccw_v128 a, ccw_v128 b);
+float    ccw_simde_hreduce_add_f32x4(ccw_v128 a);
+double   ccw_simde_hreduce_add_f64x2(ccw_v128 a);
 
 /* ---------- boundary values ----------
  *

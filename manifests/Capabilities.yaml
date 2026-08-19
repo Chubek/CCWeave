@@ -39,6 +39,10 @@ capabilities:
     - kernels/reaching-defs.scm
   analysis.trip-count:
     - kernels/trip-count.scm
+  analysis.vector-width:
+    - kernels/vec-width.scm
+  analysis.vectorizable:
+    - kernels/vec-legality.scm
   codegen.aarch64:
     - kernels/codegen-aarch64.scm
   codegen.isel-legalize:
@@ -100,6 +104,8 @@ capabilities:
     - kernels/switch-lower.scm
   lower.varargs:
     - kernels/varargs-lower.scm
+  lower.vector-simde:
+    - kernels/vec-lower-simde.scm
   normalize.anf:
     - kernels/anf-normalize.scm
   normalize.cfg:
@@ -153,6 +159,8 @@ capabilities:
     - kernels/loop-fusion.scm
   opt.loop-unroll:
     - kernels/loop-unroll.scm
+  opt.loop-vectorize:
+    - kernels/loop-vectorize.scm
   opt.mem2reg:
     - kernels/mem2reg.scm
   opt.null-check-elim:
@@ -182,6 +190,8 @@ capabilities:
     - kernels/tile-plan.scm
   opt.unreachable-elim:
     - kernels/unreachable-elim.scm
+  opt.vector-reduction:
+    - kernels/vec-reduce.scm
   sanitize.ubsan:
     - kernels/ubsan-checks.scm
   transform.ssa-construct:

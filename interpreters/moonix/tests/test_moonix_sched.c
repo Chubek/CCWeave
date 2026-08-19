@@ -17,7 +17,7 @@ static void check_plan(const char *name)
     const char *expected_hash =
         strcmp(name, "T1") == 0
             ? "a967076f76b9148412e9f5068088e4ce65fb848ccd0709dddf2521cd5ab3503d"
-            : "edf26d12ec435997e160f0a252fecc3e90832588127c95ca0b6426cdfe01b435";
+            : "804695292da328a7e1a7afdd89a9761b5e5c9d3c5d1e335804e6f3c362a1f895";
     char path[512];
     ccw_sched_error error = {0};
     ccw_plan *first = NULL;
@@ -28,6 +28,7 @@ static void check_plan(const char *name)
     unsigned vm[32], backend[16];
     size_t vm_count = 0, backend_count = 0;
     int has_ic = 0, has_gc = 0, has_safepoint = 0;
+    int has_simd = 0;
 
     snprintf(path, sizeof(path), "%s/%s.lua", MOONIX_SCHED_DIR, name);
     CCW_CHECK(ccw_sched_run_script(path, CCW_MANIFEST_DIR, &first, &error),
@@ -58,6 +59,8 @@ static void check_plan(const char *name)
             has_gc |= strstr(rest, "vm.gc-barrier-insertion") != NULL;
             has_safepoint |= strstr(rest, "vm.safepoint-insertion") != NULL;
         }
+        if (kind == 1 && strstr(rest, "vector") != NULL)
+            has_simd = 1;
         if (kind == 1 && strstr(rest, "codegen.x86-64") != NULL)
             backend[backend_count++] = id;
     }
@@ -65,6 +68,8 @@ static void check_plan(const char *name)
     CCW_CHECK(barrier != 0, "%s lacks on1x-complete", name);
     CCW_CHECK(has_ic && has_gc && has_safepoint,
               "%s lacks mandatory VM capabilities", name);
+    if (strcmp(name, "T2") == 0)
+        CCW_CHECK(has_simd, "%s lacks SIMD optimization capabilities", name);
     for (size_t i = 0; i < vm_count; ++i)
         CCW_CHECK(vm[i] < barrier &&
                       has_edge(ccw_plan_text(first), vm[i], barrier),

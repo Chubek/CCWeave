@@ -17,6 +17,7 @@ tells you how to work in this repository. It is not the specification.
 7. `.agents/CCWLD.md` and `.agents/LCCWLD.md` -- the complete, normative specs for `toolchain/ccwld` and `toolchain/ccwld/lccwld`, respectively
 8. `.agents/DELPHIA.md` -- the complete, normative specs for `compilers/dephia`, a Delphi compiler similar to Cephyr's C compiler, but an OOP language
 9. `.agents/SML-PARTHIA.md` -- the complete, normative specs for `interpreters/sml-parthia`, an ahead-of-time/just-in-time compiler and interpreter for SML, using the Swaff frontned for SML
+10. `.agents/SIMDKERN.md` -- the complete, normative specs for SIMD-related kernels and libc intrinsics using `third_party/simd-everywhere`
 
 If this file and the specs conflict, the specs win. If the two specs
 conflict, `GLUESTD_H.md` wins for anything ABI-related. Do not invent

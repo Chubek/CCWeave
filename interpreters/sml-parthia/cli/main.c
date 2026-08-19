@@ -1,4 +1,5 @@
 #include "sml_parthia.h"
+#include "repl.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -49,6 +50,8 @@ int main(int argc, char **argv)
         fprintf(stderr, "usage: sml-parthia [file.sml]\n");
         return 2;
     }
+    if (argc == 1) return sml_parthia_repl();
+
     if (argc == 2) {
         input = fopen(argv[1], "rb");
         if (input == NULL) {

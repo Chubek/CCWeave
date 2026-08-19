@@ -9,6 +9,7 @@
 
 #include "sml_parthia.h"
 #include "kstring.h"
+#include "sched.h"
 
 #include <stdbool.h>
 #include <stdio.h>
@@ -36,6 +37,38 @@ static char *dup_text(const char *text)
 static void set_error(char **error_message, const char *message)
 {
     if (error_message != NULL) *error_message = dup_text(message);
+}
+
+int ccw_sml_parthia_load_plan(const char *level,
+                              const char *manifest_dir,
+                              const char *sched_dir,
+                              ccw_plan **out,
+                              char **error_message)
+{
+    const char *chosen = level != NULL ? level : "O2";
+    const char *root = sched_dir != NULL ? sched_dir :
+                       "interpreters/sml-parthia/sched";
+    char path[1024];
+    ccw_sched_error error = {0};
+
+    if (out != NULL) *out = NULL;
+    if (error_message != NULL) *error_message = NULL;
+    if (strcmp(chosen, "O0") != 0 && strcmp(chosen, "O1") != 0 &&
+        strcmp(chosen, "O2") != 0) {
+        set_error(error_message, "sml/parthia: scheduler level must be O0, O1, or O2");
+        return 0;
+    }
+    if (out == NULL) {
+        set_error(error_message, "sml/parthia: plan output is required");
+        return 0;
+    }
+    snprintf(path, sizeof(path), "%s/%s.lua", root, chosen);
+    if (!ccw_sched_run_script(path, manifest_dir ? manifest_dir : "manifests",
+                              out, &error)) {
+        set_error(error_message, error.message);
+        return 0;
+    }
+    return 1;
 }
 
 static bool append(kstring_t *out, const char *text)

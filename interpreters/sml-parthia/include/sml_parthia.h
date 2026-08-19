@@ -9,6 +9,7 @@
 #define CCW_SML_PARTHIA_H
 
 #include "ccw_swaff_parse.h"
+#include "sched.h"
 
 #include <stddef.h>
 
@@ -34,6 +35,15 @@ ccw_sml_parthia_program *ccw_sml_parthia_compile(
     ccw_sml_parthia_report *report, char **error_message);
 
 void ccw_sml_parthia_program_destroy(ccw_sml_parthia_program *program);
+
+/* Load one of Parthia's sealed AOT scheduler pipelines.  `level` accepts
+ * "O0", "O1", or "O2"; NULL selects O2.  The returned plan is owned by the
+ * caller and must be released with ccw_plan_free(). */
+int ccw_sml_parthia_load_plan(const char *level,
+                              const char *manifest_dir,
+                              const char *sched_dir,
+                              ccw_plan **out,
+                              char **error_message);
 
 /* Stable serialized forms for pipeline hand-off and reproducibility tests.
  * The returned pointers remain owned by `program`. */

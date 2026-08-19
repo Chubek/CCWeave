@@ -34,6 +34,15 @@ local dep_poly       = S:require { capability = "analysis.dependence" }
 local isl_schedule   = S:require { capability = "opt.schedule" }
 local tile_plan      = S:require { capability = "opt.tiling" }
 
+-- SIMD loop tier (SIMDKERN): width facts and conservative legality feed the
+-- vector plan; lowering remains before the core → Tilly barrier.
+local vec_width       = S:require { capability = "analysis.vector-width" }
+local loop_detect     = S:require { capability = "analysis.loops" }
+local vec_legality    = S:require { capability = "analysis.vectorizable" }
+local loop_vectorize  = S:require { capability = "opt.loop-vectorize" }
+local vec_reduce      = S:require { capability = "opt.vector-reduction" }
+local vec_lower       = S:require { capability = "lower.vector-simde" }
+
 -- Oeuph rewriting.
 local arith_rules    = S:rewrite "arith.*"
 local bitwise_rules  = S:rewrite "bitwise.*"
@@ -71,6 +80,13 @@ S:edge(copy_prop, gvn)
 S:edge(gvn, sccp)
 S:edge(sccp, dce)
 S:edge(dce, strength)
+S:edge(strength, vec_width)
+S:edge(strength, loop_detect)
+S:edge(loop_detect, vec_legality)
+S:edge(vec_width, vec_legality)
+S:edge(vec_legality, loop_vectorize)
+S:edge(loop_vectorize, vec_reduce)
+S:edge(vec_reduce, vec_lower)
 
 -- ISL's ordering is a strict producer/consumer chain.  Keeping it before
 -- pre-tilly ensures schedule-derived facts describe core IR and that any
@@ -97,6 +113,7 @@ S:edge(cast_rules, pre_tilly)
 S:edge(norm_rules, pre_tilly)
 S:edge(mem_rules, pre_tilly)
 S:edge(tile_plan, pre_tilly)
+S:edge(vec_lower, pre_tilly)
 
 S:edge(pre_tilly, isel)
 S:edge(isel, ra)
