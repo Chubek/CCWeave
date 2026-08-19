@@ -403,3 +403,16 @@ assembled with the in-process CCWas API by default; an explicitly configured
 `CEPHYR_AS`/profile assembler is invoked as an external command.  A normal
 assembly invocation then passes the resulting object through CCWld with
 `_main` as the default entry symbol; `-c` retains compile-only behavior.
+
+# 2026-08-19 — examples-salvo language corpus and opt-in build
+
+Add `examples-salvo/` with 25 source examples for each supported language
+consumer: Cephyr (`.c`), Delphia (`.pas`), Moonix (`.lua`), and SML-Parthia
+(`.sml`). Each language directory owns a CMake target that registers its
+source corpus without forcing a compiler run during the default build.
+`CCWEAVE_BUILD_EXAMPLES` is therefore `OFF` by default and conditionally adds
+the examples tree from the root build. Cephyr examples resolve headers from
+`stdlib-salvo/libc/include`; Parthia examples resolve the portable Basis
+source from `stdlib-salvo/sml-basis`. This keeps examples useful as frontend
+fixtures while avoiding a second, language-specific build orchestration layer
+until the compiler drivers expose stable batch compilation interfaces.
