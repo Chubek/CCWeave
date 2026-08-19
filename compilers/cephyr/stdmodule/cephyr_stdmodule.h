@@ -11,16 +11,17 @@
 #include "../include/cephyr-module.h"
 
 #ifdef __cplusplus
-extern "C" {
+extern "C"
+{
 #endif
 
-/* The standard module bundle is a singleton. Returns the same pointer
- * on every call; the module is initialized on first use. */
-const cephyr_module *cephyr_stdmodule_bundle(void);
+  /* The standard module bundle is a singleton. Returns the same pointer
+   * on every call; the module is initialized on first use. */
+  const cephyr_module *cephyr_stdmodule_bundle (void);
 
-/* Individual modules that make up the bundle (for testing). */
-const cephyr_module *cephyr_stdmodule_gnu_attributes(void);
-const cephyr_module *cephyr_stdmodule_lto(void);
+  /* Individual modules that make up the bundle (for testing). */
+  const cephyr_module *cephyr_stdmodule_gnu_attributes (void);
+  const cephyr_module *cephyr_stdmodule_lto (void);
 
 #ifdef __cplusplus
 }

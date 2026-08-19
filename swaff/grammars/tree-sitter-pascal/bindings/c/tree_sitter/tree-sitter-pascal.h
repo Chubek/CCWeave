@@ -4,10 +4,11 @@
 typedef struct TSLanguage TSLanguage;
 
 #ifdef __cplusplus
-extern "C" {
+extern "C"
+{
 #endif
 
-const TSLanguage *tree_sitter_pascal(void);
+  const TSLanguage *tree_sitter_pascal (void);
 
 #ifdef __cplusplus
 }

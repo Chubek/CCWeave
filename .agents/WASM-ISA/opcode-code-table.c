@@ -20,7 +20,8 @@
 
 #include <stdint.h>
 
-typedef enum WabtOpcodeEnum {
+typedef enum WabtOpcodeEnum
+{
 #define WABT_OPCODE(rtype, type1, type2, type3, mem_size, prefix, code, Name, \
                     text, decomp)                                             \
   Name,
@@ -29,7 +30,7 @@ typedef enum WabtOpcodeEnum {
   Invalid,
 } WabtOpcodeEnum;
 
-WABT_STATIC_ASSERT(Invalid <= WABT_OPCODE_CODE_TABLE_SIZE);
+WABT_STATIC_ASSERT (Invalid <= WABT_OPCODE_CODE_TABLE_SIZE);
 
 /* The array index calculated below must match the one in Opcode::FromCode. */
 uint32_t WabtOpcodeCodeTable[WABT_OPCODE_CODE_TABLE_SIZE] = {

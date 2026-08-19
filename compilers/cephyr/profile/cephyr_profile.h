@@ -11,26 +11,31 @@
 #include <stddef.h>
 
 #ifdef __cplusplus
-extern "C" {
+extern "C"
+{
 #endif
 
-typedef enum {
+  typedef enum
+  {
     CEPHYR_PROFILE_YAML = 0,
     CEPHYR_PROFILE_TOML = 1
-} cephyr_profile_format;
+  } cephyr_profile_format;
 
-typedef struct {
+  typedef struct
+  {
     char *name;
     char *capability;
     char *prefer;
-} cephyr_profile_kernel;
+  } cephyr_profile_kernel;
 
-typedef struct {
+  typedef struct
+  {
     char *name;
     char *command;
-} cephyr_profile_command;
+  } cephyr_profile_command;
 
-typedef struct {
+  typedef struct
+  {
     int version;
     char *name;
     char *target_triple;
@@ -72,25 +77,26 @@ typedef struct {
 
     cephyr_profile_command *commands;
     size_t command_count;
-} cephyr_profile;
+  } cephyr_profile;
 
-void cephyr_profile_init(cephyr_profile *profile);
-void cephyr_profile_destroy(cephyr_profile *profile);
+  void cephyr_profile_init (cephyr_profile *profile);
+  void cephyr_profile_destroy (cephyr_profile *profile);
 
-/* Loads and validates a profile.  Returns 1 on success, 0 on failure. */
-int cephyr_profile_load(const char *path, cephyr_profile *profile,
-                        char *error_message, size_t error_capacity);
+  /* Loads and validates a profile.  Returns 1 on success, 0 on failure. */
+  int cephyr_profile_load (const char *path, cephyr_profile *profile,
+                           char *error_message, size_t error_capacity);
 
-/* Writes a non-destructive boilerplate profile.  Returns 1 on success. */
-int cephyr_profile_init_file(const char *path, cephyr_profile_format format,
-                             char *error_message, size_t error_capacity);
+  /* Writes a non-destructive boilerplate profile.  Returns 1 on success. */
+  int cephyr_profile_init_file (const char *path, cephyr_profile_format format,
+                                char *error_message, size_t error_capacity);
 
-/* Finds CEPHYR.yaml first, then CEPHYR.toml, in directory. */
-char *cephyr_profile_discover(const char *directory,
-                              char *error_message, size_t error_capacity);
+  /* Finds CEPHYR.yaml first, then CEPHYR.toml, in directory. */
+  char *cephyr_profile_discover (const char *directory, char *error_message,
+                                 size_t error_capacity);
 
-const cephyr_profile_command *cephyr_profile_find_command(
-    const cephyr_profile *profile, const char *name);
+  const cephyr_profile_command *
+  cephyr_profile_find_command (const cephyr_profile *profile,
+                               const char *name);
 
 #ifdef __cplusplus
 }

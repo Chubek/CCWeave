@@ -10,16 +10,18 @@
 
 #include <stdbool.h>
 #include <stddef.h>
-#include <stdio.h>
 #include <stdint.h>
+#include <stdio.h>
 
 #ifdef __cplusplus
-extern "C" {
+extern "C"
+{
 #endif
 
-/* ---------- C type system ---------- */
+  /* ---------- C type system ---------- */
 
-typedef enum {
+  typedef enum
+  {
     CEPHYR_TY_VOID = 0,
     CEPHYR_TY_CHAR,
     CEPHYR_TY_SCHAR,
@@ -36,45 +38,47 @@ typedef enum {
     CEPHYR_TY_DOUBLE,
     CEPHYR_TY_LONGDOUBLE,
     CEPHYR_TY_BOOL,
-    CEPHYR_TY_PTR,        /* pointer to another type */
-    CEPHYR_TY_ARRAY,      /* array of another type */
-    CEPHYR_TY_FUNC,       /* function type */
-    CEPHYR_TY_STRUCT,     /* struct (named) */
-    CEPHYR_TY_UNION,      /* union (named) */
-    CEPHYR_TY_ENUM,       /* enum (named) */
-    CEPHYR_TY_TYPEDEF     /* typedef alias */
-} cephyr_type_kind;
+    CEPHYR_TY_PTR,    /* pointer to another type */
+    CEPHYR_TY_ARRAY,  /* array of another type */
+    CEPHYR_TY_FUNC,   /* function type */
+    CEPHYR_TY_STRUCT, /* struct (named) */
+    CEPHYR_TY_UNION,  /* union (named) */
+    CEPHYR_TY_ENUM,   /* enum (named) */
+    CEPHYR_TY_TYPEDEF /* typedef alias */
+  } cephyr_type_kind;
 
-typedef struct cephyr_type cephyr_type;
+  typedef struct cephyr_type cephyr_type;
 
-struct cephyr_type {
+  struct cephyr_type
+  {
     cephyr_type_kind kind;
-    const char       *name;       /* for struct/union/enum/typedef */
-    cephyr_type      *inner;      /* for PTR, ARRAY, FUNC */
-    int64_t           array_size; /* for ARRAY (0 = unsized) */
-    int               is_const;
-    int               is_volatile;
-    int               is_restrict;
+    const char *name;   /* for struct/union/enum/typedef */
+    cephyr_type *inner; /* for PTR, ARRAY, FUNC */
+    int64_t array_size; /* for ARRAY (0 = unsized) */
+    int is_const;
+    int is_volatile;
+    int is_restrict;
     /* struct/union fields */
-    int               field_count;
-    const char       **field_names;
-    cephyr_type      **field_types;
-    int               *field_bit_widths; /* -1 = no bit-field */
+    int field_count;
+    const char **field_names;
+    cephyr_type **field_types;
+    int *field_bit_widths; /* -1 = no bit-field */
     /* enum constants */
-    int               enum_value_count;
-    const char       **enum_value_names;
-    int64_t           *enum_values;
+    int enum_value_count;
+    const char **enum_value_names;
+    int64_t *enum_values;
     /* function params */
-    int               param_count;
-    cephyr_type      **param_types;
-    const char       **param_names;
-    cephyr_type       *return_type;
-    int               is_variadic;
-};
+    int param_count;
+    cephyr_type **param_types;
+    const char **param_names;
+    cephyr_type *return_type;
+    int is_variadic;
+  };
 
-/* ---------- AST node kinds ---------- */
+  /* ---------- AST node kinds ---------- */
 
-typedef enum {
+  typedef enum
+  {
     CEPHYR_NODE_PROGRAM = 0,
     CEPHYR_NODE_FUNC_DECL,
     CEPHYR_NODE_FUNC_DEF,
@@ -115,83 +119,179 @@ typedef enum {
     CEPHYR_NODE_GOTO,
     CEPHYR_NODE_CASE,
     CEPHYR_NODE_DEFAULT
-} cephyr_ast_node_kind;
+  } cephyr_ast_node_kind;
 
-/* ---------- AST node ---------- */
+  /* ---------- AST node ---------- */
 
-typedef struct cephyr_ast_node cephyr_ast_node;
+  typedef struct cephyr_ast_node cephyr_ast_node;
 
-struct cephyr_ast_node {
+  struct cephyr_ast_node
+  {
     cephyr_ast_node_kind kind;
-    const char           *name;         /* identifier name (if any) */
-    cephyr_type          *type;         /* resolved type */
-    const char           *source_file;  /* original source location */
-    int                   source_line;
-    int                   source_column;
+    const char *name;        /* identifier name (if any) */
+    cephyr_type *type;       /* resolved type */
+    const char *source_file; /* original source location */
+    int source_line;
+    int source_column;
 
     /* payload (union-like, but C11 style) */
-    union {
-        /* for binary/unary */
-        struct { const char *op; struct cephyr_ast_node *lhs; struct cephyr_ast_node *rhs; } binop;
-        struct { const char *op; struct cephyr_ast_node *operand; } unop;
-        /* for call */
-        struct { struct cephyr_ast_node *callee; int arg_count; struct cephyr_ast_node **args; } call;
-        /* for cast */
-        struct { cephyr_type *target_type; struct cephyr_ast_node *expr; } cast;
-        /* for constants */
-        int64_t   int_value;
-        double    float_value;
-        char     *string_value;
-        int       char_value;
-        /* for func decl/def */
-        struct { cephyr_type *ret_type; int param_count; cephyr_type **params; const char **param_names; int is_variadic; } func_type;
-        /* for func def */
-        struct { struct cephyr_ast_node *body; int is_static; int is_inline; } func_def;
-        /* for struct/union */
-        struct { int field_count; struct cephyr_ast_node **fields; } record;
-        /* for enum */
-        struct { int value_count; const char **names; int64_t *values; } enum_def;
-        /* for block */
-        struct { int stmt_count; struct cephyr_ast_node **stmts; } block;
-        /* for if/while/for */
-        struct { struct cephyr_ast_node *cond; struct cephyr_ast_node *then_branch; struct cephyr_ast_node *else_branch; } if_stmt;
-        struct { struct cephyr_ast_node *cond; struct cephyr_ast_node *body; } while_stmt;
-        struct { struct cephyr_ast_node *init; struct cephyr_ast_node *cond; struct cephyr_ast_node *incr; struct cephyr_ast_node *body; } for_stmt;
-        /* for switch */
-        struct { struct cephyr_ast_node *expr; struct cephyr_ast_node *body; } switch_stmt;
-        /* for member access */
-        struct { struct cephyr_ast_node *object; const char *member; int is_arrow; } member;
-        /* for array access */
-        struct { struct cephyr_ast_node *array; struct cephyr_ast_node *index; } array_access;
-        /* for sizeof */
-        struct { int is_type; cephyr_type *sizeof_type; struct cephyr_ast_node *sizeof_expr; } sizeof_expr;
-        /* for init list */
-        struct { int init_count; struct cephyr_ast_node **inits; } init_list;
-        /* for designated init */
-        struct { const char *designator; struct cephyr_ast_node *init; } designated_init;
-        /* for compound literal */
-        struct { cephyr_type *lit_type; struct cephyr_ast_node *init; } compound_literal;
-        /* for var decl */
-        struct { cephyr_type *var_type; struct cephyr_ast_node *init; int is_static; int is_extern; } var_decl;
+    union
+    {
+      /* for binary/unary */
+      struct
+      {
+        const char *op;
+        struct cephyr_ast_node *lhs;
+        struct cephyr_ast_node *rhs;
+      } binop;
+      struct
+      {
+        const char *op;
+        struct cephyr_ast_node *operand;
+      } unop;
+      /* for call */
+      struct
+      {
+        struct cephyr_ast_node *callee;
+        int arg_count;
+        struct cephyr_ast_node **args;
+      } call;
+      /* for cast */
+      struct
+      {
+        cephyr_type *target_type;
+        struct cephyr_ast_node *expr;
+      } cast;
+      /* for constants */
+      int64_t int_value;
+      double float_value;
+      char *string_value;
+      int char_value;
+      /* for func decl/def */
+      struct
+      {
+        cephyr_type *ret_type;
+        int param_count;
+        cephyr_type **params;
+        const char **param_names;
+        int is_variadic;
+      } func_type;
+      /* for func def */
+      struct
+      {
+        struct cephyr_ast_node *body;
+        int is_static;
+        int is_inline;
+      } func_def;
+      /* for struct/union */
+      struct
+      {
+        int field_count;
+        struct cephyr_ast_node **fields;
+      } record;
+      /* for enum */
+      struct
+      {
+        int value_count;
+        const char **names;
+        int64_t *values;
+      } enum_def;
+      /* for block */
+      struct
+      {
+        int stmt_count;
+        struct cephyr_ast_node **stmts;
+      } block;
+      /* for if/while/for */
+      struct
+      {
+        struct cephyr_ast_node *cond;
+        struct cephyr_ast_node *then_branch;
+        struct cephyr_ast_node *else_branch;
+      } if_stmt;
+      struct
+      {
+        struct cephyr_ast_node *cond;
+        struct cephyr_ast_node *body;
+      } while_stmt;
+      struct
+      {
+        struct cephyr_ast_node *init;
+        struct cephyr_ast_node *cond;
+        struct cephyr_ast_node *incr;
+        struct cephyr_ast_node *body;
+      } for_stmt;
+      /* for switch */
+      struct
+      {
+        struct cephyr_ast_node *expr;
+        struct cephyr_ast_node *body;
+      } switch_stmt;
+      /* for member access */
+      struct
+      {
+        struct cephyr_ast_node *object;
+        const char *member;
+        int is_arrow;
+      } member;
+      /* for array access */
+      struct
+      {
+        struct cephyr_ast_node *array;
+        struct cephyr_ast_node *index;
+      } array_access;
+      /* for sizeof */
+      struct
+      {
+        int is_type;
+        cephyr_type *sizeof_type;
+        struct cephyr_ast_node *sizeof_expr;
+      } sizeof_expr;
+      /* for init list */
+      struct
+      {
+        int init_count;
+        struct cephyr_ast_node **inits;
+      } init_list;
+      /* for designated init */
+      struct
+      {
+        const char *designator;
+        struct cephyr_ast_node *init;
+      } designated_init;
+      /* for compound literal */
+      struct
+      {
+        cephyr_type *lit_type;
+        struct cephyr_ast_node *init;
+      } compound_literal;
+      /* for var decl */
+      struct
+      {
+        cephyr_type *var_type;
+        struct cephyr_ast_node *init;
+        int is_static;
+        int is_extern;
+      } var_decl;
     } data;
 
     /* linked list (siblings in a block/scope) */
     cephyr_ast_node *next;
     /* attributes */
-    int               attr_count;
-    const char       **attr_names;
-    const char       ***attr_args;
-};
+    int attr_count;
+    const char **attr_names;
+    const char ***attr_args;
+  };
 
-/* ---------- AST construction ---------- */
+  /* ---------- AST construction ---------- */
 
-cephyr_ast_node *cephyr_ast_node_alloc(cephyr_ast_node_kind kind);
-void             cephyr_ast_node_free(cephyr_ast_node *node);
-void             cephyr_ast_free_recursive(cephyr_ast_node *node);
-void             cephyr_type_free(cephyr_type *t);
+  cephyr_ast_node *cephyr_ast_node_alloc (cephyr_ast_node_kind kind);
+  void cephyr_ast_node_free (cephyr_ast_node *node);
+  void cephyr_ast_free_recursive (cephyr_ast_node *node);
+  void cephyr_type_free (cephyr_type *t);
 
-/* Dump the typed AST to a file (for debugging/golden tests). */
-void cephyr_ast_dump(FILE *out, const cephyr_ast_node *root);
+  /* Dump the typed AST to a file (for debugging/golden tests). */
+  void cephyr_ast_dump (FILE *out, const cephyr_ast_node *root);
 
 #ifdef __cplusplus
 }

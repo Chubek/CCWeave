@@ -13,62 +13,63 @@
 #include "ccw_swaff_parse.h"
 
 #ifdef __cplusplus
-extern "C" {
+extern "C"
+{
 #endif
 
-/* How the adapter treats Tree-sitter ERROR/MISSING nodes. The contract
- * requires an explicit decision, not silent tolerance. */
-typedef enum {
-    CCW_SWAFF_REJECT_ON_ERROR = 0,  /* any ERROR/MISSING fails the lowering */
-    CCW_SWAFF_RECOVER_ON_ERROR      /* skip the subtree, record a diagnostic */
-} ccw_swaff_error_policy;
+  /* How the adapter treats Tree-sitter ERROR/MISSING nodes. The contract
+   * requires an explicit decision, not silent tolerance. */
+  typedef enum
+  {
+    CCW_SWAFF_REJECT_ON_ERROR = 0, /* any ERROR/MISSING fails the lowering */
+    CCW_SWAFF_RECOVER_ON_ERROR     /* skip the subtree, record a diagnostic */
+  } ccw_swaff_error_policy;
 
-typedef struct {
-    int  error_nodes;
-    int  missing_nodes;
-    int  recovered_subtrees;
-    int  unsupported_nodes;
-    int  functions_lowered;
-    int  declarations_lowered;
-    int  statements_lowered;
+  typedef struct
+  {
+    int error_nodes;
+    int missing_nodes;
+    int recovered_subtrees;
+    int unsupported_nodes;
+    int functions_lowered;
+    int declarations_lowered;
+    int statements_lowered;
     char message[256];
-} ccw_swaff_report;
+  } ccw_swaff_report;
 
-typedef struct ccw_swaff_frontend ccw_swaff_frontend;
+  typedef struct ccw_swaff_frontend ccw_swaff_frontend;
 
-/* The C frontend: tree-sitter-c grammar + its lowering adapter. */
-const ccw_swaff_frontend *ccw_swaff_frontend_c(void);
-/* The Lua frontend: tree-sitter-lua + imperative Kliche lowering. */
-const ccw_swaff_frontend *ccw_swaff_frontend_lua(void);
-/* The OCaml implementation frontend: tree-sitter-ocaml + functional
- * and control-flow Kliche construction patterns. */
-const ccw_swaff_frontend *ccw_swaff_frontend_ocaml(void);
-/* The Standard ML compatibility lowering frontend.  New ML-family
- * consumers, including Parthia, must use ccw_swaff_parse_sml below so the
- * complete surface language (and especially modules) remains parse-only. */
-const ccw_swaff_frontend *ccw_swaff_frontend_sml(void);
-/* The Delphi/Pascal frontend: tree-sitter-pascal + imperative Kliche
- * lowering.  The vendored grammar is configured with Delphi extensions. */
-const ccw_swaff_frontend *ccw_swaff_frontend_delphi(void);
-const char               *ccw_swaff_frontend_name(const ccw_swaff_frontend *fe);
+  /* The C frontend: tree-sitter-c grammar + its lowering adapter. */
+  const ccw_swaff_frontend *ccw_swaff_frontend_c (void);
+  /* The Lua frontend: tree-sitter-lua + imperative Kliche lowering. */
+  const ccw_swaff_frontend *ccw_swaff_frontend_lua (void);
+  /* The OCaml implementation frontend: tree-sitter-ocaml + functional
+   * and control-flow Kliche construction patterns. */
+  const ccw_swaff_frontend *ccw_swaff_frontend_ocaml (void);
+  /* The Standard ML compatibility lowering frontend.  New ML-family
+   * consumers, including Parthia, must use ccw_swaff_parse_sml below so the
+   * complete surface language (and especially modules) remains parse-only. */
+  const ccw_swaff_frontend *ccw_swaff_frontend_sml (void);
+  /* The Delphi/Pascal frontend: tree-sitter-pascal + imperative Kliche
+   * lowering.  The vendored grammar is configured with Delphi extensions. */
+  const ccw_swaff_frontend *ccw_swaff_frontend_delphi (void);
+  const char *ccw_swaff_frontend_name (const ccw_swaff_frontend *fe);
 
-/* Parses `source` and lowers it into a fresh module named `module_name`.
- * Returns NULL on failure (including rejected ERROR nodes). */
-ccw_ir *ccw_swaff_lower(const ccw_swaff_frontend *fe,
-                        const char *source, size_t source_len,
-                        const char *module_name, ccw_profile profile,
-                        ccw_swaff_error_policy policy,
-                        ccw_swaff_report *report,
-                        char **error_message);
+  /* Parses `source` and lowers it into a fresh module named `module_name`.
+   * Returns NULL on failure (including rejected ERROR nodes). */
+  ccw_ir *ccw_swaff_lower (const ccw_swaff_frontend *fe, const char *source,
+                           size_t source_len, const char *module_name,
+                           ccw_profile profile, ccw_swaff_error_policy policy,
+                           ccw_swaff_report *report, char **error_message);
 
-/* True when this build has Tree-sitter frontends compiled in. */
-bool ccw_swaff_available(void);
+  /* True when this build has Tree-sitter frontends compiled in. */
+  bool ccw_swaff_available (void);
 
-/* Parse-only SML '97 entry point.  This is the modular-interface-capable
- * Swaff contract; it does not lower into Weave IR. */
-char *ccw_swaff_parse_sml(const char *source, size_t source_len,
-                          ccw_sml_parse_report *report,
-                          char **error_message);
+  /* Parse-only SML '97 entry point.  This is the modular-interface-capable
+   * Swaff contract; it does not lower into Weave IR. */
+  char *ccw_swaff_parse_sml (const char *source, size_t source_len,
+                             ccw_sml_parse_report *report,
+                             char **error_message);
 
 #ifdef __cplusplus
 }
