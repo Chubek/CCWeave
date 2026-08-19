@@ -53,6 +53,12 @@ typedef struct {
 ccw_sml_parthia_program *ccw_sml_parthia_compile(
     const char *source, size_t source_len,
     ccw_sml_parthia_report *report, char **error_message);
+ccw_sml_parthia_program *ccw_sml_parthia_compile_with_runtime(
+    ccw_sml_parthia_runtime *runtime, const char *source, size_t source_len,
+    ccw_sml_parthia_report *report, char **error_message);
+ccw_sml_parthia_program *ccw_sml_parthia_compile_file(
+    ccw_sml_parthia_runtime *runtime, const char *path,
+    ccw_sml_parthia_report *report, char **error_message);
 
 void ccw_sml_parthia_program_destroy(ccw_sml_parthia_program *program);
 

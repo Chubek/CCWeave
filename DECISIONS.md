@@ -1,5 +1,26 @@
 # Decisions
 
+## 2026-08-19 — Parthia REPL directives
+
+The Parthia REPL now treats lines beginning with `#` as immediate directives,
+separate from `;;`-terminated SML phrases.  It provides `#help`, `#quit`,
+`#open MODULE` (reports matching structure/signature declarations in the
+session), `#use "FILE"`, and `#load LIB`.  Native libraries for `#load` are
+resolved through the colon-separated `SML_PARTHIA_PATH`, then loaded via the
+existing extension ABI; ordinary source phrases continue to use the persistent
+runtime and session history.
+
+## 2026-08-19 — Parthia Basis Salvo and source library directives
+
+`stdlib-salvo/sml-basis` is split between portable SML source (`Basis.sml`)
+and a small native companion loaded through Parthia's extension ABI; scalar
+host operations may additionally be reached through the existing integer FFI.
+Parthia accepts line-oriented `use`, `load`, `#load`, and `CM.make` directives:
+SML source directives are expanded before parsing, while native-library
+directives require a runtime and use the extension init contract. This mirrors
+the common workflow of SML implementations without introducing a second
+module/build language into the compiler.
+
 ## 2026-08-19 — Scalar native extensions and FFI for Moonix and Parthia
 
 Moonix and SML-Parthia expose a shared-shaped, C-linkage extension boundary

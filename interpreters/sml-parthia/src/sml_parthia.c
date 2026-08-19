@@ -15,6 +15,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <errno.h>
 #if defined(__unix__) || defined(__APPLE__)
 #include <dlfcn.h>
 #endif
@@ -49,6 +50,86 @@ static char *dup_text(const char *text)
 static void set_error(char **error_message, const char *message)
 {
     if (error_message != NULL) *error_message = dup_text(message);
+}
+
+static char *read_text_file(const char *path, size_t *length)
+{
+    FILE *file;
+    kstring_t text = {0, 0, NULL};
+    char buffer[4096];
+    size_t got;
+    if (!path || !length) return NULL;
+    file = fopen(path, "rb");
+    if (!file) return NULL;
+    while ((got = fread(buffer, 1, sizeof(buffer), file)) != 0)
+        if (kputsn(buffer, (int)got, &text) == EOF) {
+            fclose(file); free(text.s); return NULL;
+        }
+    fclose(file);
+    *length = text.l;
+    return ks_release(&text);
+}
+
+static int directive_path(const char *line, const char *keyword,
+                          char *path, size_t path_size)
+{
+    const char *p = strstr(line, keyword);
+    const char *q;
+    size_t n;
+    if (!p) return 0;
+    p += strlen(keyword);
+    while (*p == ' ' || *p == '\t') p++;
+    if (*p != '"') return 0;
+    q = strchr(++p, '"');
+    if (!q || q == p) return 0;
+    n = (size_t)(q - p);
+    if (n + 1 > path_size) return 0;
+    memcpy(path, p, n); path[n] = '\0';
+    return 1;
+}
+
+static char *expand_directives(ccw_sml_parthia_runtime *runtime,
+                               const char *source, size_t source_len,
+                               char **error_message)
+{
+    kstring_t out = {0, 0, NULL};
+    size_t offset = 0;
+    if (!source) return NULL;
+    while (offset < source_len) {
+        const char *line_end = memchr(source + offset, '\n', source_len - offset);
+        size_t line_len = line_end ? (size_t)(line_end - (source + offset))
+                                   : source_len - offset;
+        char *line = (char *)malloc(line_len + 1);
+        char path[1024];
+        int is_use = 0, is_load = 0;
+        if (!line) { free(out.s); set_error(error_message, "sml/parthia: out of memory"); return NULL; }
+        memcpy(line, source + offset, line_len); line[line_len] = '\0';
+        is_load = directive_path(line, "#load", path, sizeof(path)) ||
+                  directive_path(line, "load", path, sizeof(path)) ||
+                  directive_path(line, "CM.make", path, sizeof(path));
+        is_use = !is_load && directive_path(line, "use", path, sizeof(path));
+        if (is_use) {
+            size_t included_len = 0; char *included = read_text_file(path, &included_len);
+            if (!included || kputsn(included, (int)included_len, &out) == EOF) {
+                free(included); free(line); free(out.s);
+                set_error(error_message, "sml/parthia: cannot load SML source directive");
+                return NULL;
+            }
+            free(included);
+        } else if (is_load && runtime) {
+            if (!ccw_sml_parthia_load_extension(runtime, path)) {
+                free(line); free(out.s);
+                set_error(error_message, "sml/parthia: native library load failed");
+                return NULL;
+            }
+        } else if (!is_load && kputsn(line, (int)line_len, &out) == EOF) {
+            free(line); free(out.s); set_error(error_message, "sml/parthia: out of memory"); return NULL;
+        }
+        free(line);
+        if (line_end && kputc('\n', &out) == EOF) { free(out.s); return NULL; }
+        offset += line_len + (line_end ? 1u : 0u);
+    }
+    return ks_release(&out);
 }
 
 int ccw_sml_parthia_load_plan(const char *level,
@@ -213,7 +294,7 @@ static bool emit_core_facts(const char *surface, const ccw_sml_parse_report *par
     return true;
 }
 
-ccw_sml_parthia_program *ccw_sml_parthia_compile(
+static ccw_sml_parthia_program *compile_expanded(
     const char *source, size_t source_len,
     ccw_sml_parthia_report *report, char **error_message)
 {
@@ -255,6 +336,52 @@ ccw_sml_parthia_program *ccw_sml_parthia_compile(
         return NULL;
     }
     if (report != NULL) *report = program->report;
+    return program;
+}
+
+ccw_sml_parthia_program *ccw_sml_parthia_compile_with_runtime(
+    ccw_sml_parthia_runtime *runtime, const char *source, size_t source_len,
+    ccw_sml_parthia_report *report, char **error_message)
+{
+    char *expanded;
+    size_t expanded_len;
+    if (error_message) *error_message = NULL;
+    expanded = expand_directives(runtime, source, source_len, error_message);
+    if (!expanded) return NULL;
+    expanded_len = strlen(expanded);
+    {
+        ccw_sml_parthia_program *program =
+            compile_expanded(expanded, expanded_len, report, error_message);
+        free(expanded);
+        return program;
+    }
+}
+
+ccw_sml_parthia_program *ccw_sml_parthia_compile(
+    const char *source, size_t source_len,
+    ccw_sml_parthia_report *report, char **error_message)
+{
+    return ccw_sml_parthia_compile_with_runtime(NULL, source, source_len,
+                                                report, error_message);
+}
+
+ccw_sml_parthia_program *ccw_sml_parthia_compile_file(
+    ccw_sml_parthia_runtime *runtime, const char *path,
+    ccw_sml_parthia_report *report, char **error_message)
+{
+    size_t length = 0;
+    char *source = read_text_file(path, &length);
+    ccw_sml_parthia_program *program;
+    if (!source) {
+        char message[256];
+        snprintf(message, sizeof(message), "sml/parthia: cannot read %s: %s",
+                 path ? path : "(null)", strerror(errno));
+        set_error(error_message, message);
+        return NULL;
+    }
+    program = ccw_sml_parthia_compile_with_runtime(runtime, source, length,
+                                                    report, error_message);
+    free(source);
     return program;
 }
 

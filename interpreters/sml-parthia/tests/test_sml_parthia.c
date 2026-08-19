@@ -3,6 +3,9 @@
 
 #include <stdlib.h>
 #include <string.h>
+#ifndef CCW_SML_BASIS_NATIVE_PATH
+#define CCW_SML_BASIS_NATIVE_PATH "libsml_basis.so"
+#endif
 
 static int add_native(const ccw_sml_value *args, size_t nargs,
                       ccw_sml_value *results, size_t nresults, void *user)
@@ -80,6 +83,33 @@ int main(void)
                       result.kind == CCW_SML_INT && result.integer == 5,
                   "Parthia native extension/C interop failed");
         ccw_sml_parthia_runtime_free(runtime);
+    }
+
+    {
+        ccw_sml_parthia_runtime *runtime = ccw_sml_parthia_runtime_new();
+        ccw_sml_parthia_program *loaded;
+        const char directive[] =
+            "use \"interpreters/sml-parthia/tests/fixtures/use-library.sml\";\n"
+            "val local_value = loaded_from_library\n";
+        loaded = ccw_sml_parthia_compile_with_runtime(
+            runtime, directive, strlen(directive), NULL, &error);
+        CCW_CHECK(loaded != NULL && ccw_sml_parthia_surface_ast(loaded) != NULL,
+                  "SML use directive failed: %s", error ? error : "(none)");
+        ccw_sml_parthia_program_destroy(loaded);
+        ccw_sml_parthia_runtime_free(runtime);
+        free(error); error = NULL;
+    }
+
+    {
+        ccw_sml_ffi_library library =
+            ccw_sml_parthia_ffi_open(CCW_SML_BASIS_NATIVE_PATH);
+        void *symbol = ccw_sml_parthia_ffi_symbol(library, "ccw_sml_basis_abs");
+        long long argument = -9, result = 0;
+        CCW_CHECK(library != NULL && symbol != NULL &&
+                      ccw_sml_parthia_ffi_call_i64(symbol, &argument, 1,
+                                                   &result) && result == 9,
+                  "SML Basis FFI call failed");
+        ccw_sml_parthia_ffi_close(library);
     }
 
     ccw_sml_parthia_program_destroy(program);

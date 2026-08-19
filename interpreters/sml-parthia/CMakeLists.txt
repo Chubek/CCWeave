@@ -22,6 +22,9 @@ target_include_directories(test_sml_parthia PRIVATE
   ${CMAKE_SOURCE_DIR}/tests
   ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(test_sml_parthia PRIVATE sml_parthia)
+add_dependencies(test_sml_parthia sml_basis_native)
+target_compile_definitions(test_sml_parthia PRIVATE
+  CCW_SML_BASIS_NATIVE_PATH="${CMAKE_BINARY_DIR}/stdlib-salvo/sml-basis/libsml_basis.so")
 
 add_executable(test_sml_parthia_sched
   tests/test_sml_parthia_sched.c)

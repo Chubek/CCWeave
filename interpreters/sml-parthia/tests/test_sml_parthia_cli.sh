@@ -15,3 +15,11 @@ if printf '%s\n' 'structure A = struct end' | "$sml" >/dev/null 2>"${TMPDIR:-/tm
 fi
 grep -q 'expected ;;' "${TMPDIR:-/tmp}/sml-parthia-repl.err"
 rm -f "${TMPDIR:-/tmp}/sml-parthia-repl.err"
+
+directives=$(printf '%s\n' \
+  '#help' \
+  'structure A = struct end;;' \
+  '#open A' \
+  '#quit' | "$sml")
+printf '%s\n' "$directives" | grep -q '#open MODULE'
+printf '%s\n' "$directives" | grep -q '^structure A'
