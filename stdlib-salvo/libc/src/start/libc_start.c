@@ -7,12 +7,13 @@
 
 #include <stdlib.h>
 
-extern int main(int argc, char **argv, char **envp);
+extern int main (int argc, char **argv, char **envp);
 
 char **environ;
 
-void __libc_start_main(long argc, char **argv, char **envp)
+void
+__libc_start_main (long argc, char **argv, char **envp)
 {
-    environ = envp;
-    exit(main((int)argc, argv, envp));
+  environ = envp;
+  exit (main ((int)argc, argv, envp));
 }

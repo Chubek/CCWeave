@@ -6,11 +6,12 @@
 #include <stddef.h>
 
 #ifdef __cplusplus
-extern "C" {
+extern "C"
+{
 #endif
 
-int strcasecmp(const char *a, const char *b);
-int strncasecmp(const char *a, const char *b, size_t n);
+  int strcasecmp (const char *a, const char *b);
+  int strncasecmp (const char *a, const char *b, size_t n);
 
 #ifdef __cplusplus
 }

@@ -7,21 +7,23 @@
 #include <sys/types.h>
 
 #ifdef __cplusplus
-extern "C" {
+extern "C"
+{
 #endif
 
-typedef int clockid_t;
+  typedef int clockid_t;
 
-#define CLOCK_REALTIME  0
+#define CLOCK_REALTIME 0
 #define CLOCK_MONOTONIC 1
 
-struct timespec {
+  struct timespec
+  {
     time_t tv_sec;
-    long   tv_nsec;
-};
+    long tv_nsec;
+  };
 
-time_t time(time_t *tloc);
-int    clock_gettime(clockid_t clock_id, struct timespec *ts);
+  time_t time (time_t *tloc);
+  int clock_gettime (clockid_t clock_id, struct timespec *ts);
 
 #ifdef __cplusplus
 }

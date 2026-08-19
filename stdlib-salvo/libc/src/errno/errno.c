@@ -6,7 +6,8 @@
 
 static int salvo_errno_storage;
 
-int *__errno_location(void)
+int *
+__errno_location (void)
 {
-    return &salvo_errno_storage;
+  return &salvo_errno_storage;
 }

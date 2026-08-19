@@ -10,22 +10,22 @@
 #error "salvo-libc currently supports LP64 targets only"
 #endif
 
-typedef unsigned long   size_t;
-typedef long            ptrdiff_t;
-typedef int             wchar_t;
-typedef unsigned int    wint_t;
+typedef unsigned long size_t;
+typedef long ptrdiff_t;
+typedef int wchar_t;
+typedef unsigned int wint_t;
 
 /* max_align_t: the largest fundamental alignment on the supported ABIs. */
-typedef struct {
-    long long   __salvo_ll;
-    long double __salvo_ld;
+typedef struct
+{
+  long long __salvo_ll;
+  long double __salvo_ld;
 } max_align_t;
 
 #ifndef NULL
 #define NULL ((void *)0)
 #endif
 
-#define offsetof(type, member) \
-    ((size_t)&((type *)0)->member)
+#define offsetof(type, member) ((size_t)&((type *)0)->member)
 
 #endif /* SALVO_STDDEF_H */

@@ -2,8 +2,8 @@
 #ifndef SALVO_IMMINTRIN_H
 #define SALVO_IMMINTRIN_H
 
-#include "xmmintrin.h"
-#include "emmintrin.h"
 #include "avxintrin.h"
+#include "emmintrin.h"
+#include "xmmintrin.h"
 
 #endif /* SALVO_IMMINTRIN_H */
