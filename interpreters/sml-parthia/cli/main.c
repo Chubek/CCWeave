@@ -37,6 +37,26 @@ static char *read_stream(FILE *stream, size_t *length)
     return buffer;
 }
 
+static void print_help(FILE *stream)
+{
+    fputs(
+        "Usage: sml-parthia [OPTIONS] [FILE.sml]\n"
+        "\n"
+        "Compile an SML '97 source file and print its deterministic core form.\n"
+        "With no file, start the interactive REPL.\n"
+        "\n"
+        "Options:\n"
+        "  -h, --help  Show this help text and exit.\n"
+        "\n"
+        "REPL directives:\n"
+        "  #help              List REPL directives.\n"
+        "  #open MODULE       Show a module's structure/signatures.\n"
+        "  #use \"FILE\"        Load and compile SML source.\n"
+        "  #load LIB          Load a native library from SML_PARTHIA_PATH.\n"
+        "  #quit              Leave the REPL.\n",
+        stream);
+}
+
 int main(int argc, char **argv)
 {
     FILE *input = stdin;
@@ -46,8 +66,13 @@ int main(int argc, char **argv)
     ccw_sml_parthia_report report;
     ccw_sml_parthia_program *program;
 
+    if (argc == 2 &&
+        (strcmp(argv[1], "-h") == 0 || strcmp(argv[1], "--help") == 0)) {
+        print_help(stdout);
+        return 0;
+    }
     if (argc > 2) {
-        fprintf(stderr, "usage: sml-parthia [file.sml]\n");
+        fprintf(stderr, "Try 'sml-parthia --help' for usage.\n");
         return 2;
     }
     if (argc == 1) return sml_parthia_repl();

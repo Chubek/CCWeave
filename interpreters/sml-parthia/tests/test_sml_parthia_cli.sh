@@ -3,6 +3,11 @@ set -eu
 
 sml=$1
 
+help=$("$sml" --help)
+printf '%s\n' "$help" | grep -q '^Usage: sml-parthia \[OPTIONS\] \[FILE.sml\]$'
+printf '%s\n' "$help" | grep -q '^  -h, --help  Show this help text and exit\.$'
+printf '%s\n' "$help" | grep -q '^  #load LIB          Load a native library from SML_PARTHIA_PATH\.$'
+
 output=$(printf '%s\n' \
   'structure A = struct' \
   'end;; structure B = struct end;;' | "$sml")
