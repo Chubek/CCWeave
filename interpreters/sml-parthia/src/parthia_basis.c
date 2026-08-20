@@ -1,6 +1,7 @@
 #include "parthia_rt.h"
 
 #include <errno.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
@@ -44,6 +45,143 @@ static pv *op_sub (prt *r, pv *s, pv **a, int n) { (void)s; return binary_int (r
 static pv *op_mul (prt *r, pv *s, pv **a, int n) { (void)s; return binary_int (r, a, n, 2); }
 static pv *op_div (prt *r, pv *s, pv **a, int n) { (void)s; return binary_int (r, a, n, 3); }
 static pv *op_mod (prt *r, pv *s, pv **a, int n) { (void)s; return binary_int (r, a, n, 4); }
+
+static pv *
+op_cons (prt *rt, pv *self, pv **args, int n)
+{
+  pv *pair;
+  (void)self;
+  if (n != 2)
+    pa_fail (rt, "list constructor arity");
+  pair = pa_new (rt, PV_TUPLE);
+  if (pair == NULL)
+    pa_fail (rt, "out of memory");
+  pair->t.n = 2;
+  pair->t.items = (pv **)pa_alloc (rt, 2u * sizeof (pv *));
+  if (pair->t.items == NULL)
+    pa_fail (rt, "out of memory");
+  pair->t.items[0] = args[0];
+  pair->t.items[1] = args[1];
+  return pa_ctor_make (rt, "::", pair, 0);
+}
+
+static pv *
+op_concat (prt *rt, pv *self, pv **args, int n)
+{
+  size_t left_len, right_len;
+  pv *left;
+  pv *right;
+  char *data;
+  (void)self;
+  if (n != 2)
+    pa_fail (rt, "string concatenation arity");
+  left = args[0];
+  right = args[1];
+  if (left == NULL || right == NULL || left->kind != PV_STRING
+      || right->kind != PV_STRING)
+    pa_fail (rt, "string value expected");
+  left_len = left->s.len;
+  right_len = right->s.len;
+  if (right_len > SIZE_MAX - left_len)
+    pa_fail (rt, "string concatenation overflow");
+  data = (char *)pa_alloc (rt, left_len + right_len + 1u);
+  if (data == NULL)
+    pa_fail (rt, "out of memory");
+  memcpy (data, left->s.data, left_len);
+  memcpy (data + left_len, right->s.data, right_len);
+  data[left_len + right_len] = '\0';
+  {
+    pv *result = pa_new (rt, PV_STRING);
+    if (result == NULL)
+      pa_fail (rt, "out of memory");
+    result->s.data = data;
+    result->s.len = left_len + right_len;
+    return result;
+  }
+}
+
+static pv *
+op_int_to_string (prt *rt, pv *self, pv **args, int n)
+{
+  char *shown;
+  pv *result;
+  (void)self;
+  if (n != 1 || args[0] == NULL || args[0]->kind != PV_INT)
+    pa_fail (rt, "integer value expected");
+  shown = pa_show (rt, args[0]);
+  result = pa_string (rt, shown, strlen (shown));
+  return result;
+}
+
+static pv *
+op_bool_to_string (prt *rt, pv *self, pv **args, int n)
+{
+  (void)self;
+  if (n != 1 || args[0] == NULL || args[0]->kind != PV_CTOR
+      || args[0]->c.arg != NULL
+      || (strcmp (args[0]->c.name, "true") != 0
+          && strcmp (args[0]->c.name, "false") != 0))
+    pa_fail (rt, "boolean value expected");
+  return pa_string (rt, args[0]->c.name, strlen (args[0]->c.name));
+}
+
+static pv *
+op_string_size (prt *rt, pv *self, pv **args, int n)
+{
+  (void)self;
+  if (n != 1 || args[0] == NULL || args[0]->kind != PV_STRING)
+    pa_fail (rt, "string value expected");
+  return pa_int (rt, (long long)args[0]->s.len);
+}
+
+static pv *
+op_string_concat (prt *rt, pv *self, pv **args, int n)
+{
+  pv *cursor;
+  size_t length = 0;
+  char *data;
+  size_t offset = 0;
+  (void)self;
+  if (n != 1)
+    pa_fail (rt, "string concatenation arity");
+  cursor = args[0];
+  while (cursor != NULL && cursor->kind == PV_CTOR
+         && strcmp (cursor->c.name, "::") == 0 && cursor->c.arg != NULL
+         && cursor->c.arg->kind == PV_TUPLE && cursor->c.arg->t.n == 2)
+    {
+      pv *item = cursor->c.arg->t.items[0];
+      if (item == NULL || item->kind != PV_STRING
+          || item->s.len > SIZE_MAX - length)
+        pa_fail (rt, "string value expected");
+      length += item->s.len;
+      cursor = cursor->c.arg->t.items[1];
+    }
+  if (cursor == NULL || cursor->kind != PV_CTOR
+      || strcmp (cursor->c.name, "nil") != 0 || cursor->c.arg != NULL)
+    pa_fail (rt, "list value expected");
+  data = (char *)pa_alloc (rt, length + 1u);
+  if (data == NULL)
+    pa_fail (rt, "out of memory");
+  cursor = args[0];
+  while (cursor != NULL && cursor->kind == PV_CTOR
+         && strcmp (cursor->c.name, "::") == 0 && cursor->c.arg != NULL
+         && cursor->c.arg->kind == PV_TUPLE && cursor->c.arg->t.n == 2)
+    {
+      pv *item = cursor->c.arg->t.items[0];
+      memcpy (data + offset, item->s.data, item->s.len);
+      offset += item->s.len;
+      cursor = cursor->c.arg->t.items[1];
+    }
+  data[length] = '\0';
+  {
+    pv *result = pa_new (rt, PV_STRING);
+    if (result == NULL)
+      pa_fail (rt, "out of memory");
+    result->s.data = data;
+    result->s.len = length;
+    return result;
+  }
+}
 
 static pv *
 compare_int (prt *rt, pv **args, int n, int op)
@@ -189,18 +327,35 @@ install_struct_value (prt *rt, const char *name, const char **members,
 void
 pa_basis_install (prt *rt)
 {
-  static const char *names[] = { "+", "-", "*", "div", "mod",
+  static const char *names[] = { "+", "-", "*", "div", "mod", "::", "^",
                                  "<", "<=", ">", ">=", "=", "<>" };
   static pv *(*fns[])(prt *, pv *, pv **, int)
-      = { op_add, op_sub, op_mul, op_div, op_mod, op_lt, op_le, op_gt,
-          op_ge, op_equal, op_notequal };
-  static const int arities[] = { 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2 };
+      = { op_add, op_sub, op_mul, op_div, op_mod, op_cons, op_concat, op_lt,
+          op_le, op_gt, op_ge, op_equal, op_notequal };
+  static const int arities[] = { 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2 };
+  static const char *int_members[] = { "toString" };
+  static pv *(*int_fns[])(prt *, pv *, pv **, int) = { op_int_to_string };
+  static const int int_arities[] = { 1 };
+  static const char *bool_members[] = { "toString" };
+  static pv *(*bool_fns[])(prt *, pv *, pv **, int) = { op_bool_to_string };
+  static const int bool_arities[] = { 1 };
+  static const char *string_members[] = { "size", "concat" };
+  static pv *(*string_fns[])(prt *, pv *, pv **, int)
+      = { op_string_size, op_string_concat };
+  static const int string_arities[] = { 1, 1 };
   size_t i;
   pa_bind (rt, rt->global, "true", pa_ctor_make (rt, "true", NULL, 0));
   pa_bind (rt, rt->global, "false", pa_ctor_make (rt, "false", NULL, 0));
   pa_bind (rt, rt->global, "nil", pa_ctor_make (rt, "nil", NULL, 0));
   for (i = 0; i < sizeof (names) / sizeof (names[0]); i++)
     pa_def_native (rt, rt->global, names[i], arities[i], fns[i]);
+  install_struct_value (rt, "Int", int_members, int_fns, int_arities,
+                        sizeof (int_members) / sizeof (int_members[0]));
+  install_struct_value (rt, "Bool", bool_members, bool_fns, bool_arities,
+                        sizeof (bool_members) / sizeof (bool_members[0]));
+  install_struct_value (rt, "String", string_members, string_fns,
+                        string_arities,
+                        sizeof (string_members) / sizeof (string_members[0]));
   pa_def_native (rt, rt->global, "ref", 1, op_ref);
   pa_def_native (rt, rt->global, "!", 1, op_deref);
   pa_def_native (rt, rt->global, ":=", 2, op_assign);

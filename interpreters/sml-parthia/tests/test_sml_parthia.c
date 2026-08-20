@@ -182,6 +182,33 @@ main (void)
     char *value = NULL;
     char *run_error = NULL;
     const char *source
+        = "use \"stdlib-salvo/sml-basis/Basis.sml\";\n"
+          "val arithmetic = (7 + 5) * 3 - 2;\n"
+          "val values = Array.fromList [1, 2, 3];\n"
+          "val _ = Array.update (values, 1, 40);\n"
+          "val filtered = List.filter (fn x => x mod 2 = 0) [1,2,3,4];\n"
+          "val text = String.concat [\"sml\", \"-\", \"parthia\"];\n"
+          "val it = (arithmetic, Array.sub (values, 1), "
+          "List.hd filtered, text);\n";
+    CCW_CHECK (
+        runtime != NULL
+            && ccw_sml_parthia_run (runtime, source, strlen (source), &value,
+                                     &run_error)
+            && value != NULL
+            && strcmp (value, "(34, 40, 2, \"sml-parthia\")") == 0,
+        "Basis collection/string operations or infix precedence failed: %s "
+        "(value %s)",
+        run_error ? run_error : "(none)", value ? value : "(none)");
+    free (value);
+    free (run_error);
+    ccw_sml_parthia_runtime_free (runtime);
+  }
+
+  {
+    ccw_sml_parthia_runtime *runtime = ccw_sml_parthia_runtime_new ();
+    char *value = NULL;
+    char *run_error = NULL;
+    const char *source
         = "val text = \"parentheses () and a semicolon ;\"\n"
           "val it = #\"x\"\n";
     CCW_CHECK (ccw_sml_parthia_run (runtime, source, strlen (source), &value,

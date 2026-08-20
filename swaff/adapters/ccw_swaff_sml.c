@@ -1624,22 +1624,27 @@ emit_app_spine (sml_parse_ctx *ctx, TSNode *items, int count)
       return;
     }
 
-  /* Find the single infix operator (SML source has at most one unresolved
-   * infix per flat spine level after tree-sitter's parse; nested ambiguity is
-   * re-associated by precedence below). */
+  /* Choose the lowest-precedence operator as the root.  Equal-precedence
+   * left-associative operators choose the rightmost occurrence; right-
+   * associative operators choose the leftmost occurrence. */
   int op_index = -1;
   sml_fixity_entry op_copy;
   memset (&op_copy, 0, sizeof (op_copy));
-  char opbuf[64];
   for (int i = 1; i < count - 1; i++)
     {
+      char opbuf[64];
       const sml_fixity_entry *f
-          = fixity_of_node (ctx, items[i], opbuf, sizeof (opbuf));
+        = fixity_of_node (ctx, items[i], opbuf, sizeof (opbuf));
       if (f != NULL && f->kind != SML_FIX_NONFIX)
         {
-          op_index = i;
-          op_copy = *f;
-          break;
+          if (op_index < 0 || f->prec < op_copy.prec
+              || (f->prec == op_copy.prec
+                  && ((f->kind == SML_FIX_INFIX && i > op_index)
+                      || (f->kind == SML_FIX_INFIXR && i < op_index))))
+            {
+              op_index = i;
+              op_copy = *f;
+            }
         }
     }
 
@@ -1716,6 +1721,37 @@ emit_exp (sml_parse_ctx *ctx, TSNode node)
     {
       emit_open (ctx, "scon");
       emit_raw (ctx, parse_first_named_child (node));
+      emit_close (ctx);
+      return;
+    }
+  if (strcmp (t, "record_exp") == 0)
+    {
+      uint32_t count = ts_node_named_child_count (node);
+      emit_open (ctx, "record_exp");
+      for (uint32_t i = 0; i < count && !ctx->failed; i++)
+        {
+          TSNode row = ts_node_named_child (node, i);
+          const char *row_type = ts_node_type (row);
+          uint32_t row_count = ts_node_named_child_count (row);
+          if (strcmp (row_type, "exprow") == 0 && row_count >= 2)
+            {
+              emit_open (ctx, "exprow");
+              emit_raw (ctx, ts_node_named_child (row, 0));
+              emit_exp (ctx, ts_node_named_child (row, 1));
+              emit_close (ctx);
+            }
+          else if (strcmp (row_type, "labvar_exprow") == 0
+                   && row_count >= 1)
+            {
+              emit_open (ctx, "labvar_exprow");
+              emit_raw (ctx, ts_node_named_child (row, 0));
+              if (row_count >= 2)
+                emit_ty (ctx, ts_node_named_child (row, 1));
+              emit_close (ctx);
+            }
+          else
+            emit_node (ctx, row);
+        }
       emit_close (ctx);
       return;
     }
