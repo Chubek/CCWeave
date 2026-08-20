@@ -6,210 +6,210 @@ glue_abi: 1
 rule_format: 1
 total_rules: 307
 rulesets:
-  - path: stdrewrite/arith/identity/
+  - path: rewrite-salvo/arith/identity/
     name: arith.identity
     description: Additive and multiplicative identities (x+0, x*1, x-0, 0-x, x-x).
     semantics: equivalence
     side_conditions: false
     rules: 18
     profiles: [core]
-  - path: stdrewrite/arith/constant-fold/
+  - path: rewrite-salvo/arith/constant-fold/
     name: arith.constant-fold
     description: Folds integer add/sub/mul/neg on literal operands.
     semantics: equivalence
     side_conditions: false
     rules: 16
     profiles: [core]
-  - path: stdrewrite/arith/reassociate/
+  - path: rewrite-salvo/arith/reassociate/
     name: arith.reassociate
     description: Reassociates commutative integer chains to group constants.
     semantics: equivalence
     side_conditions: false
     rules: 12
     profiles: [core]
-  - path: stdrewrite/arith/strength-reduction/
+  - path: rewrite-salvo/arith/strength-reduction/
     name: arith.strength-reduction
     description: Multiplies and divides by powers of two into shifts; small-constant multiply into shift-add.
     semantics: equivalence
     side_conditions: true
     rules: 14
     profiles: [core]
-  - path: stdrewrite/arith/distribute/
+  - path: rewrite-salvo/arith/distribute/
     name: arith.distribute
     description: Distribution and factoring of multiplication over addition.
     semantics: equivalence
     side_conditions: false
     rules: 10
     profiles: [core]
-  - path: stdrewrite/arith/negation/
+  - path: rewrite-salvo/arith/negation/
     name: arith.negation
     description: Double negation, negation of subtraction, and sign-flip normalization.
     semantics: equivalence
     side_conditions: false
     rules: 8
     profiles: [core]
-  - path: stdrewrite/arith/overflow-guarded/
+  - path: rewrite-salvo/arith/overflow-guarded/
     name: arith.overflow-guarded
     description: Rewrites valid only under proven no-overflow; guarded by value-range side conditions.
     semantics: equivalence
     side_conditions: true
     rules: 12
     profiles: [core]
-  - path: stdrewrite/bitwise/identity/
+  - path: rewrite-salvo/bitwise/identity/
     name: bitwise.identity
     description: And/or/xor identities with 0, all-ones, and self.
     semantics: equivalence
     side_conditions: false
     rules: 16
     profiles: [core]
-  - path: stdrewrite/bitwise/constant-fold/
+  - path: rewrite-salvo/bitwise/constant-fold/
     name: bitwise.constant-fold
     description: Folds and/or/xor/not on literal operands.
     semantics: equivalence
     side_conditions: false
     rules: 12
     profiles: [core]
-  - path: stdrewrite/bitwise/demorgan/
+  - path: rewrite-salvo/bitwise/demorgan/
     name: bitwise.demorgan
     description: De Morgan dualities between and/or under complement.
     semantics: equivalence
     side_conditions: false
     rules: 6
     profiles: [core]
-  - path: stdrewrite/bitwise/shift/
+  - path: rewrite-salvo/bitwise/shift/
     name: bitwise.shift
     description: Shift combining, shift-by-zero, and shift-of-constant; guarded by shift-amount range conditions.
     semantics: equivalence
     side_conditions: true
     rules: 14
     profiles: [core]
-  - path: stdrewrite/bitwise/mask/
+  - path: rewrite-salvo/bitwise/mask/
     name: bitwise.mask
     description: Mask composition, redundant-mask removal, and mask-then-shift reordering.
     semantics: equivalence
     side_conditions: true
     rules: 10
     profiles: [core]
-  - path: stdrewrite/power/
+  - path: rewrite-salvo/power/
     name: power.consumption
     description: Low-toggle bitwise identities and small integer strength reductions for lower-work implementations.
     semantics: equivalence
     side_conditions: false
     rules: 14
     profiles: [core]
-  - path: stdrewrite/cmp/canonical/
+  - path: rewrite-salvo/cmp/canonical/
     name: cmp.canonical
     description: Comparison polarity and operand-order normalization (gt to lt-swapped, ge to not-lt).
     semantics: equivalence
     side_conditions: false
     rules: 12
     profiles: [core]
-  - path: stdrewrite/cmp/constant-fold/
+  - path: rewrite-salvo/cmp/constant-fold/
     name: cmp.constant-fold
     description: Folds comparisons of literal operands to boolean constants.
     semantics: equivalence
     side_conditions: false
     rules: 10
     profiles: [core]
-  - path: stdrewrite/cmp/range/
+  - path: rewrite-salvo/cmp/range/
     name: cmp.range
     description: Decides comparisons from value-range facts; guarded by range side conditions.
     semantics: equivalence
     side_conditions: true
     rules: 8
     profiles: [core]
-  - path: stdrewrite/bool/simplify/
+  - path: rewrite-salvo/bool/simplify/
     name: bool.simplify
     description: Boolean absorption, idempotence, complement, and constant rules.
     semantics: equivalence
     side_conditions: false
     rules: 12
     profiles: [core]
-  - path: stdrewrite/bool/branch-select/
+  - path: rewrite-salvo/bool/branch-select/
     name: bool.branch-select
     description: Converts branch-on-constant-condition and same-target diamonds into selects.
     semantics: equivalence
     side_conditions: false
     rules: 8
     profiles: [core]
-  - path: stdrewrite/select/simplify/
+  - path: rewrite-salvo/select/simplify/
     name: select.simplify
     description: Select with equal arms, constant condition, or negated condition.
     semantics: equivalence
     side_conditions: false
     rules: 10
     profiles: [core]
-  - path: stdrewrite/divmod/power-of-two/
+  - path: rewrite-salvo/divmod/power-of-two/
     name: divmod.power-of-two
     description: Unsigned div/mod by powers of two into shift/mask; guarded by power-of-two side conditions.
     semantics: equivalence
     side_conditions: true
     rules: 8
     profiles: [core]
-  - path: stdrewrite/divmod/identity/
+  - path: rewrite-salvo/divmod/identity/
     name: divmod.identity
     description: Division and remainder identities (x/1, x%1, x/x); guarded by nonzero-divisor conditions.
     semantics: equivalence
     side_conditions: true
     rules: 6
     profiles: [core]
-  - path: stdrewrite/float/identity-safe/
+  - path: rewrite-salvo/float/identity-safe/
     name: float.identity-safe
     description: Float identities valid under IEEE-754 without fast-math assumptions (x*1.0, negate-negate).
     semantics: equivalence
     side_conditions: true
     rules: 6
     profiles: [core]
-  - path: stdrewrite/float/constant-fold/
+  - path: rewrite-salvo/float/constant-fold/
     name: float.constant-fold
     description: Folds float arithmetic on literals with round-to-nearest-even semantics.
     semantics: equivalence
     side_conditions: false
     rules: 8
     profiles: [core]
-  - path: stdrewrite/cast/simplify/
+  - path: rewrite-salvo/cast/simplify/
     name: cast.simplify
     description: Eliminates redundant widen-narrow pairs and same-type casts; guarded by width conditions.
     semantics: equivalence
     side_conditions: true
     rules: 12
     profiles: [core]
-  - path: stdrewrite/cast/constant-fold/
+  - path: rewrite-salvo/cast/constant-fold/
     name: cast.constant-fold
     description: Folds casts of literal operands.
     semantics: equivalence
     side_conditions: false
     rules: 8
     profiles: [core]
-  - path: stdrewrite/norm/commutative-order/
+  - path: rewrite-salvo/norm/commutative-order/
     name: norm.commutative-order
     description: Orders commutative operands by canonical node ordering.
     semantics: equivalence
     side_conditions: false
     rules: 6
     profiles: [core]
-  - path: stdrewrite/norm/constant-right/
+  - path: rewrite-salvo/norm/constant-right/
     name: norm.constant-right
     description: Moves literal operands to the right of commutative operations.
     semantics: equivalence
     side_conditions: false
     rules: 4
     profiles: [core]
-  - path: stdrewrite/norm/compare-polarity/
+  - path: rewrite-salvo/norm/compare-polarity/
     name: norm.compare-polarity
     description: Normalizes negated comparisons to positive polarity with swapped branches.
     semantics: equivalence
     side_conditions: false
     rules: 5
     profiles: [core]
-  - path: stdrewrite/mem/load-store/
+  - path: rewrite-salvo/mem/load-store/
     name: mem.load-store
     description: Store-to-load forwarding and redundant-load elimination; guarded by no-alias side conditions.
     semantics: equivalence
     side_conditions: true
     rules: 8
     profiles: [core]
-  - path: stdrewrite/peephole/window/
+  - path: rewrite-salvo/peephole/window/
     name: peephole.window
     description: Adjacent-instruction pair rewrites (add-then-sub of same constant, move chains).
     semantics: equivalence

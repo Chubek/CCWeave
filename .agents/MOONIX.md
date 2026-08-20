@@ -3,7 +3,7 @@
 Moonix is a Lua implementation built as the first **On1x-profile** consumer of the CCWeave
 infrastructure. It lives under `interpreters/moonix/` and MUST NOT fork or shadow any CCWeave
 component: it uses Swaff for parsing (the Lua adapter at `swaff/adapters/ccw_swaff_lua.c`),
-Kliche for stereotype lowering, Weave IR with the **On1x profile**, Oeuph/`stdrewrite` for
+Kliche for stereotype lowering, Weave IR with the **On1x profile**, Oeuph/`rewrite-salvo` for
 expression rewriting, Kernels via Glue, and the **Sched** subsystem to orchestrate tier plans.
 
 Moonix is Cephyr's dual: where Cephyr is a static AOT compiler forbidden from touching On1x
@@ -46,7 +46,7 @@ source.lua
   → Kliche functional stereotype (closures) + imperative stereotype (bodies)
   → Weave IR (core)  ─┐
   → Weave IR (On1x)  ─┴─ orchestrated by sealed Sched plans (per tier):
-                         Oeuph/stdrewrite, normalize.*, transform.ssa-construct,
+                         Oeuph/rewrite-salvo, normalize.*, transform.ssa-construct,
                          opt.*, vm.inline-cache, vm.deopt-points, vm.deopt-metadata,
                          vm.safepoint-insertion, vm.gc-barrier-insertion,
                          isel.*, sched.list, regalloc.*, codegen.x86-64
@@ -91,7 +91,7 @@ Swaff tree and survive into bytecode line tables and `vm.deopt-metadata`.
 2. **Arithmetic.** T1 lowers `+`/`-`/`*` on numbers as boxed calls or IC-dispatched fast paths.
    T2 speculates: guarded unbox → native integer ops. Because Weave IR integer arithmetic is
    wrapping and Lua 5.5 integer arithmetic is also wrapping two's-complement, **all `arith.*`,
-   `bitwise.*`, `divmod.*`, and `cmp.*` stdrewrite equivalences apply unchanged** on unboxed
+   `bitwise.*`, `divmod.*`, and `cmp.*` rewrite-salvo equivalences apply unchanged** on unboxed
    lanes. The `arith.overflow-guarded` ruleset (side-conditioned, per Stdrewrite.yaml) is used
    on T2 speculative lanes where overflow guards exist. Float ops use `float.*` rules only where
    Lua's IEEE semantics hold (no fast-math).
@@ -122,7 +122,7 @@ Swaff tree and survive into bytecode line tables and `vm.deopt-metadata`.
 1. **Hierarchy.** The driver is `interpreters/moonix/runtime/jit.c`, managing tiers:
    - **T0** — interprets bytecode using a computed goto dispatch.
    - **T1** — Sched plan `T1.lua`: core + On1x ICs + safepoints + barriers + codegen. No guards.
-   - **T2** — Sched plan `T2.lua`: T1 + guards + deopt + intensive core opt + stdrewrite.
+   - **T2** — Sched plan `T2.lua`: T1 + guards + deopt + intensive core opt + rewrite-salvo.
 
 2. **Sched scripts.** Optimization plans are **hand-authored Lua scripts** in
    `interpreters/moonix/sched/T{1,2}.lua`. Like Cephyr's plans (D-0014), they are configuration

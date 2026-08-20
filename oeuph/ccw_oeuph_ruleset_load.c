@@ -1,4 +1,4 @@
-/* Loads a stdrewrite ruleset file (§7.3).
+/* Loads a rewrite-salvo ruleset file (§7.3).
  *
  * The complete file is wrapped in one synthetic list and parsed by SFSEXP.
  * This preserves all top-level forms while avoiding a second, subtly

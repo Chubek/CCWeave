@@ -2,7 +2,7 @@
 
 Rulesets are named containers of unordered equivalence rules. Create one
 with `ccw_oeuph_ruleset_create`, add rules with textual patterns, or load a
-Scheme ruleset from `stdrewrite/`.
+Scheme ruleset from `rewrite-salvo/`.
 
 Patterns are small s-expressions over opcodes, variables, and integer
 constants. A rule may be bidirectional and may have an optional

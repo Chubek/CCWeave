@@ -1,6 +1,6 @@
 # Cephyr Specification v0.1
 
-Cephyr is a C compiler built as the first consumer of the CCWeave infrastructure. It lives under `compilers/cephyr/` and MUST NOT fork or shadow any CCWeave component: it uses Swaff for parsing, Kliche for stereotype lowering, Weave IR with the **Tilly profile**, Oeuph/`stdrewrite` for expression rewriting, Kernels via Glue for everything from SSA construction to code generation, and the **Sched** subsystem to orchestrate them into an ordered plan.
+Cephyr is a C compiler built as the first consumer of the CCWeave infrastructure. It lives under `compilers/cephyr/` and MUST NOT fork or shadow any CCWeave component: it uses Swaff for parsing, Kliche for stereotype lowering, Weave IR with the **Tilly profile**, Oeuph/`rewrite-salvo` for expression rewriting, Kernels via Glue for everything from SSA construction to code generation, and the **Sched** subsystem to orchestrate them into an ordered plan.
 
 > **Naming note.** Throughout this document, *Sched* (capitalized) refers to the CCWeave scheduler/orchestrator subsystem under `sched/` that builds DAGs of kernels and rulesets. The `sched.list` 
 > **kernel** is the instruction-scheduling capability in the backend (§7); it is unrelated to the Sched subsystem and is always written in lowercase with its capability prefix.
@@ -24,7 +24,7 @@ source.c
   → Kliche imperative stereotype
   → Weave IR (core)   ─┐
   → Weave IR (Tilly)  ─┴─ orchestrated by a sealed Sched plan:
-                          Oeuph/stdrewrite, norm.*, ssa.*, opt.*,
+                          Oeuph/rewrite-salvo, norm.*, ssa.*, opt.*,
                           regalloc.*, isel.*, sched.list, codegen.x86-64
   → .s → system as/ld
 ```
@@ -32,7 +32,7 @@ source.c
 Two stages are Cephyr-owned rather than CCWeave-owned, and the spec must be explicit about why:
 
 - **The preprocessor.** Tree-sitter's C grammar parses unpreprocessed syntax structurally but does not implement macro expansion, `#include` resolution, or conditional compilation. Cephyr therefore ships `third_party/ucpp`, a C11 implementation of translation phases 1–6, producing a token stream plus a **line map** that survives the whole pipeline so diagnostics always report original file/line/column. Also, if the environment variable `$CEPHYR_CPP` is defined, Cephyr will use that as the preprocessor. Therefore, users can run it e.g. `CEPHYR_CPP="gcc -E" cephyr foo.c`. The Swaff frontend consumes preprocessed output, never raw source.
-- **Semantic analysis.** C type checking, integer promotions, and usual arithmetic conversions are language-specific and happen before any IR exists, so they cannot be Kernels (Kernels operate on Weave IR handles via Glue). Sema lives in Cephyr as C11 host code over a typed AST. Some of these facilities, however, are relegated to `stdrewrite`. The compiler can define C-specific rewrite rules under `stdrewrite/cephyr` that are used specifically for Cephyr, and they can be used for future compilers as well, e.g. for a C++ or Pascal compiler, when we get to it.
+- **Semantic analysis.** C type checking, integer promotions, and usual arithmetic conversions are language-specific and happen before any IR exists, so they cannot be Kernels (Kernels operate on Weave IR handles via Glue). Sema lives in Cephyr as C11 host code over a typed AST. Some of these facilities, however, are relegated to `rewrite-salvo`. The compiler can define C-specific rewrite rules under `rewrite-salvo/cephyr` that are used specifically for Cephyr, and they can be used for future compilers as well, e.g. for a C++ or Pascal compiler, when we get to it.
 
 The preprocessor and sema run in Cephyr host code *before* the Sched plan executes; the plan's first node consumes core Weave IR emitted by lowering (§6).
 
@@ -53,14 +53,14 @@ For the frontend, we use Swaff's C adapter.
 ## 5. Sema and the typed AST
 
 1. Sema output is a typed AST in which **every implicit conversion is materialized as an explicit cast node**: integer promotions, usual arithmetic conversions, array-to-pointer and function-to-pointer decay, null pointer constant conversion. Lowering may therefore assume all operands of an operation have identical, explicit types.
-2. Constant expressions (array bounds, `case` labels, static initializers, enum values) are evaluated in sema by a dedicated interpreter. This evaluator is the *only* constant folder allowed to use C source-level semantics; all later folding happens in `stdrewrite`/kernels over IR semantics.
+2. Constant expressions (array bounds, `case` labels, static initializers, enum values) are evaluated in sema by a dedicated interpreter. This evaluator is the *only* constant folder allowed to use C source-level semantics; all later folding happens in `rewrite-salvo`/kernels over IR semantics.
 3. Sema assigns every declaration a mangling-free linker name (C has no mangling) and records linkage, storage duration, and alignment as attributes that survive into Tilly's link-section directives.
 
 ## 6. Lowering and IR semantics
 
-This section contains the decisions that determine whether the existing `stdrewrite` rules are sound for Cephyr.
+This section contains the decisions that determine whether the existing `rewrite-salvo` rules are sound for Cephyr.
 
-1. **Signed integer arithmetic lowers to two's-complement wrapping IR operations.** Weave IR's `add`/`sub`/`mul` are defined as wrapping; therefore every `stdrewrite` equivalence holds literally, and Cephyr at v0.1 does **not** exploit signed-overflow UB. UB-exploiting optimization is deferred to a future `nowrap` operand annotation plus side-conditioned rules (the `arith.overflow-guarded` ruleset is already shaped for this). This is deliberately the conservative choice: correctness of the equivalence-only regime (D-0007) is preserved without any per-rule C-semantics reasoning.
+1. **Signed integer arithmetic lowers to two's-complement wrapping IR operations.** Weave IR's `add`/`sub`/`mul` are defined as wrapping; therefore every `rewrite-salvo` equivalence holds literally, and Cephyr at v0.1 does **not** exploit signed-overflow UB. UB-exploiting optimization is deferred to a future `nowrap` operand annotation plus side-conditioned rules (the `arith.overflow-guarded` ruleset is already shaped for this). This is deliberately the conservative choice: correctness of the equivalence-only regime (D-0007) is preserved without any per-rule C-semantics reasoning.
 2. Other UB (out-of-bounds access, invalid pointer arithmetic, strict aliasing) is lowered *as written*; Cephyr claims no latitude from it in v0.1. `mem.load-store` no-alias side conditions are discharged only by the `analysis.alias` kernel, never assumed from C type-based aliasing rules.
 3. Lowering path is fixed: typed AST → Kliche **imperative** stereotype → Weave IR core. The functional and OOP stereotypes are unused; a Cephyr build MUST NOT link them in.
 4. `struct`/`union` values lower to memory operations (no first-class aggregates — consistent with the scalar-only ABI discipline of D-0004); scalarization is `lower.mem2reg`'s job afterward.
@@ -77,7 +77,7 @@ This section contains the decisions that determine whether the existing `stdrewr
 
 1. The CLI is `cephyr`, with conventional flags: `-c`, `-S`, `-E`, `-o`, `-I`, `-D`, `-U`, `-O0|-O1|-O2`, `-std=c17`, `-W...`. `-E` stops after `cephyr-cpp`; `-S` stops after codegen.
 
-2. **Optimization levels are defined as Sched scripts**, not YAML: `compilers/cephyr/sched/O0.lua`, `O1.lua`, `O2.lua`. Each script constructs a plan for a single `-O` level using the Sched API (`sched.new`, `S:require`, `S:probe`, `S:rewrite`, `S:edge`, `S:barrier`, `S:seal`) and returns the sealed plan. Oeuph runs are added via `S:rewrite` against `stdrewrite` rulesets, and each ruleset batch carries an explicit rewrite budget per D-0008. Like the former YAML pipelines, these scripts are **hand-authored, not generated** — they are configuration, not derived facts (D-0014, revised in §11) — and are therefore exempt from the D-0003 manifest regime and from `ccw-manifest --check`. They are still subject to `ccw-sched --check` and `ccw-sched --hash`.
+2. **Optimization levels are defined as Sched scripts**, not YAML: `compilers/cephyr/sched/O0.lua`, `O1.lua`, `O2.lua`. Each script constructs a plan for a single `-O` level using the Sched API (`sched.new`, `S:require`, `S:probe`, `S:rewrite`, `S:edge`, `S:barrier`, `S:seal`) and returns the sealed plan. Oeuph runs are added via `S:rewrite` against `rewrite-salvo` rulesets, and each ruleset batch carries an explicit rewrite budget per D-0008. Like the former YAML pipelines, these scripts are **hand-authored, not generated** — they are configuration, not derived facts (D-0014, revised in §11) — and are therefore exempt from the D-0003 manifest regime and from `ccw-manifest --check`. They are still subject to `ccw-sched --check` and `ccw-sched --hash`.
 
 3. **Capability-based selection.** Cephyr scripts SHOULD select passes by capability, not by kernel name, using the Optional-returning `S:probe` for anything that may be absent and `S:require` for anything mandatory. `-O`-level differences are expressed with the sanctioned fallback idiom, e.g.:
 

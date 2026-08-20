@@ -2,7 +2,7 @@
 
 Build the project in dependency order: Glue values, Weave IR, profiles, the
 S7 executor, host accessors, manifest tooling, kernels, Oeuph and
-stdrewrite, then Kliche and Swaff. Later subsystems assume the preceding
+rewrite-salvo, then Kliche and Swaff. Later subsystems assume the preceding
 contracts work.
 
 Conformance requires ABI v1 support, engine-agnostic kernel exports,

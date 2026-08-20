@@ -46,7 +46,7 @@ ccweave/
   kliche/               # functional/, imperative/, oop/ stereotypes
   swaff/                # grammars/ + adapters/
   oeuph/                # e-graph engine
-  stdrewrite/           # rulesets
+  rewrite-salvo/           # rulesets
   sched/                # the scheduler + orchestrator engine
   compilers/            # the compilers derived from the CCWeave infrastructure
   interpreters/         # the interpreters weaved from CCWeave
@@ -87,7 +87,7 @@ the next begins; later stages depend on earlier ones.
 7. **Example kernels** (`kernels/`): start by transcribing
    `strength-reduce.scm` from the specs, then add at least one kernel
    per capability domain you need for testing.
-8. **Oeuph** (`oeuph/`) and **stdrewrite**: e-graph engine over the
+8. **Oeuph** (`oeuph/`) and **rewrite-salvo**: e-graph engine over the
    canonical in-memory IR, with budgets, determinism, per-ruleset
    diagnostics.
 9. **Kliche** stereotypes, then **Swaff** frontends (Tree-sitter

@@ -1,7 +1,7 @@
 \page ccweave-manual-03 Chapter 3: Repository map
 
 The source tree mirrors the architecture. `glue/`, `ir/`, `executors/`,
-`oeuph/`, `kliche/`, `swaff/`, `kernels/`, `stdrewrite/`, and
+`oeuph/`, `kliche/`, `swaff/`, `kernels/`, `rewrite-salvo/`, and
 `tools/ccw-manifest/` contain the implementation and its extension points.
 Tests live in `tests/`.
 

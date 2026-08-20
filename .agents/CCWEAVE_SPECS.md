@@ -171,9 +171,9 @@ Oeuph performs **semantics-preserving** rewriting: every rule asserts an equival
 
 **Repair of faulty code is out of scope.** Transforming incorrect code into correct code is not an equivalence and MUST NOT be expressed as an Oeuph rule. If a repair facility is added later, it will be a separate component with its own soundness story.
 
-### 7.3 Rules and `stdrewrite`
+### 7.3 Rules and `rewrite-salvo`
 
-Rules are pattern/action pairs written in Scheme and bound via S7 through the Glue. `stdrewrite` ships 250+ rule files, organized by domain. Each rule file MUST declare:
+Rules are pattern/action pairs written in Scheme and bound via S7 through the Glue. `rewrite-salvo` ships 250+ rule files, organized by domain. Each rule file MUST declare:
 
 - a **ruleset** name (rules are enabled per-ruleset, never globally by default),
 - for each rule, an equivalence direction (bidirectional by default) and an optional side-condition predicate.
@@ -194,7 +194,7 @@ ccweave/
   kernels/*.scm             manifests/  (generated; CI-checked)
   ir/                       core + tilly/ + on1x/ profiles
   kliche/                   swaff/ (grammars + adapters)
-  oeuph/                    stdrewrite/
+  oeuph/                    rewrite-salvo/
   third_party/              vendored deps
   tools/ccw-manifest
 ```

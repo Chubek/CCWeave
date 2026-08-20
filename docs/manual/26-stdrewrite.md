@@ -1,6 +1,6 @@
 \page ccweave-manual-26 Chapter 26: Standard rewrites
 
-`stdrewrite/` holds the shipped Scheme rulesets, organized by domains such
+`rewrite-salvo/` holds the shipped Scheme rulesets, organized by domains such
 as arithmetic, bitwise operations, comparisons, memory, normalization, and
 peepholes.
 

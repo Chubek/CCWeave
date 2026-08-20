@@ -1,6 +1,6 @@
 # Sched Subsystem Overview
 
-This document specifies the Sched subsystem, implemented in the `sched` directory. The job of Sched is to provide a *scheduler* and *orchestrator* for mixing kernels (under `kernels`) and rewriters (under `stdrewrite`) using Lua 5.5 (provided under `third_party/lua`), using a DAG. Using the Sched subsystem, compilers and interpreters can create DAGs made up of kernels and rewriters, and make use of them.
+This document specifies the Sched subsystem, implemented in the `sched` directory. The job of Sched is to provide a *scheduler* and *orchestrator* for mixing kernels (under `kernels`) and rewriters (under `rewrite-salvo`) using Lua 5.5 (provided under `third_party/lua`), using a DAG. Using the Sched subsystem, compilers and interpreters can create DAGs made up of kernels and rewriters, and make use of them.
 
 The Sched subsystem can optionally *probe* kernels and rewriters for capabilities and features, so it can create the DAG based on the feature and/or capability instead of hard-wiring specific kernels/rewriters.
 

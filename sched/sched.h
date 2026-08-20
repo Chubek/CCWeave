@@ -38,7 +38,7 @@ int ccw_plan_check (const char *path, const char *manifest_dir,
 
 /* SCHED §6: ruleset batch nodes are executed through Oeuph.  The manifest
  * directory is used to revalidate the sealed plan and resolve each selected
- * ruleset's manifest path; it is never inferred by scanning stdrewrite. */
+ * ruleset's manifest path; it is never inferred by scanning rewrite-salvo. */
 int ccw_plan_apply_rewrites (const ccw_plan *, ccw_ir *,
                              const char *manifest_dir, ccw_oeuph_budget,
                              ccw_cost_model, ccw_oeuph_stats *stats,

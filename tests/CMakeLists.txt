@@ -56,7 +56,7 @@ target_compile_definitions(test_simd_kernels PRIVATE
 ccw_add_test(test_oeuph test_oeuph.c)
 target_link_libraries(test_oeuph PRIVATE ccw_oeuph)
 target_compile_definitions(test_oeuph PRIVATE
-  CCW_STDREWRITE_DIR="${CMAKE_SOURCE_DIR}/stdrewrite")
+  CCW_REWRITE_SALVO_DIR="${CMAKE_SOURCE_DIR}/rewrite-salvo")
 
 ccw_add_test(test_sched test_sched.c)
 target_link_libraries(test_sched PRIVATE ccw_sched)

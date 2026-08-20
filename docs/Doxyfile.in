@@ -57,7 +57,7 @@ EXCLUDE_SYMLINKS       = YES
 
 USE_MDFILE_AS_MAINPAGE = "@CCWEAVE_DOCS_SOURCE_ROOT@/docs/mainpage.md"
 EXAMPLE_PATH           = "@CCWEAVE_DOCS_SOURCE_ROOT@/kernels" \
-                         "@CCWEAVE_DOCS_SOURCE_ROOT@/stdrewrite" \
+                         "@CCWEAVE_DOCS_SOURCE_ROOT@/rewrite-salvo" \
                          "@CCWEAVE_DOCS_SOURCE_ROOT@/manifests"
 EXAMPLE_PATTERNS       = *.scm *.yaml
 EXAMPLE_RECURSIVE      = YES

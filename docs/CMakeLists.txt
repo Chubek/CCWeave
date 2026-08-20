@@ -37,7 +37,7 @@ set(CCWEAVE_DOCS_INPUTS
     "${CMAKE_SOURCE_DIR}/swaff/adapters"
     "${CMAKE_SOURCE_DIR}/tools"
     "${CMAKE_SOURCE_DIR}/kernels"
-    "${CMAKE_SOURCE_DIR}/stdrewrite"
+    "${CMAKE_SOURCE_DIR}/rewrite-salvo"
     "${CMAKE_SOURCE_DIR}/docs"
 )
 # Doxygen separates INPUT paths with whitespace, while CMake stores lists

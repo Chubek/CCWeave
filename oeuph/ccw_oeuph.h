@@ -52,7 +52,7 @@ extern "C"
                                  ccw_oeuph_side_condition side_condition,
                                  char **error_message);
 
-  /* Loads a .scm ruleset file from stdrewrite/. */
+  /* Loads a .scm ruleset file from rewrite-salvo/. */
   ccw_oeuph_ruleset *ccw_oeuph_ruleset_load (const char *path,
                                              char **error_message);
 

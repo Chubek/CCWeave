@@ -6,8 +6,8 @@
 
 #include <stdlib.h>
 
-#ifndef CCW_STDREWRITE_DIR
-#define CCW_STDREWRITE_DIR "stdrewrite"
+#ifndef CCW_REWRITE_SALVO_DIR
+#define CCW_REWRITE_SALVO_DIR "rewrite-salvo"
 #endif
 
 static ccw_ir *sample(void)
@@ -37,7 +37,7 @@ static char *run_once(const char *ruleset_dir, ccw_oeuph_budget budget,
 {
     char path[512];
     snprintf(path, sizeof(path), "%s/%s/rules.scm",
-             CCW_STDREWRITE_DIR, ruleset_dir);
+             CCW_REWRITE_SALVO_DIR, ruleset_dir);
     char *err = NULL;
     ccw_oeuph_ruleset *rs = ccw_oeuph_ruleset_load(path, &err);
     if (rs == NULL) {
@@ -59,7 +59,7 @@ int main(void)
     /* --- rulesets declare a name and load their rules --- */
     char path[512];
     snprintf(path, sizeof(path), "%s/arith/identity/rules.scm",
-             CCW_STDREWRITE_DIR);
+             CCW_REWRITE_SALVO_DIR);
     char *err = NULL;
     ccw_oeuph_ruleset *arith = ccw_oeuph_ruleset_load(path, &err);
     CCW_CHECK(arith != NULL, "arith ruleset failed to load: %s", err ? err : "");
@@ -72,7 +72,7 @@ int main(void)
     }
 
     /* --- power-oriented rules are a loadable, named ruleset --- */
-    snprintf(path, sizeof(path), "%s/power/rules.scm", CCW_STDREWRITE_DIR);
+    snprintf(path, sizeof(path), "%s/power/rules.scm", CCW_REWRITE_SALVO_DIR);
     err = NULL;
     ccw_oeuph_ruleset *power = ccw_oeuph_ruleset_load(path, &err);
     CCW_CHECK(power != NULL, "power ruleset failed to load: %s", err ? err : "");
