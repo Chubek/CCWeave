@@ -539,7 +539,7 @@ ccwld_plan_plugin (ccwld_plan *p, const char *path, const char *options,
 /* --- hooks --- */
 
 int
-ccwld_plan_hook (ccwld_plan *p, ccwld_phase_id phase, ccwld_hook_fn fn,
+ccwld_plan_hook (ccwld_plan *p, ccwld_phase phase, ccwld_hook_fn fn,
                  void *user, ccwld_error *e)
 {
   if (is_sealed (p, e))
@@ -931,69 +931,6 @@ ccwld_plan_hash (const ccwld_plan *p, char out[65])
   if (tmp)
     free (tmp);
   return 1;
-}
-
-/* --- expression adapters (thin wrappers) --- */
-
-ccwld_expr *
-ccwld_expr_int (uint64_t value)
-{
-  return ccwld_expr_int (value);
-}
-
-ccwld_expr *
-ccwld_expr_symbol (const char *name)
-{
-  return ccwld_expr_symbol (name);
-}
-
-ccwld_expr *
-ccwld_expr_dot (void)
-{
-  return ccwld_expr_dot ();
-}
-
-ccwld_expr *
-ccwld_expr_binary (char op, ccwld_expr *a, ccwld_expr *b)
-{
-  return ccwld_expr_binary ((ccwld_op_tag)op, a, b);
-}
-
-ccwld_expr *
-ccwld_expr_unary (char op, ccwld_expr *a)
-{
-  return ccwld_expr_unary ((ccwld_op_tag)op, a);
-}
-
-ccwld_expr *
-ccwld_expr_align_expr (ccwld_expr *a, uint64_t boundary)
-{
-  return ccwld_expr_align (a, boundary);
-}
-
-void
-ccwld_expr_free (ccwld_expr *e)
-{
-  ccwld_expr_free (e);
-}
-
-int
-ccwld_expr_eval (const ccwld_expr *e, const ccwld_plan *p, uint64_t dot,
-                 uint64_t *out, ccwld_error *e_)
-{
-  char *errmsg = NULL;
-  int ok = ccwld_expr_eval (e, p, dot, out, &errmsg);
-  if (!ok && e_ && errmsg)
-    {
-      e_->code = 4;
-      snprintf (e_->message, sizeof (e_->message), "%s", errmsg);
-      free (errmsg);
-    }
-  else if (errmsg)
-    {
-      free (errmsg);
-    }
-  return ok;
 }
 
 void

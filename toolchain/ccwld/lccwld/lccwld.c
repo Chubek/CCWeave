@@ -29,22 +29,28 @@ static int
 output (lua_State *L)
 {
   lua_ctx *c = ctx (L);
-  ccwld_output o = { 0 };
+  ccwld_output o;
   ccwld_error e;
+  memset (&o, 0, sizeof (o));
   luaL_checktype (L, 1, LUA_TTABLE);
   lua_getfield (L, 1, "kind");
-  o.kind = luaL_checkstring (L, -1);
+  o.kind = strdup (luaL_checkstring (L, -1));
   lua_pop (L, 1);
   lua_getfield (L, 1, "format");
-  o.format = luaL_optstring (L, -1, NULL);
+  o.format = strdup (luaL_optstring (L, -1, NULL));
   lua_pop (L, 1);
   lua_getfield (L, 1, "entry");
-  o.entry = luaL_optstring (L, -1, NULL);
+  o.entry = strdup (luaL_optstring (L, -1, NULL));
   lua_pop (L, 1);
   lua_getfield (L, 1, "soname");
-  o.soname = luaL_optstring (L, -1, NULL);
+  o.soname = strdup (luaL_optstring (L, -1, NULL));
   lua_pop (L, 1);
-  if (!ccwld_plan_output (c->p, &o, &e))
+  int r = ccwld_plan_output (c->p, &o, &e);
+  free (o.kind);
+  free (o.format);
+  free (o.entry);
+  free (o.soname);
+  if (!r)
     return fail (L, &e);
   lua_pushvalue (L, 1);
   return 1;

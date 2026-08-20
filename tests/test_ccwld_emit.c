@@ -11,7 +11,7 @@
 int main(void)
 {
     ccwld_error error = {0};
-    ccwld_output output = {"reloc", "elf", NULL, NULL, NULL};
+    ccwld_output output;
     ccwld_plan *plan = ccwld_plan_new("x86_64-linux-gnu");
     char path[] = "/tmp/ccwld-test-XXXXXX";
     char buffer[256] = {0};
@@ -20,8 +20,13 @@ int main(void)
 
     CCW_CHECK(plan != NULL, "plan allocation failed");
     if (plan == NULL) return ccw_test_report("ccwld-emit");
+    memset(&output, 0, sizeof(output));
+    output.kind = strdup("reloc");
+    output.format = strdup("elf");
     CCW_CHECK(ccwld_plan_output(plan, &output, &error),
               "output declaration failed: %s", error.message);
+    free(output.kind);
+    free(output.format);
     CCW_CHECK(ccwld_plan_seal(plan, &error),
               "plan sealing failed: %s", error.message);
     fd = mkstemp(path);

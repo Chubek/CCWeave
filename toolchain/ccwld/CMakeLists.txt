@@ -9,7 +9,7 @@ else()
   list(APPEND CCWLD_EMITTER_SOURCES emit_binaryen_stub.c)
 endif()
 add_library(ccwld STATIC ccwld.c abi.c lccwld/lccwld.c
-  ${CCWLD_EMITTER_SOURCES})
+  plan/ccwld_plan.c expr/ccwld_expr.c ${CCWLD_EMITTER_SOURCES})
 target_include_directories(ccwld PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}
   ${CMAKE_CURRENT_SOURCE_DIR}/abi

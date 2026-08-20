@@ -1,9 +1,14 @@
 /* §2.3: deferred expression AST — shared between both frontends.
  * Expression-valued fields hold these AST nodes, never pre-computed integers.
  * Evaluation happens during layout in plan order against a live location
- * counter. */
+ * counter.
+ *
+ * Also defines the plan IR struct types (§2.1) that the expression
+ * evaluator needs to dereference (mems, secs, syms, phdrs, plan). */
 #ifndef CCWLD_EXPR_H
 #define CCWLD_EXPR_H
+
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -13,6 +18,209 @@ extern "C"
 #endif
 
   struct ccwld_plan;
+  struct ccwld_link;
+
+  /* --- error --- */
+  typedef struct
+  {
+    int code;
+    char message[512];
+  } ccwld_error;
+
+  /* --- output descriptor (§2.1) --- */
+  typedef struct
+  {
+    char *kind;   /* "exe" | "dso" | "reloc" | "pie" */
+    char *format; /* "elf" | "pe" | "macho"           */
+    char *entry;  /* entry symbol name                */
+    char *soname; /* DSO soname (ELF only)            */
+    char *osabi;  /* format-specific OS/ABI           */
+  } ccwld_output;
+
+  /* --- memory region (§2.1) --- */
+  typedef struct
+  {
+    char *name;      /* region name                     */
+    char *attrs;     /* "rx", "rwx", "rw", etc.         */
+    uint64_t origin; /* start address                   */
+    uint64_t length; /* region size                     */
+  } ccwld_mem;
+
+  /* --- output section (§2.1) --- */
+  typedef struct
+  {
+    char *name;              /* output section name             */
+    char *region;            /* memory region name              */
+    char *at_region;         /* LMA region (or NULL)            */
+    char *selector;          /* input section selector (match)  */
+    char *keep;              /* KEEP selector (or NULL)         */
+    uint64_t align;          /* alignment requirement           */
+    int load;                /* loadable flag                   */
+    struct ccwld_expr *fill; /* fill expression (or NULL)    */
+    /* --- layout output (set during layout phase) --- */
+    uint64_t vma;  /* virtual address after layout    */
+    uint64_t lma;  /* load address after layout       */
+    uint64_t size; /* size after layout               */
+  } ccwld_sec;
+
+  /* --- symbol assignment (§2.1) --- */
+  typedef struct
+  {
+    char *name;              /* symbol name                    */
+    struct ccwld_expr *expr; /* value expression               */
+    int provide;             /* PROVIDE semantic               */
+    int hidden;              /* hidden visibility              */
+    char *visibility;        /* "default"|"hidden"|"protected"|"internal" */
+    char *binding;           /* "global"|"local"|"weak"         */
+    /* --- resolved value (set during layout) --- */
+    uint64_t resolved_value;
+    int resolved;
+  } ccwld_sym;
+
+  /* --- program header / segment (§2.1) --- */
+  typedef struct
+  {
+    char *name;      /* segment name (for segment_start) */
+    char *type;      /* "LOAD"|"DYNAMIC"|"NOTE"|etc.     */
+    uint64_t vaddr;  /* virtual address                  */
+    uint64_t paddr;  /* physical address                 */
+    uint64_t filesz; /* file size                        */
+    uint64_t memsz;  /* memory size                      */
+    uint32_t flags;  /* PF_R|PF_W|PF_X                   */
+    uint64_t align;  /* alignment                        */
+  } ccwld_phdr;
+
+  /* --- input file (§2.1) --- */
+  typedef struct
+  {
+    char *path;    /* file path                            */
+    int as_needed; /* --as-needed flag                     */
+    int startup;   /* forced-first in output order         */
+    int is_group;  /* archive group with repeated scan     */
+  } ccwld_input;
+
+  /* --- version node (§2.1) --- */
+  typedef struct
+  {
+    char *symbol;   /* symbol name                */
+    char *version;  /* version string              */
+    int is_default; /* default version flag        */
+  } ccwld_ver;
+
+  /* --- LTO configuration (§4) --- */
+  typedef struct
+  {
+    char *pipeline;  /* LTO pipeline name              */
+    unsigned jobs;   /* parallel jobs (1 for repro)    */
+    char *cache_dir; /* LTO cache directory            */
+    int enabled;     /* whether LTO is active          */
+  } ccwld_lto_cfg;
+
+  /* --- plugin registration (§5) --- */
+  typedef struct
+  {
+    char *path;    /* plugin shared-object path      */
+    char *name;    /* plugin name                    */
+    char *options; /* JSON options string            */
+    int loaded;    /* loaded flag (internal)         */
+  } ccwld_plugin;
+
+  /* --- phase hook (§3) --- */
+  typedef enum
+  {
+    CCWLD_PHASE_LOAD = 0,
+    CCWLD_PHASE_RESOLVE = 1,
+    CCWLD_PHASE_LTO = 2,
+    CCWLD_PHASE_GC = 3,
+    CCWLD_PHASE_LAYOUT = 4,
+    CCWLD_PHASE_RELOCATE = 5,
+    CCWLD_PHASE_EMIT = 6,
+  } ccwld_phase;
+
+  typedef int (*ccwld_hook_fn) (ccwld_phase phase, struct ccwld_link *link,
+                                void *user);
+
+  typedef struct
+  {
+    ccwld_phase phase;
+    ccwld_hook_fn fn;
+    void *user;
+  } ccwld_hook;
+
+  /* --- link handle (passed to phase hooks) --- */
+  typedef struct ccwld_link
+  {
+    struct ccwld_plan *plan;
+    ccwld_phase phase;
+    /* --- introspection --- */
+    void *phase_state; /* phase-specific opaque state */
+  } ccwld_link;
+
+  /* --- the plan IR (§2.1) --- */
+  typedef struct ccwld_plan
+  {
+    /* --- declarative plan --- */
+    char *target;        /* target triple                    */
+    ccwld_output output; /* output declaration               */
+    bool sealed;         /* post-seal mutation only via hooks */
+
+    /* --- inputs --- */
+    ccwld_input *inputs;
+    size_t ninputs;
+    size_t cinputs;
+
+    /* --- search paths --- */
+    char **paths;
+    size_t npaths;
+    size_t cpaths;
+
+    /* --- memory regions --- */
+    ccwld_mem *mems;
+    size_t nmems;
+    size_t cmems;
+
+    /* --- output sections --- */
+    ccwld_sec *secs;
+    size_t nsecs;
+    size_t csecs;
+
+    /* --- symbols --- */
+    ccwld_sym *syms;
+    size_t nsyms;
+    size_t csyms;
+
+    /* --- program headers --- */
+    ccwld_phdr *phdrs;
+    size_t nphdrs;
+    size_t cphdrs;
+
+    /* --- version nodes --- */
+    ccwld_ver *vers;
+    size_t nvers;
+    size_t cvers;
+
+    /* --- LTO / plugins / hooks --- */
+    ccwld_lto_cfg lto;
+    ccwld_plugin *plugins;
+    size_t nplugins;
+    size_t cplugins;
+    ccwld_hook *hooks;
+    size_t nhooks;
+    size_t chooks;
+
+    /* --- serialized canonical form --- */
+    char *serialized;
+    size_t serialized_len;
+
+    /* --- gensym counter --- */
+    unsigned gensym;
+
+    /* --- reproducibility flag --- */
+    bool reproducible;
+
+    /* --- internal: manifest hash for cache --- */
+    char plan_hash[65];
+  } ccwld_plan;
 
   /* Expression node kinds (§2.3). */
   typedef enum

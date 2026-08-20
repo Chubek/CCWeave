@@ -284,7 +284,7 @@ ccwld_expr_equal (const ccwld_expr *a, const ccwld_expr *b)
 
 /* --- helper: look up a symbol in the plan --- */
 
-static const struct ccwld_sym_rec *
+static const struct ccwld_sym *
 plan_find_symbol (const struct ccwld_plan *p, const char *name)
 {
   if (!p || !name)
@@ -297,7 +297,7 @@ plan_find_symbol (const struct ccwld_plan *p, const char *name)
   return NULL;
 }
 
-static const struct ccwld_mem_rec *
+static const struct ccwld_mem *
 plan_find_region (const struct ccwld_plan *p, const char *name)
 {
   if (!p || !name)
@@ -310,7 +310,7 @@ plan_find_region (const struct ccwld_plan *p, const char *name)
   return NULL;
 }
 
-static const struct ccwld_sec_rec *
+static const struct ccwld_sec *
 plan_find_section (const struct ccwld_plan *p, const char *name)
 {
   if (!p || !name)
@@ -375,7 +375,7 @@ eval_inner (const ccwld_expr *e, const struct ccwld_plan *plan, uint64_t dot,
 
     case CCWLD_EXPR_SYMBOL:
       {
-        const struct ccwld_sym_rec *sym = plan_find_symbol (plan, e->name);
+        const struct ccwld_sym *sym = plan_find_symbol (plan, e->name);
         if (!sym)
           {
             if (error_message)
@@ -395,7 +395,7 @@ eval_inner (const ccwld_expr *e, const struct ccwld_plan *plan, uint64_t dot,
 
     case CCWLD_EXPR_DEFINED:
       {
-        const struct ccwld_sym_rec *sym = plan_find_symbol (plan, e->name);
+        const struct ccwld_sym *sym = plan_find_symbol (plan, e->name);
         *out = sym ? 1 : 0;
         ok = 1;
         break;
@@ -403,7 +403,7 @@ eval_inner (const ccwld_expr *e, const struct ccwld_plan *plan, uint64_t dot,
 
     case CCWLD_EXPR_REGION_ORIGIN:
       {
-        const struct ccwld_mem_rec *r = plan_find_region (plan, e->name);
+        const struct ccwld_mem *r = plan_find_region (plan, e->name);
         if (!r)
           {
             if (error_message)
@@ -424,7 +424,7 @@ eval_inner (const ccwld_expr *e, const struct ccwld_plan *plan, uint64_t dot,
 
     case CCWLD_EXPR_REGION_LENGTH:
       {
-        const struct ccwld_mem_rec *r = plan_find_region (plan, e->name);
+        const struct ccwld_mem *r = plan_find_region (plan, e->name);
         if (!r)
           {
             if (error_message)
@@ -452,7 +452,7 @@ eval_inner (const ccwld_expr *e, const struct ccwld_plan *plan, uint64_t dot,
 
     case CCWLD_EXPR_SIZEOF:
       {
-        const struct ccwld_sec_rec *s = plan_find_section (plan, e->name);
+        const struct ccwld_sec *s = plan_find_section (plan, e->name);
         if (!s)
           {
             if (error_message)
@@ -474,7 +474,7 @@ eval_inner (const ccwld_expr *e, const struct ccwld_plan *plan, uint64_t dot,
 
     case CCWLD_EXPR_ADDR:
       {
-        const struct ccwld_sec_rec *s = plan_find_section (plan, e->name);
+        const struct ccwld_sec *s = plan_find_section (plan, e->name);
         if (!s)
           {
             if (error_message)
@@ -496,7 +496,7 @@ eval_inner (const ccwld_expr *e, const struct ccwld_plan *plan, uint64_t dot,
 
     case CCWLD_EXPR_LOADADDR:
       {
-        const struct ccwld_sec_rec *s = plan_find_section (plan, e->name);
+        const struct ccwld_sec *s = plan_find_section (plan, e->name);
         if (!s)
           {
             if (error_message)
