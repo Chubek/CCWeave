@@ -120,6 +120,11 @@ ACC_SIG (acc_glue_has)
                                       "instr-insert-before!",
                                       "instr-delete!",
                                       "const-int-build",
+                                      "syscall-build",
+                                      "io-read-build",
+                                      "io-write-build",
+                                      "io-close-build",
+                                      "io-open-build",
                                       "node-kind",
                                       "operand-kind",
                                       "operand-name",
@@ -613,6 +618,79 @@ ACC_SIG (acc_const_int_build)
   return CCW_OK;
 }
 
+ACC_SIG (acc_syscall_build)
+{
+  (void)host_ctx;
+  ccw_node ins;
+  ccw_node number_node;
+  if (nargs < 1 || nargs > 7 || args[0].type != CCW_T_INT)
+    return acc_fail (error_message,
+                     "expects syscall number and at most six operands");
+  ins = ccw_ir_instr_build (ir, CCW_OP_SYSCALL, CCW_TY_I64);
+  if (ins == 0)
+    return acc_fail (error_message, "could not build syscall");
+  number_node = ccw_ir_operand_const_int (ir, CCW_TY_I64, args[0].as.i);
+  if (number_node == 0
+      || ccw_ir_instr_add_operand (ir, ins, number_node) != CCW_OK)
+    return acc_fail (error_message, "could not attach syscall number");
+  for (int i = 1; i < nargs; ++i)
+    {
+      ccw_node operand = 0;
+      if (!arg_node (&args[i], &operand)
+          || ccw_ir_node_kind (ir, operand) != CCW_NODE_OPERAND
+          || ccw_ir_instr_add_operand (ir, ins, operand) != CCW_OK)
+        return acc_fail (error_message, "syscall operands must be nodes");
+    }
+  *result = ccw_node_val (ins);
+  return CCW_OK;
+}
+
+static ccw_status
+build_io (ccw_ir *ir, const ccw_val *args, int nargs, const char *opcode,
+          int expected, ccw_val *result, char **error_message)
+{
+  ccw_node operands[3];
+  ccw_node ins;
+  if (nargs != expected)
+    return acc_fail (error_message, "incorrect I/O wrapper arity");
+  for (int i = 0; i < expected; ++i)
+    if (!arg_node (&args[i], &operands[i])
+        || ccw_ir_node_kind (ir, operands[i]) != CCW_NODE_OPERAND)
+      return acc_fail (error_message, "I/O wrapper operands must be nodes");
+  ins = ccw_ir_instr_build (ir, opcode, CCW_TY_I64);
+  if (ins == 0)
+    return acc_fail (error_message, "could not build I/O wrapper");
+  for (int i = 0; i < expected; ++i)
+    if (ccw_ir_instr_add_operand (ir, ins, operands[i]) != CCW_OK)
+      return acc_fail (error_message, "could not attach I/O wrapper operand");
+  *result = ccw_node_val (ins);
+  return CCW_OK;
+}
+
+ACC_SIG (acc_io_read_build)
+{
+  (void)host_ctx;
+  return build_io (ir, args, nargs, CCW_OP_IO_READ, 3, result, error_message);
+}
+
+ACC_SIG (acc_io_write_build)
+{
+  (void)host_ctx;
+  return build_io (ir, args, nargs, CCW_OP_IO_WRITE, 3, result, error_message);
+}
+
+ACC_SIG (acc_io_close_build)
+{
+  (void)host_ctx;
+  return build_io (ir, args, nargs, CCW_OP_IO_CLOSE, 1, result, error_message);
+}
+
+ACC_SIG (acc_io_open_build)
+{
+  (void)host_ctx;
+  return build_io (ir, args, nargs, CCW_OP_IO_OPEN, 3, result, error_message);
+}
+
 static bool
 edit_allowed (ccw_ir *ir, ccw_edit_kind kind, ccw_node target,
               ccw_node incoming)
@@ -714,6 +792,11 @@ ccw_host_register_core_accessors (ccw_executor *ex)
     { "instr-insert-before!", 2, 2, acc_instr_insert_before },
     { "instr-delete!", 1, 1, acc_instr_delete },
     { "const-int-build", 1, 1, acc_const_int_build },
+    { "syscall-build", 1, 7, acc_syscall_build },
+    { "io-read-build", 3, 3, acc_io_read_build },
+    { "io-write-build", 3, 3, acc_io_write_build },
+    { "io-close-build", 1, 1, acc_io_close_build },
+    { "io-open-build", 3, 3, acc_io_open_build },
   };
   for (size_t i = 0; i < sizeof (table) / sizeof (table[0]); i++)
     {

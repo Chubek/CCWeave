@@ -60,6 +60,14 @@ extern "C"
     CCW_OPND_BLOCK        /* ^name       */
   } ccw_operand_kind;
 
+  /* Shared low-level syscall operation.  Operand zero is the syscall number;
+   * subsequent operands are the platform ABI arguments. */
+#define CCW_OP_SYSCALL "syscall"
+#define CCW_OP_IO_READ "io.read"
+#define CCW_OP_IO_WRITE "io.write"
+#define CCW_OP_IO_CLOSE "io.close"
+#define CCW_OP_IO_OPEN "io.open"
+
   /* ---------- module lifecycle ---------- */
 
   ccw_ir *ccw_ir_module_create (const char *name, ccw_profile profile);
@@ -105,6 +113,17 @@ extern "C"
                                      int64_t value);
   ccw_node ccw_ir_operand_const_float (ccw_ir *ir, ccw_ir_type type,
                                        double value);
+  ccw_node ccw_ir_build_syscall (ccw_ir *ir, ccw_node blk, const char *dest,
+                                 ccw_ir_type type, int64_t number,
+                                 const ccw_node *args, size_t arg_count);
+  ccw_node ccw_ir_build_io_read (ccw_ir *ir, ccw_node blk, const char *dest,
+                                 ccw_node fd, ccw_node buffer, ccw_node count);
+  ccw_node ccw_ir_build_io_write (ccw_ir *ir, ccw_node blk, const char *dest,
+                                  ccw_node fd, ccw_node buffer, ccw_node count);
+  ccw_node ccw_ir_build_io_close (ccw_ir *ir, ccw_node blk, const char *dest,
+                                  ccw_node fd);
+  ccw_node ccw_ir_build_io_open (ccw_ir *ir, ccw_node blk, const char *dest,
+                                 ccw_node path, ccw_node flags, ccw_node mode);
 
   /* ---------- navigation / inspection (mirrors the Core Accessor Set)
    * ---------- */

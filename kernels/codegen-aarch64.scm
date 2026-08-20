@@ -37,6 +37,7 @@
         (br         . aarch64.b.cond)
         (ret        . aarch64.ret)
         (call       . aarch64.bl)
+        (syscall    . aarch64.svc)
         (call.dynamic . aarch64.blr)
         (call.virtual . aarch64.blr.virtual)
         (phi        . aarch64.phi)))

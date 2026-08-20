@@ -242,6 +242,19 @@ extern "C"
    *     (instr-insert-before! anchor new-ins) -> nil
    *     (instr-delete! ins)                   -> nil
    *     (const-int-build value)               -> node
+   *     (syscall-build number operand-node ...) -> node
+   *
+   * `syscall-build` constructs the shared core `syscall` instruction. The
+   * platform syscall kernels lower it to an architecture-specific trap
+   * opcode. At most six ABI argument operands are accepted.
+   *
+   * Low-level I/O wrappers construct `io.read`, `io.write`, `io.close`, and
+   * `io.open`; the platform I/O kernels lower these to `syscall` with the
+   * appropriate Linux number and, where required, an `openat` dirfd.
+   *     (io-read-build fd buffer count)          -> node
+   *     (io-write-build fd buffer count)         -> node
+   *     (io-close-build fd)                      -> node
+   *     (io-open-build path flags mode)          -> node
    *
    * Profile-specific accessors (inline-cache slots, relocations, ...) are
    * host extensions following the same feature-test rule.

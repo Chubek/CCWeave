@@ -74,6 +74,12 @@ capabilities:
     - kernels/codegen-x86-64.scm
   debug.dwarf-linetable:
     - kernels/dwarf-linetable.scm
+  io.aarch64:
+    - kernels/io-aarch64.scm
+  io.riscv64:
+    - kernels/io-riscv64.scm
+  io.x86-64:
+    - kernels/io-x86-64.scm
   lower.atomics:
     - kernels/atomics-lower.scm
   lower.bitfield:
@@ -194,6 +200,12 @@ capabilities:
     - kernels/vec-reduce.scm
   sanitize.ubsan:
     - kernels/ubsan-checks.scm
+  syscall.aarch64:
+    - kernels/syscall-aarch64.scm
+  syscall.riscv64:
+    - kernels/syscall-riscv64.scm
+  syscall.x86-64:
+    - kernels/syscall-x86-64.scm
   transform.ssa-construct:
     - kernels/ssa-construct.scm
   transform.ssa-destruct:

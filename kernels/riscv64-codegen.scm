@@ -37,6 +37,7 @@
         (br         . rv64gc.beq)
         (ret        . rv64gc.ret)
         (call       . rv64gc.call)
+        (syscall    . rv64gc.ecall)
         (call.dynamic . rv64gc.jalr)
         (call.virtual . rv64gc.jalr.virtual)
         (phi        . rv64gc.phi)))

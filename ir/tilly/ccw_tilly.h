@@ -29,6 +29,21 @@ extern "C"
                                         const char *callee);
   ccw_node ccw_tilly_build_reloc (ccw_ir *ir, ccw_node blk, const char *dest,
                                   const char *symbol, int64_t addend);
+  ccw_node ccw_tilly_build_syscall (ccw_ir *ir, ccw_node blk,
+                                    const char *dest, ccw_ir_type type,
+                                    int64_t number, const ccw_node *args,
+                                    size_t arg_count);
+  ccw_node ccw_tilly_build_io_read (ccw_ir *ir, ccw_node blk,
+                                    const char *dest, ccw_node fd,
+                                    ccw_node buffer, ccw_node count);
+  ccw_node ccw_tilly_build_io_write (ccw_ir *ir, ccw_node blk,
+                                     const char *dest, ccw_node fd,
+                                     ccw_node buffer, ccw_node count);
+  ccw_node ccw_tilly_build_io_close (ccw_ir *ir, ccw_node blk,
+                                     const char *dest, ccw_node fd);
+  ccw_node ccw_tilly_build_io_open (ccw_ir *ir, ccw_node blk,
+                                    const char *dest, ccw_node path,
+                                    ccw_node flags, ccw_node mode);
   ccw_status ccw_tilly_set_link_section (ccw_ir *ir, ccw_node fn,
                                          const char *section);
   ccw_status ccw_tilly_set_layout (ccw_ir *ir, const char *layout);

@@ -41,6 +41,7 @@
         (br         . x86-64.br)
         (ret        . x86-64.ret)
         (call       . x86-64.call)
+        (syscall    . x86-64.syscall)
         (call.dynamic . x86-64.call.dynamic)
         (call.virtual . x86-64.call.virtual)
         (phi        . x86-64.phi)))

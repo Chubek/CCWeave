@@ -77,6 +77,42 @@ ccw_on1x_build_deopt (ccw_ir *ir, ccw_node blk, const char *target)
   return ins;
 }
 
+ccw_node
+ccw_on1x_build_syscall (ccw_ir *ir, ccw_node blk, const char *dest,
+                        ccw_ir_type type, int64_t number,
+                        const ccw_node *args, size_t arg_count)
+{
+  return ccw_ir_build_syscall (ir, blk, dest, type, number, args, arg_count);
+}
+
+ccw_node
+ccw_on1x_build_io_read (ccw_ir *ir, ccw_node blk, const char *dest,
+                        ccw_node fd, ccw_node buffer, ccw_node count)
+{
+  return ccw_ir_build_io_read (ir, blk, dest, fd, buffer, count);
+}
+
+ccw_node
+ccw_on1x_build_io_write (ccw_ir *ir, ccw_node blk, const char *dest,
+                         ccw_node fd, ccw_node buffer, ccw_node count)
+{
+  return ccw_ir_build_io_write (ir, blk, dest, fd, buffer, count);
+}
+
+ccw_node
+ccw_on1x_build_io_close (ccw_ir *ir, ccw_node blk, const char *dest,
+                         ccw_node fd)
+{
+  return ccw_ir_build_io_close (ir, blk, dest, fd);
+}
+
+ccw_node
+ccw_on1x_build_io_open (ccw_ir *ir, ccw_node blk, const char *dest,
+                        ccw_node path, ccw_node flags, ccw_node mode)
+{
+  return ccw_ir_build_io_open (ir, blk, dest, path, flags, mode);
+}
+
 const char *
 ccw_on1x_reject_reason (const ccw_ir *ir, ccw_node ins)
 {

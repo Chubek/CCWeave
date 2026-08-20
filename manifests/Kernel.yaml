@@ -333,6 +333,27 @@ kernels:
     description: Moves constants to the right side of commutative scalar instructions.
     capabilities:
       - normalize.instructions
+  - path: kernels/io-aarch64.scm
+    library: (ccweave kernel io-aarch64)
+    name: io-aarch64
+    version: 0.1.0
+    description: Lowers read, write, open, and close to Linux AArch64 syscalls.
+    capabilities:
+      - io.aarch64
+  - path: kernels/io-riscv64.scm
+    library: (ccweave kernel io-riscv64)
+    name: io-riscv64
+    version: 0.1.0
+    description: Lowers read, write, open, and close to Linux RV64 syscalls.
+    capabilities:
+      - io.riscv64
+  - path: kernels/io-x86-64.scm
+    library: (ccweave kernel io-x86-64)
+    name: io-x86-64
+    version: 0.1.0
+    description: Lowers read, write, open, and close to Linux x86-64 syscalls.
+    capabilities:
+      - io.x86-64
   - path: kernels/isel-legalize.scm
     library: (ccweave kernel isel-legalize)
     name: isel-legalize
@@ -655,6 +676,27 @@ kernels:
     description: Folds constant-selector switches to direct branches.
     capabilities:
       - lower.switch
+  - path: kernels/syscall-aarch64.scm
+    library: (ccweave kernel syscall-aarch64)
+    name: syscall-aarch64
+    version: 0.1.0
+    description: Lowers the shared Linux syscall operation to AArch64 svc.
+    capabilities:
+      - syscall.aarch64
+  - path: kernels/syscall-riscv64.scm
+    library: (ccweave kernel syscall-riscv64)
+    name: syscall-riscv64
+    version: 0.1.0
+    description: Lowers the shared Linux syscall operation to RV64 ecall.
+    capabilities:
+      - syscall.riscv64
+  - path: kernels/syscall-x86-64.scm
+    library: (ccweave kernel syscall-x86-64)
+    name: syscall-x86-64
+    version: 0.1.0
+    description: Lowers the shared Linux syscall operation to x86-64 syscall.
+    capabilities:
+      - syscall.x86-64
   - path: kernels/tail-call.scm
     library: (ccweave kernel tail-call)
     name: tail-call

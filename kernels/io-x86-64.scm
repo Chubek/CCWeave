@@ -1,0 +1,56 @@
+;;; CCWeave Kernel: Linux x86-64 low-level I/O wrappers.
+;;; Sources: .agents/SYSCALL-x86.txt and .agents/DOING-SYSCALLS.md.
+
+(define-library (ccweave kernel io-x86-64)
+  (import (scheme base) (ccweave glue))
+  (export kernel-info kernel-capabilities kernel-apply)
+  (begin
+    (define (kernel-info)
+      '((name . io-x86-64)
+        (version . "0.1.0")
+        (description . "Lowers read, write, open, and close to Linux x86-64 syscalls.")))
+    (define (kernel-capabilities) '(io.x86-64))
+
+    ;; x86-64 retains open(2), unlike the asm-generic ABIs.
+    (define (number opcode)
+      (cond ((eq? opcode 'io.read) 0)
+            ((eq? opcode 'io.write) 1)
+            ((eq? opcode 'io.open) 2)
+            ((eq? opcode 'io.close) 3)
+            (else #f)))
+
+    (define (ops ins)
+      (let loop ((i 0) (out '()))
+        (if (>= i (instr-operand-count ins))
+            (reverse out)
+            (loop (+ i 1) (cons (instr-operand ins i) out)))))
+
+    (define (lower-block! block)
+      (let loop ((i 0))
+        (when (< i (block-instr-count block))
+          (let* ((old (block-instr-ref block i))
+                 (n (number (instr-opcode old))))
+            (when n
+              (let ((new (apply syscall-build (cons n (ops old))))
+                    (dest (instr-dest old)))
+                (when (string? dest) (instr-set-dest! new dest))
+                (instr-replace! old new))))
+          (loop (+ i 1)))))
+
+    (define (kernel-apply capability ir options)
+      (unless (eq? capability 'io.x86-64)
+        (error "io-x86-64: unsupported capability" capability))
+      (unless (list? options)
+        (error "io-x86-64: options must be an alist" options))
+      (unless (and (glue-has? 'syscall-build)
+                   (glue-has? 'instr-set-dest!))
+        (error "io-x86-64: required Glue accessors unavailable"))
+      (let functions ((fi 0))
+        (when (< fi (ir-function-count))
+          (let ((fn (ir-function-ref fi)))
+            (let blocks ((bi 0))
+              (when (< bi (function-block-count fn))
+                (lower-block! (function-block-ref fn bi))
+                (blocks (+ bi 1)))))
+          (functions (+ fi 1))))
+      ir)))

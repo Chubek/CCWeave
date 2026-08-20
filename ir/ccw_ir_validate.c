@@ -63,6 +63,31 @@ ccw_ir_validate (const ccw_ir *ir, char **error_message)
                              "instruction %s in ^%s is not attached",
                              n->opcode, b->name);
 
+              if (strcmp (n->opcode, CCW_OP_SYSCALL) == 0
+                  && (n->children.count < 1 || n->children.count > 7
+                      || ccw_ir_node_get_kind (
+                             ir, n->children.items[0], CCW_NODE_OPERAND)
+                             == NULL
+                      || ccw_ir_node_get (ir, n->children.items[0])->okind
+                             != CCW_OPND_CONST_INT))
+                return fail (error_message,
+                             "syscall in @%s ^%s must have a constant number "
+                             "and at most six arguments",
+                             f->name, b->name);
+
+              if ((strcmp (n->opcode, CCW_OP_IO_READ) == 0
+                   || strcmp (n->opcode, CCW_OP_IO_WRITE) == 0
+                   || strcmp (n->opcode, CCW_OP_IO_OPEN) == 0)
+                  && n->children.count != 3)
+                return fail (error_message,
+                             "%s in @%s ^%s must have three operands",
+                             n->opcode, f->name, b->name);
+              if (strcmp (n->opcode, CCW_OP_IO_CLOSE) == 0
+                  && n->children.count != 1)
+                return fail (error_message,
+                             "io.close in @%s ^%s must have one operand",
+                             f->name, b->name);
+
               const char *why = NULL;
               if (ir->profile == CCW_PROFILE_TILLY)
                 why = ccw_tilly_reject_reason (ir, ins);

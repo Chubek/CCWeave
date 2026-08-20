@@ -391,6 +391,83 @@ ccw_ir_instr_build (ccw_ir *ir, const char *opcode, ccw_ir_type type)
   return n->id;
 }
 
+ccw_node
+ccw_ir_build_syscall (ccw_ir *ir, ccw_node blk, const char *dest,
+                      ccw_ir_type type, int64_t number,
+                      const ccw_node *args, size_t arg_count)
+{
+  ccw_node ins;
+  ccw_node number_node;
+  if (ir == NULL || arg_count > 6 || (arg_count != 0 && args == NULL))
+    return 0;
+  ins = ccw_ir_instr_build (ir, CCW_OP_SYSCALL, type);
+  if (ins == 0)
+    return 0;
+  if (dest != NULL && ccw_ir_instr_set_dest (ir, ins, dest) != CCW_OK)
+    return 0;
+  number_node = ccw_ir_operand_const_int (ir, CCW_TY_I64, number);
+  if (number_node == 0
+      || ccw_ir_instr_add_operand (ir, ins, number_node) != CCW_OK)
+    return 0;
+  for (size_t i = 0; i < arg_count; ++i)
+    if (ccw_ir_instr_add_operand (ir, ins, args[i]) != CCW_OK)
+      return 0;
+  if (blk != 0 && ccw_ir_block_append_instr (ir, blk, ins) != CCW_OK)
+    return 0;
+  return ins;
+}
+
+static ccw_node
+ccw_ir_build_io (ccw_ir *ir, ccw_node blk, const char *dest,
+                 const char *opcode, const ccw_node *args, size_t arg_count)
+{
+  ccw_node ins;
+  if (ir == NULL || opcode == NULL || args == NULL)
+    return 0;
+  ins = ccw_ir_instr_build (ir, opcode, CCW_TY_I64);
+  if (ins == 0)
+    return 0;
+  if (dest != NULL && ccw_ir_instr_set_dest (ir, ins, dest) != CCW_OK)
+    return 0;
+  for (size_t i = 0; i < arg_count; ++i)
+    if (ccw_ir_instr_add_operand (ir, ins, args[i]) != CCW_OK)
+      return 0;
+  if (blk != 0 && ccw_ir_block_append_instr (ir, blk, ins) != CCW_OK)
+    return 0;
+  return ins;
+}
+
+ccw_node
+ccw_ir_build_io_read (ccw_ir *ir, ccw_node blk, const char *dest,
+                      ccw_node fd, ccw_node buffer, ccw_node count)
+{
+  ccw_node args[] = { fd, buffer, count };
+  return ccw_ir_build_io (ir, blk, dest, CCW_OP_IO_READ, args, 3);
+}
+
+ccw_node
+ccw_ir_build_io_write (ccw_ir *ir, ccw_node blk, const char *dest,
+                       ccw_node fd, ccw_node buffer, ccw_node count)
+{
+  ccw_node args[] = { fd, buffer, count };
+  return ccw_ir_build_io (ir, blk, dest, CCW_OP_IO_WRITE, args, 3);
+}
+
+ccw_node
+ccw_ir_build_io_close (ccw_ir *ir, ccw_node blk, const char *dest,
+                       ccw_node fd)
+{
+  return ccw_ir_build_io (ir, blk, dest, CCW_OP_IO_CLOSE, &fd, 1);
+}
+
+ccw_node
+ccw_ir_build_io_open (ccw_ir *ir, ccw_node blk, const char *dest,
+                      ccw_node path, ccw_node flags, ccw_node mode)
+{
+  ccw_node args[] = { path, flags, mode };
+  return ccw_ir_build_io (ir, blk, dest, CCW_OP_IO_OPEN, args, 3);
+}
+
 ccw_status
 ccw_ir_instr_set_dest (ccw_ir *ir, ccw_node ins, const char *dest)
 {

@@ -62,6 +62,42 @@ ccw_tilly_build_reloc (ccw_ir *ir, ccw_node blk, const char *dest,
   return ins;
 }
 
+ccw_node
+ccw_tilly_build_syscall (ccw_ir *ir, ccw_node blk, const char *dest,
+                         ccw_ir_type type, int64_t number,
+                         const ccw_node *args, size_t arg_count)
+{
+  return ccw_ir_build_syscall (ir, blk, dest, type, number, args, arg_count);
+}
+
+ccw_node
+ccw_tilly_build_io_read (ccw_ir *ir, ccw_node blk, const char *dest,
+                         ccw_node fd, ccw_node buffer, ccw_node count)
+{
+  return ccw_ir_build_io_read (ir, blk, dest, fd, buffer, count);
+}
+
+ccw_node
+ccw_tilly_build_io_write (ccw_ir *ir, ccw_node blk, const char *dest,
+                          ccw_node fd, ccw_node buffer, ccw_node count)
+{
+  return ccw_ir_build_io_write (ir, blk, dest, fd, buffer, count);
+}
+
+ccw_node
+ccw_tilly_build_io_close (ccw_ir *ir, ccw_node blk, const char *dest,
+                          ccw_node fd)
+{
+  return ccw_ir_build_io_close (ir, blk, dest, fd);
+}
+
+ccw_node
+ccw_tilly_build_io_open (ccw_ir *ir, ccw_node blk, const char *dest,
+                         ccw_node path, ccw_node flags, ccw_node mode)
+{
+  return ccw_ir_build_io_open (ir, blk, dest, path, flags, mode);
+}
+
 ccw_status
 ccw_tilly_set_link_section (ccw_ir *ir, ccw_node fn, const char *section)
 {

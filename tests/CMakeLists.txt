@@ -43,6 +43,11 @@ target_link_libraries(test_new_kernels PRIVATE ccw_host_glue ccw_executor_s7)
 target_compile_definitions(test_new_kernels PRIVATE
   CCW_KERNEL_DIR="${CMAKE_SOURCE_DIR}/kernels")
 
+ccw_add_test(test_syscall_kernels test_syscall_kernels.c)
+target_link_libraries(test_syscall_kernels PRIVATE ccw_host_glue ccw_executor_s7)
+target_compile_definitions(test_syscall_kernels PRIVATE
+  CCW_KERNEL_DIR="${CMAKE_SOURCE_DIR}/kernels")
+
 ccw_add_test(test_simd_kernels test_simd_kernels.c)
 target_link_libraries(test_simd_kernels PRIVATE ccw_host_glue ccw_executor_s7)
 target_compile_definitions(test_simd_kernels PRIVATE

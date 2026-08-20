@@ -436,3 +436,26 @@ the examples tree from the root build. Cephyr examples resolve headers from
 source from `stdlib-salvo/sml-basis`. This keeps examples useful as frontend
 fixtures while avoiding a second, language-specific build orchestration layer
 until the compiler drivers expose stable batch compilation interfaces.
+
+# 2026-08-20 — platform syscall kernels
+
+The three Linux syscall kernels share one `syscall` Weave IR operation. Its
+first operand is a constant syscall number and its remaining operands are the
+six Linux ABI arguments; platform kernels lower it to `x86-64.syscall`,
+`aarch64.svc`, or `riscv64.ecall`. The syscall-number tables remain sourced
+from `.agents/SYSCALL-*.txt`; the small name tables in the Scheme files are
+documentation for the low-level runtime, not a replacement for those sources.
+The existing CCWas embedding API currently assembles objects but does not
+provide an in-process executable loader, so execution is deferred to the
+target code-generation/link stage rather than performed during kernel
+application.
+
+# 2026-08-20 — platform I/O kernels
+
+The shared `io.read`, `io.write`, `io.close`, and `io.open` operations are
+low-level, unbuffered wrappers. Platform I/O kernels lower them to the shared
+`syscall` operation and the corresponding syscall kernel then lowers the trap
+for its ABI. Linux x86-64 uses `open(2)`; AArch64 and RV64 use
+`openat(AT_FDCWD, path, flags, mode)` because their asm-generic tables do not
+provide legacy `open`. This preserves an identical IR-level I/O API without
+inventing a platform-independent kernel syscall number.
