@@ -80,8 +80,8 @@ static int
 is_ty_tag (const char *tag)
 {
   static const char *const names[]
-      = { "tyvar",   "tycon",    "longtycon", "lab",       "tyvarseq",
-          "tyseq",   "tyrow",    "ellipsis_tyrow", "typbind",   "withtype" };
+      = { "tyvar", "tycon", "longtycon",      "lab",     "tyvarseq",
+          "tyseq", "tyrow", "ellipsis_tyrow", "typbind", "withtype" };
   size_t i;
   if (tag_has_suffix (tag, "_ty"))
     return 1;
@@ -95,9 +95,9 @@ static int
 is_dec_tag (const char *tag)
 {
   static const char *const names[]
-      = { "val_dec",     "fun_dec",   "type_dec",  "datatype_dec",
+      = { "val_dec",      "fun_dec",     "type_dec",      "datatype_dec",
           "datarepl_dec", "abstype_dec", "exception_dec", "local_dec",
-          "open_dec",    "infix",     "infixr",    "nonfix",
+          "open_dec",     "infix",       "infixr",        "nonfix",
           "do_dec" };
   size_t i;
   for (i = 0; i < sizeof (names) / sizeof (names[0]); i++)
@@ -236,16 +236,36 @@ unescape (pcx *cx, const char *text, size_t len, size_t *out_len)
         }
       switch (c)
         {
-        case 'a': out[o++] = '\a'; break;
-        case 'b': out[o++] = '\b'; break;
-        case 't': out[o++] = '\t'; break;
-        case 'n': out[o++] = '\n'; break;
-        case 'v': out[o++] = '\v'; break;
-        case 'f': out[o++] = '\f'; break;
-        case 'r': out[o++] = '\r'; break;
-        case '"': out[o++] = '"'; break;
-        case '\\': out[o++] = '\\'; break;
-        default: out[o++] = c; break;
+        case 'a':
+          out[o++] = '\a';
+          break;
+        case 'b':
+          out[o++] = '\b';
+          break;
+        case 't':
+          out[o++] = '\t';
+          break;
+        case 'n':
+          out[o++] = '\n';
+          break;
+        case 'v':
+          out[o++] = '\v';
+          break;
+        case 'f':
+          out[o++] = '\f';
+          break;
+        case 'r':
+          out[o++] = '\r';
+          break;
+        case '"':
+          out[o++] = '"';
+          break;
+        case '\\':
+          out[o++] = '\\';
+          break;
+        default:
+          out[o++] = c;
+          break;
         }
       i++;
     }
@@ -641,8 +661,8 @@ cx_exp (pcx *cx, psx *n)
         {
           size_t i;
           e->ndecs = n->count > 2 ? n->count - 2 : 0;
-          e->decs = (pa_dec **)pa_alloc (
-              cx->rt, (e->ndecs ? e->ndecs : 1u) * sizeof (*e->decs));
+          e->decs = (pa_dec **)pa_alloc (cx->rt, (e->ndecs ? e->ndecs : 1u)
+                                                     * sizeof (*e->decs));
           if (e->decs == NULL)
             {
               cx_fail (cx, "out of memory");
@@ -677,8 +697,7 @@ cx_exp (pcx *cx, psx *n)
       e = mk_exp (cx, PE_APP);
       if (e == NULL)
         return NULL;
-      e->items
-          = (pa_exp **)pa_alloc (cx->rt, 3u * sizeof (*e->items));
+      e->items = (pa_exp **)pa_alloc (cx->rt, 3u * sizeof (*e->items));
       if (e->items == NULL)
         {
           cx_fail (cx, "out of memory");
@@ -691,7 +710,8 @@ cx_exp (pcx *cx, psx *n)
       return cx->failed ? NULL : e;
     }
   if (strcmp (tag, "typed_exp") == 0)
-    return cx_exp (cx, n->items[1]); /* types are erased (signature-erased core) */
+    return cx_exp (cx,
+                   n->items[1]); /* types are erased (signature-erased core) */
   if (strcmp (tag, "conj_exp") == 0 || strcmp (tag, "disj_exp") == 0)
     {
       if (n->count < 3)
@@ -855,9 +875,8 @@ cx_pat (pcx *cx, psx *n)
                 {
                   p->items[i] = mk_pat (cx, PP_VID);
                   if (p->items[i] != NULL)
-                    p->items[i]->path
-                        = split_path (cx, row->items[1]->atom,
-                                      &p->items[i]->path_len);
+                    p->items[i]->path = split_path (cx, row->items[1]->atom,
+                                                    &p->items[i]->path_len);
                 }
             }
           else if (sx_is (row, "ellipsis_patrow"))
@@ -917,8 +936,7 @@ cx_pat (pcx *cx, psx *n)
           p = mk_pat (cx, PP_CTOR);
           if (p == NULL)
             return NULL;
-          p->path = split_path (cx, n->items[2]->items[1]->atom,
-                                &p->path_len);
+          p->path = split_path (cx, n->items[2]->items[1]->atom, &p->path_len);
           tuple->items
               = (pa_pat **)pa_alloc (cx->rt, 2u * sizeof (*tuple->items));
           if (tuple->items == NULL)
@@ -933,8 +951,7 @@ cx_pat (pcx *cx, psx *n)
           return cx->failed ? NULL : p;
         }
       if (n->count != 3
-          || (!sx_is (n->items[1], "vid")
-              && !sx_is (n->items[1], "vid_pat")))
+          || (!sx_is (n->items[1], "vid") && !sx_is (n->items[1], "vid_pat")))
         {
           cx_fail (cx, "malformed constructor pattern");
           return NULL;
@@ -961,8 +978,7 @@ cx_pat (pcx *cx, psx *n)
       tuple = mk_pat (cx, PP_TUPLE);
       if (tuple == NULL)
         return NULL;
-      tuple->items
-          = (pa_pat **)pa_alloc (cx->rt, 2u * sizeof (*tuple->items));
+      tuple->items = (pa_pat **)pa_alloc (cx->rt, 2u * sizeof (*tuple->items));
       if (tuple->items == NULL)
         {
           cx_fail (cx, "out of memory");
@@ -1026,8 +1042,8 @@ cx_pat (pcx *cx, psx *n)
 /* Parses one fmrule into name/argpats/body.  Plain form has the name atom
  * first; the parenthesized and bare infix forms put argl before it. */
 static int
-cx_fmrule (pcx *cx, psx *m, const char **name, pa_pat ***args,
-           size_t *nargs, pa_exp **body)
+cx_fmrule (pcx *cx, psx *m, const char **name, pa_pat ***args, size_t *nargs,
+           pa_exp **body)
 {
   size_t i;
   size_t cap = 0, used = 0;
@@ -1064,8 +1080,7 @@ cx_fmrule (pcx *cx, psx *m, const char **name, pa_pat ***args,
       if (used == cap)
         {
           size_t grown = cap == 0 ? 4u : cap * 2u;
-          pa_pat **np
-              = (pa_pat **)pa_alloc (cx->rt, grown * sizeof (*np));
+          pa_pat **np = (pa_pat **)pa_alloc (cx->rt, grown * sizeof (*np));
           if (np == NULL)
             {
               cx_fail (cx, "out of memory");
@@ -1096,8 +1111,7 @@ cx_fmrule (pcx *cx, psx *m, const char **name, pa_pat ***args,
           cx_fail (cx, "malformed infix fun clause");
           return 0;
         }
-      tuple->items
-          = (pa_pat **)pa_alloc (cx->rt, 2u * sizeof (*tuple->items));
+      tuple->items = (pa_pat **)pa_alloc (cx->rt, 2u * sizeof (*tuple->items));
       if (tuple->items == NULL)
         {
           cx_fail (cx, "out of memory");
@@ -1125,8 +1139,7 @@ cx_fun_match (pcx *cx, psx *fvalbind)
   pa_rule *rules;
   const char *name = NULL;
   (void)name;
-  rules = (pa_rule *)pa_alloc (cx->rt,
-                               (count ? count : 1u) * sizeof (*rules));
+  rules = (pa_rule *)pa_alloc (cx->rt, (count ? count : 1u) * sizeof (*rules));
   if (rules == NULL)
     {
       cx_fail (cx, "out of memory");
@@ -1198,8 +1211,7 @@ cx_fun_match (pcx *cx, psx *fvalbind)
             return NULL;
           }
       }
-    sel->items
-        = (pa_exp **)pa_alloc (cx->rt, nargs * sizeof (*sel->items));
+    sel->items = (pa_exp **)pa_alloc (cx->rt, nargs * sizeof (*sel->items));
     if (sel->items == NULL)
       {
         cx_fail (cx, "out of memory");
@@ -1254,8 +1266,8 @@ cx_dec (pcx *cx, psx *n)
   if (strcmp (tag, "val_dec") == 0)
     {
       size_t i, nbinds = 0;
-      pa_dec **binds = (pa_dec **)pa_alloc (
-          cx->rt, (n->count ? n->count : 1u) * sizeof (*binds));
+      pa_dec **binds = (pa_dec **)pa_alloc (cx->rt, (n->count ? n->count : 1u)
+                                                        * sizeof (*binds));
       int all_fn = 1;
       if (binds == NULL)
         {
@@ -1292,10 +1304,8 @@ cx_dec (pcx *cx, psx *n)
           pa_dec *d = mk_dec (cx, PD_VALREC);
           if (d == NULL)
             return NULL;
-          d->recnames = (char **)pa_alloc (cx->rt,
-                                           nbinds * sizeof (char *));
-          d->recfns = (pa_exp **)pa_alloc (cx->rt,
-                                           nbinds * sizeof (pa_exp *));
+          d->recnames = (char **)pa_alloc (cx->rt, nbinds * sizeof (char *));
+          d->recfns = (pa_exp **)pa_alloc (cx->rt, nbinds * sizeof (pa_exp *));
           if (d->recnames == NULL || d->recfns == NULL)
             {
               cx_fail (cx, "out of memory");
@@ -1326,10 +1336,10 @@ cx_dec (pcx *cx, psx *n)
       pa_dec *d = mk_dec (cx, PD_VALREC);
       if (d == NULL)
         return NULL;
-      d->recnames = (char **)pa_alloc (
-          cx->rt, (n->count ? n->count : 1u) * sizeof (char *));
-      d->recfns = (pa_exp **)pa_alloc (
-          cx->rt, (n->count ? n->count : 1u) * sizeof (pa_exp *));
+      d->recnames = (char **)pa_alloc (cx->rt, (n->count ? n->count : 1u)
+                                                   * sizeof (char *));
+      d->recfns = (pa_exp **)pa_alloc (cx->rt, (n->count ? n->count : 1u)
+                                                   * sizeof (pa_exp *));
       if (d->recnames == NULL || d->recfns == NULL)
         {
           cx_fail (cx, "out of memory");
@@ -1376,18 +1386,17 @@ cx_dec (pcx *cx, psx *n)
     }
   if (strcmp (tag, "type_dec") == 0)
     return mk_dec (cx, PD_TYPE); /* type aliases are erased */
-  if (strcmp (tag, "datatype_dec") == 0
-      || strcmp (tag, "abstype_dec") == 0)
+  if (strcmp (tag, "datatype_dec") == 0 || strcmp (tag, "abstype_dec") == 0)
     {
       int is_abs = strcmp (tag, "abstype_dec") == 0;
       size_t i, ndts = 0, nwith = 0;
       pa_dec *d = mk_dec (cx, is_abs ? PD_ABSTYPE : PD_DATATYPE);
       if (d == NULL)
         return NULL;
-      d->dts = (pa_datdef *)pa_alloc (
-          cx->rt, (n->count ? n->count : 1u) * sizeof (*d->dts));
-      d->b_decs = (pa_dec **)pa_alloc (
-          cx->rt, (n->count ? n->count : 1u) * sizeof (pa_dec *));
+      d->dts = (pa_datdef *)pa_alloc (cx->rt, (n->count ? n->count : 1u)
+                                                  * sizeof (*d->dts));
+      d->b_decs = (pa_dec **)pa_alloc (cx->rt, (n->count ? n->count : 1u)
+                                                   * sizeof (pa_dec *));
       if (d->dts == NULL || d->b_decs == NULL)
         {
           cx_fail (cx, "out of memory");
@@ -1436,8 +1445,7 @@ cx_dec (pcx *cx, psx *n)
               def->ncons = ncons;
               ndts++;
             }
-          else if (is_abs && sx_tag (db) != NULL
-                   && !is_ty_tag (sx_tag (db)))
+          else if (is_abs && sx_tag (db) != NULL && !is_ty_tag (sx_tag (db)))
             {
               d->b_decs[nwith] = cx_dec (cx, db);
               if (cx->failed)
@@ -1470,8 +1478,8 @@ cx_dec (pcx *cx, psx *n)
       pa_dec *d = mk_dec (cx, PD_EXN);
       if (d == NULL)
         return NULL;
-      d->exns = (pa_condef *)pa_alloc (
-          cx->rt, (n->count ? n->count : 1u) * sizeof (*d->exns));
+      d->exns = (pa_condef *)pa_alloc (cx->rt, (n->count ? n->count : 1u)
+                                                   * sizeof (*d->exns));
       if (d->exns == NULL)
         {
           cx_fail (cx, "out of memory");
@@ -1491,8 +1499,8 @@ cx_dec (pcx *cx, psx *n)
               if (eb->items[2]->is_list)
                 con->has_arg = 1; /* exception E of t */
               else
-                con->alias_path = split_path (cx, eb->items[2]->atom,
-                                              &con->alias_len);
+                con->alias_path
+                    = split_path (cx, eb->items[2]->atom, &con->alias_len);
             }
           if (cx->failed)
             return NULL;
@@ -1527,10 +1535,10 @@ cx_dec (pcx *cx, psx *n)
       if (d == NULL)
         return NULL;
       d->nopen = n->count > 1 ? n->count - 1 : 0;
-      d->open_paths = (char ***)pa_alloc (
-          cx->rt, (d->nopen ? d->nopen : 1u) * sizeof (char **));
-      d->open_lens = (size_t *)pa_alloc (
-          cx->rt, (d->nopen ? d->nopen : 1u) * sizeof (size_t));
+      d->open_paths = (char ***)pa_alloc (cx->rt, (d->nopen ? d->nopen : 1u)
+                                                      * sizeof (char **));
+      d->open_lens = (size_t *)pa_alloc (cx->rt, (d->nopen ? d->nopen : 1u)
+                                                     * sizeof (size_t));
       if (d->open_paths == NULL || d->open_lens == NULL)
         {
           cx_fail (cx, "out of memory");
@@ -1581,8 +1589,8 @@ cx_strexp (pcx *cx, psx *n)
     {
       size_t i;
       s->kind = PSE_STRUCT;
-      s->decs = (pa_strdec **)pa_alloc (
-          cx->rt, (n->count ? n->count : 1u) * sizeof (pa_strdec *));
+      s->decs = (pa_strdec **)pa_alloc (cx->rt, (n->count ? n->count : 1u)
+                                                    * sizeof (pa_strdec *));
       if (s->decs == NULL)
         {
           cx_fail (cx, "out of memory");
@@ -1614,8 +1622,8 @@ cx_strexp (pcx *cx, psx *n)
       size_t i;
       s->kind = PSE_FCTAPP;
       s->fct = pa_strdup (cx->rt, n->items[1]->atom);
-      s->argdecs = (pa_strdec **)pa_alloc (
-          cx->rt, (n->count ? n->count : 1u) * sizeof (pa_strdec *));
+      s->argdecs = (pa_strdec **)pa_alloc (cx->rt, (n->count ? n->count : 1u)
+                                                       * sizeof (pa_strdec *));
       if (s->argdecs == NULL)
         {
           cx_fail (cx, "out of memory");
@@ -1656,8 +1664,8 @@ cx_strexp (pcx *cx, psx *n)
         }
       s->kind = PSE_LET;
       s->decs = (pa_strdec **)pa_alloc (
-          cx->rt, (local_part->count ? local_part->count : 1u)
-                      * sizeof (pa_strdec *));
+          cx->rt,
+          (local_part->count ? local_part->count : 1u) * sizeof (pa_strdec *));
       if (s->decs == NULL)
         {
           cx_fail (cx, "out of memory");
@@ -1700,8 +1708,8 @@ cx_strdec (pcx *cx, psx *n)
     {
       size_t i;
       d->kind = PSD_STRUCTURE;
-      d->binds = (pa_strbind *)pa_alloc (
-          cx->rt, (n->count ? n->count : 1u) * sizeof (*d->binds));
+      d->binds = (pa_strbind *)pa_alloc (cx->rt, (n->count ? n->count : 1u)
+                                                     * sizeof (*d->binds));
       if (d->binds == NULL)
         {
           cx_fail (cx, "out of memory");
@@ -1735,11 +1743,11 @@ cx_strdec (pcx *cx, psx *n)
         }
       d->kind = PSD_LOCAL;
       d->a = (pa_strdec **)pa_alloc (
-          cx->rt, (local_part->count ? local_part->count : 1u)
-                      * sizeof (pa_strdec *));
-      d->b = (pa_strdec **)pa_alloc (
-          cx->rt, (in_part->count ? in_part->count : 1u)
-                      * sizeof (pa_strdec *));
+          cx->rt,
+          (local_part->count ? local_part->count : 1u) * sizeof (pa_strdec *));
+      d->b = (pa_strdec **)pa_alloc (cx->rt,
+                                     (in_part->count ? in_part->count : 1u)
+                                         * sizeof (pa_strdec *));
       if (d->a == NULL || d->b == NULL)
         {
           cx_fail (cx, "out of memory");
@@ -1779,8 +1787,7 @@ cx_strdec (pcx *cx, psx *n)
         }
       if (n->count > 2)
         {
-          cx_fail (cx,
-                   "mutually recursive functor bindings are unsupported");
+          cx_fail (cx, "mutually recursive functor bindings are unsupported");
           return NULL;
         }
       d->kind = PSD_FUNCTOR;
@@ -1796,8 +1803,7 @@ cx_strdec (pcx *cx, psx *n)
       d->fct_body = cx_strexp (cx, fb->items[fb->count - 1]);
       return cx->failed ? NULL : d;
     }
-  if (is_dec_tag (tag)
-      && !(strcmp (tag, "infix") == 0 && !sx_all_atoms (n, 1))
+  if (is_dec_tag (tag) && !(strcmp (tag, "infix") == 0 && !sx_all_atoms (n, 1))
       && !(strcmp (tag, "infixr") == 0 && !sx_all_atoms (n, 1))
       && !(strcmp (tag, "nonfix") == 0 && !sx_all_atoms (n, 1)))
     {
@@ -1842,8 +1848,8 @@ pa_compile_surface (prt *rt, const char *surface, char **error)
   prog = (pa_program *)pa_alloc (rt, sizeof (*prog));
   if (prog == NULL)
     return NULL;
-  prog->decs = (pa_strdec **)pa_alloc (
-      rt, (root->count ? root->count : 1u) * sizeof (pa_strdec *));
+  prog->decs = (pa_strdec **)pa_alloc (rt, (root->count ? root->count : 1u)
+                                               * sizeof (pa_strdec *));
   if (prog->decs == NULL)
     return NULL;
   prog->count = root->count - 1;

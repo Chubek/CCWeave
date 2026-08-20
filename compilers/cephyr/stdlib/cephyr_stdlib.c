@@ -249,7 +249,8 @@ cephyr_stdlib_discover_manifest (int *is_explicit)
 
   if (libc_env != NULL && *libc_env != '\0')
     {
-      if (is_explicit != NULL) *is_explicit = 1;
+      if (is_explicit != NULL)
+        *is_explicit = 1;
       return stdlib_strdup (libc_env);
     }
   if (is_explicit != NULL)

@@ -8,11 +8,11 @@
  */
 
 #include "sml_parthia.h"
-#include "parthia_rt.h"
 #include "ccw_dynalo_bridge.h"
 #include "dyncall.h"
 #include "kbarena.h"
 #include "kstring.h"
+#include "parthia_rt.h"
 #include "sched.h"
 
 #include <errno.h>
@@ -114,8 +114,7 @@ path_exists (const char *path)
 /* Probe `leaf` (and its enclosing search directory, when any) for an
  * existing file.  Returns a malloc'd candidate the caller frees. */
 static char *
-probe_at (const char *base, size_t base_len, const char *leaf,
-          size_t leaf_len)
+probe_at (const char *base, size_t base_len, const char *leaf, size_t leaf_len)
 {
   char *candidate;
   char *cursor;
@@ -225,9 +224,9 @@ expand_directives (ccw_sml_parthia_runtime *runtime, const char *source,
         {
           char *resolved = ccw_sml_parthia_resolve_path (path);
           size_t included_len = 0;
-          char *included
-              = resolved != NULL ? read_text_file (resolved, &included_len)
-                                 : NULL;
+          char *included = resolved != NULL
+                               ? read_text_file (resolved, &included_len)
+                               : NULL;
           if (included == NULL
               || kputsn (included, (int)included_len, &out) == EOF)
             {
@@ -643,7 +642,8 @@ execute_surface (ccw_sml_parthia_runtime *runtime, const char *surface,
     *error_message = NULL;
   if (runtime == NULL || surface == NULL)
     {
-      set_error (error_message, "sml/parthia: runtime and source are required");
+      set_error (error_message,
+                 "sml/parthia: runtime and source are required");
       return 0;
     }
 
@@ -659,9 +659,9 @@ execute_surface (ccw_sml_parthia_runtime *runtime, const char *surface,
       compiled = pa_compile_surface (runtime, surface, &compile_error);
       if (compiled == NULL)
         {
-          set_error (error_message,
-                     compile_error != NULL ? compile_error
-                                            : "sml/parthia: lowering failed");
+          set_error (error_message, compile_error != NULL
+                                        ? compile_error
+                                        : "sml/parthia: lowering failed");
           return 0;
         }
       cache = (pa_cache *)pa_alloc (runtime, sizeof (*cache));
@@ -709,8 +709,8 @@ ccw_sml_parthia_run (ccw_sml_parthia_runtime *runtime, const char *source,
       set_error (error_message, "sml/parthia: cannot create runtime");
       return 0;
     }
-  program = ccw_sml_parthia_compile_with_runtime (
-      owned, source, source_len, NULL, error_message);
+  program = ccw_sml_parthia_compile_with_runtime (owned, source, source_len,
+                                                  NULL, error_message);
   if (program == NULL)
     {
       if (runtime == NULL)
@@ -734,9 +734,8 @@ ccw_sml_parthia_eval (ccw_sml_parthia_runtime *runtime, const char *phrase,
       return 0;
     }
   {
-    ccw_sml_parthia_program *program
-        = ccw_sml_parthia_compile_with_runtime (
-            runtime, phrase, phrase_len, NULL, error_message);
+    ccw_sml_parthia_program *program = ccw_sml_parthia_compile_with_runtime (
+        runtime, phrase, phrase_len, NULL, error_message);
     int ok;
     if (program == NULL)
       return 0;

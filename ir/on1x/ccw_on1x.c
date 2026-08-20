@@ -79,8 +79,8 @@ ccw_on1x_build_deopt (ccw_ir *ir, ccw_node blk, const char *target)
 
 ccw_node
 ccw_on1x_build_syscall (ccw_ir *ir, ccw_node blk, const char *dest,
-                        ccw_ir_type type, int64_t number,
-                        const ccw_node *args, size_t arg_count)
+                        ccw_ir_type type, int64_t number, const ccw_node *args,
+                        size_t arg_count)
 {
   return ccw_ir_build_syscall (ir, blk, dest, type, number, args, arg_count);
 }

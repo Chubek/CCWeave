@@ -393,8 +393,8 @@ ccw_ir_instr_build (ccw_ir *ir, const char *opcode, ccw_ir_type type)
 
 ccw_node
 ccw_ir_build_syscall (ccw_ir *ir, ccw_node blk, const char *dest,
-                      ccw_ir_type type, int64_t number,
-                      const ccw_node *args, size_t arg_count)
+                      ccw_ir_type type, int64_t number, const ccw_node *args,
+                      size_t arg_count)
 {
   ccw_node ins;
   ccw_node number_node;
@@ -438,24 +438,23 @@ ccw_ir_build_io (ccw_ir *ir, ccw_node blk, const char *dest,
 }
 
 ccw_node
-ccw_ir_build_io_read (ccw_ir *ir, ccw_node blk, const char *dest,
-                      ccw_node fd, ccw_node buffer, ccw_node count)
+ccw_ir_build_io_read (ccw_ir *ir, ccw_node blk, const char *dest, ccw_node fd,
+                      ccw_node buffer, ccw_node count)
 {
   ccw_node args[] = { fd, buffer, count };
   return ccw_ir_build_io (ir, blk, dest, CCW_OP_IO_READ, args, 3);
 }
 
 ccw_node
-ccw_ir_build_io_write (ccw_ir *ir, ccw_node blk, const char *dest,
-                       ccw_node fd, ccw_node buffer, ccw_node count)
+ccw_ir_build_io_write (ccw_ir *ir, ccw_node blk, const char *dest, ccw_node fd,
+                       ccw_node buffer, ccw_node count)
 {
   ccw_node args[] = { fd, buffer, count };
   return ccw_ir_build_io (ir, blk, dest, CCW_OP_IO_WRITE, args, 3);
 }
 
 ccw_node
-ccw_ir_build_io_close (ccw_ir *ir, ccw_node blk, const char *dest,
-                       ccw_node fd)
+ccw_ir_build_io_close (ccw_ir *ir, ccw_node blk, const char *dest, ccw_node fd)
 {
   return ccw_ir_build_io (ir, blk, dest, CCW_OP_IO_CLOSE, &fd, 1);
 }

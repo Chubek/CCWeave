@@ -224,8 +224,8 @@ ccw_oeuph_ruleset_load (const char *path, char **error_message)
           rhs_text = print_form (rhs);
           if (lhs_text == NULL || rhs_text == NULL
               || ccw_oeuph_rule_add (ruleset, name->val, lhs_text, rhs_text,
-                                      bidirectional, NULL, &rule_error)
-                   != CCW_OK)
+                                     bidirectional, NULL, &rule_error)
+                     != CCW_OK)
             {
               if (error_message != NULL)
                 *error_message = rule_error != NULL

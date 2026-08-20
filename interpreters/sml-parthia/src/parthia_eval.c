@@ -8,9 +8,9 @@
  * closure's captured environment into one frame above the global frame,
  * which preserves later top-level bindings while shortening lookups. */
 
-#include "parthia_rt.h"
 #include "kbarena.h"
 #include "kstring.h"
+#include "parthia_rt.h"
 
 #include <limits.h>
 #include <stdarg.h>
@@ -253,14 +253,19 @@ pa_lit_eq (prt *rt, pv *lit, pv *v)
     return 0;
   switch (lit->kind)
     {
-    case PV_INT: return lit->i == v->i;
-    case PV_WORD: return lit->w == v->w;
-    case PV_REAL: return lit->r == v->r;
-    case PV_CHAR: return lit->ch == v->ch;
+    case PV_INT:
+      return lit->i == v->i;
+    case PV_WORD:
+      return lit->w == v->w;
+    case PV_REAL:
+      return lit->r == v->r;
+    case PV_CHAR:
+      return lit->ch == v->ch;
     case PV_STRING:
       return lit->s.len == v->s.len
              && memcmp (lit->s.data, v->s.data, lit->s.len) == 0;
-    default: return 0;
+    default:
+      return 0;
     }
 }
 
@@ -274,11 +279,16 @@ pa_equal (prt *rt, pv *left, pv *right)
     return 0;
   switch (left->kind)
     {
-    case PV_UNIT: return 1;
-    case PV_INT: return left->i == right->i;
-    case PV_WORD: return left->w == right->w;
-    case PV_REAL: return left->r == right->r;
-    case PV_CHAR: return left->ch == right->ch;
+    case PV_UNIT:
+      return 1;
+    case PV_INT:
+      return left->i == right->i;
+    case PV_WORD:
+      return left->w == right->w;
+    case PV_REAL:
+      return left->r == right->r;
+    case PV_CHAR:
+      return left->ch == right->ch;
     case PV_STRING:
       return left->s.len == right->s.len
              && memcmp (left->s.data, right->s.data, left->s.len) == 0;
@@ -303,8 +313,10 @@ pa_equal (prt *rt, pv *left, pv *right)
       if (left->c.arg == NULL || right->c.arg == NULL)
         return left->c.arg == right->c.arg;
       return pa_equal (rt, left->c.arg, right->c.arg);
-    case PV_REF: return left->refcell == right->refcell;
-    default: return 0; /* functions, structures, streams: not equal */
+    case PV_REF:
+      return left->refcell == right->refcell;
+    default:
+      return 0; /* functions, structures, streams: not equal */
     }
 }
 
@@ -351,11 +363,21 @@ show_escaped (kstring_t *out, const char *data, size_t len)
       char buf[8];
       switch (c)
         {
-        case '"': kputs ("\\\"", out); break;
-        case '\\': kputs ("\\\\", out); break;
-        case '\n': kputs ("\\n", out); break;
-        case '\t': kputs ("\\t", out); break;
-        case '\r': kputs ("\\r", out); break;
+        case '"':
+          kputs ("\\\"", out);
+          break;
+        case '\\':
+          kputs ("\\\\", out);
+          break;
+        case '\n':
+          kputs ("\\n", out);
+          break;
+        case '\t':
+          kputs ("\\t", out);
+          break;
+        case '\r':
+          kputs ("\\r", out);
+          break;
         default:
           if (c < 32 || c > 126)
             {
@@ -433,7 +455,9 @@ show_value (prt *rt, pv *v, kstring_t *out, int depth)
     }
   switch (v->kind)
     {
-    case PV_UNIT: kputs ("()", out); break;
+    case PV_UNIT:
+      kputs ("()", out);
+      break;
     case PV_INT:
       snprintf (buf, sizeof (buf), "%lld", v->i);
       kputs (buf, out);
@@ -456,7 +480,9 @@ show_value (prt *rt, pv *v, kstring_t *out, int depth)
         show_escaped (out, body, v->ch != 0 ? 1 : 0);
         break;
       }
-    case PV_STRING: show_escaped (out, v->s.data, v->s.len); break;
+    case PV_STRING:
+      show_escaped (out, v->s.data, v->s.len);
+      break;
     case PV_TUPLE:
       kputc ('(', out);
       for (i = 0; i < v->t.n; i++)
@@ -479,7 +505,9 @@ show_value (prt *rt, pv *v, kstring_t *out, int depth)
         }
       kputc ('}', out);
       break;
-    case PV_CTOR: show_ctor (rt, v, out, depth); break;
+    case PV_CTOR:
+      show_ctor (rt, v, out, depth);
+      break;
     case PV_CTORFN:
       kputs ("con ", out);
       kputs (v->cf.name, out);
@@ -500,10 +528,18 @@ show_value (prt *rt, pv *v, kstring_t *out, int depth)
       kputs ("ref ", out);
       show_value (rt, v->refcell, out, depth + 1);
       break;
-    case PV_STRUCT: kputs ("<structure>", out); break;
-    case PV_FUNCTOR: kputs ("<functor>", out); break;
-    case PV_STREAM: kputs ("<stream>", out); break;
-    default: kputs ("<value>", out); break;
+    case PV_STRUCT:
+      kputs ("<structure>", out);
+      break;
+    case PV_FUNCTOR:
+      kputs ("<functor>", out);
+      break;
+    case PV_STREAM:
+      kputs ("<stream>", out);
+      break;
+    default:
+      kputs ("<value>", out);
+      break;
     }
 }
 
@@ -513,8 +549,8 @@ pa_show (prt *rt, pv *value)
   kstring_t out = { 0, 0, NULL };
   char *result;
   show_value (rt, value, &out, 0);
-  result = pa_strndup (rt, out.s != NULL ? out.s : "",
-                       out.s != NULL ? out.l : 0);
+  result
+      = pa_strndup (rt, out.s != NULL ? out.s : "", out.s != NULL ? out.l : 0);
   free (out.s);
   return result;
 }
@@ -529,9 +565,12 @@ pa_match (prt *rt, pa_pat *pat, pv *v, pa_env *frame)
     return 0;
   switch (pat->kind)
     {
-    case PP_WILD: return 1;
-    case PP_LIT: return pa_lit_eq (rt, pat->lit, v);
-    case PP_UNIT: return v->kind == PV_UNIT;
+    case PP_WILD:
+      return 1;
+    case PP_LIT:
+      return pa_lit_eq (rt, pat->lit, v);
+    case PP_UNIT:
+      return v->kind == PV_UNIT;
     case PP_VID:
       {
         pv *bound = pa_lookup_path (rt, frame, pat->path, pat->path_len);
@@ -571,8 +610,7 @@ pa_match (prt *rt, pa_pat *pat, pv *v, pa_env *frame)
               return 0;
             cursor = cursor->c.arg->t.items[1];
           }
-        return cursor->kind == PV_CTOR
-               && strcmp (cursor->c.name, "nil") == 0
+        return cursor->kind == PV_CTOR && strcmp (cursor->c.name, "nil") == 0
                && cursor->c.arg == NULL;
       }
     case PP_RECORD:
@@ -596,8 +634,7 @@ pa_match (prt *rt, pa_pat *pat, pv *v, pa_env *frame)
           return v->kind == PV_REF
                  && pa_match (rt, pat->arg, v->refcell, frame);
         return v->kind == PV_CTOR && strcmp (v->c.name, name) == 0
-               && v->c.arg != NULL
-               && pa_match (rt, pat->arg, v->c.arg, frame);
+               && v->c.arg != NULL && pa_match (rt, pat->arg, v->c.arg, frame);
       }
     case PP_AS:
       if (!pa_match (rt, pat->asub, v, frame))
@@ -618,7 +655,8 @@ pa_match (prt *rt, pa_pat *pat, pv *v, pa_env *frame)
           pa_bind (rt, frame, b->name, b->val);
         return 1;
       }
-    default: return 0;
+    default:
+      return 0;
     }
 }
 
@@ -687,8 +725,7 @@ pa_apply (prt *rt, pv *fn, pv *arg)
           partial->b.arity = fn->b.arity;
           partial->b.fn = fn->b.fn;
           partial->b.ngot = total;
-          partial->b.got
-              = (pv **)pa_alloc (rt, (size_t)total * sizeof (pv *));
+          partial->b.got = (pv **)pa_alloc (rt, (size_t)total * sizeof (pv *));
           if (partial->b.got == NULL)
             pa_fail (rt, "out of memory");
           for (k = 0; k < fn->b.ngot; k++)
@@ -741,7 +778,8 @@ eval_exp (prt *rt, pa_env *env, pa_exp *e)
     pa_fail (rt, "malformed expression");
   switch (e->kind)
     {
-    case PE_LIT: return e->lit;
+    case PE_LIT:
+      return e->lit;
     case PE_VID:
       {
         pv *v = pa_lookup_path (rt, env, e->path, e->path_len);
@@ -792,7 +830,8 @@ eval_exp (prt *rt, pa_env *env, pa_exp *e)
         v->b.ngot = 0;
         return v;
       }
-    case PE_UNIT: return pa_unit (rt);
+    case PE_UNIT:
+      return pa_unit (rt);
     case PE_TUPLE:
       {
         pv *v = pa_new (rt, PV_TUPLE);
@@ -881,10 +920,8 @@ eval_exp (prt *rt, pa_env *env, pa_exp *e)
       {
         pv *packet = eval_exp (rt, env, e->a);
         if (packet->kind != PV_CTOR)
-          packet
-              = pa_ctor_make (rt, "Fail",
-                              pa_string (rt, "raised a non-exception", 22),
-                              1);
+          packet = pa_ctor_make (
+              rt, "Fail", pa_string (rt, "raised a non-exception", 22), 1);
         pa_raise (rt, packet);
       }
       break;
@@ -921,7 +958,9 @@ eval_exp (prt *rt, pa_env *env, pa_exp *e)
         v->f.hot = 0;
         return v;
       }
-    default: pa_fail (rt, "malformed expression"); break;
+    default:
+      pa_fail (rt, "malformed expression");
+      break;
     }
   return NULL; /* unreachable */
 }
@@ -980,9 +1019,8 @@ eval_datatype (prt *rt, pa_datdef *dts, size_t ndts, pa_env *frame)
     {
       pa_datdef *def = &dts[i];
       pa_tyc *tyc = (pa_tyc *)pa_alloc (rt, sizeof (*tyc));
-      pv **ctors
-          = (pv **)pa_alloc (rt, (def->ncons ? def->ncons : 1u)
-                                     * sizeof (pv *));
+      pv **ctors = (pv **)pa_alloc (rt, (def->ncons ? def->ncons : 1u)
+                                            * sizeof (pv *));
       if (tyc == NULL || ctors == NULL)
         pa_fail (rt, "out of memory");
       for (k = 0; k < def->ncons; k++)
@@ -1048,7 +1086,8 @@ eval_dec (prt *rt, pa_dec *d, pa_env *env, pa_env *frame)
           pa_bind (rt, frame, d->recnames[i], fn);
         }
       return;
-    case PD_TYPE: return;
+    case PD_TYPE:
+      return;
     case PD_DATATYPE:
       eval_datatype (rt, d->dts, d->ndts, frame);
       return;
@@ -1094,8 +1133,7 @@ eval_dec (prt *rt, pa_dec *d, pa_env *env, pa_env *frame)
           pv *ctor;
           if (con->alias_path != NULL)
             {
-              ctor = pa_lookup_path (rt, env, con->alias_path,
-                                     con->alias_len);
+              ctor = pa_lookup_path (rt, env, con->alias_path, con->alias_len);
               if (ctor == NULL
                   || (ctor->kind != PV_CTOR && ctor->kind != PV_CTORFN))
                 pa_fail (rt, "exception replication of unknown constructor");
@@ -1131,14 +1169,14 @@ eval_dec (prt *rt, pa_dec *d, pa_env *env, pa_env *frame)
     case PD_OPEN:
       for (i = 0; i < d->nopen; i++)
         {
-          pv *v = pa_lookup_path (rt, env, d->open_paths[i],
-                                  d->open_lens[i]);
+          pv *v = pa_lookup_path (rt, env, d->open_paths[i], d->open_lens[i]);
           if (v == NULL || v->kind != PV_STRUCT)
             pa_fail (rt, "open: not a structure");
           copy_binds (rt, frame, v->str);
         }
       return;
-    case PD_FIXITY: return;
+    case PD_FIXITY:
+      return;
     case PD_DO:
       {
         pv *v = pa_eval_exp (rt, env, d->rhs);
@@ -1146,7 +1184,8 @@ eval_dec (prt *rt, pa_dec *d, pa_env *env, pa_env *frame)
           pa_bind (rt, frame, "it", v);
         return;
       }
-    default: pa_fail (rt, "malformed declaration");
+    default:
+      pa_fail (rt, "malformed declaration");
     }
 }
 
@@ -1217,7 +1256,8 @@ eval_strexp (prt *rt, pa_strexp *sx, pa_env *env)
           eval_strdec (rt, sx->decs[i], frame, frame);
         return eval_strexp (rt, sx->sub, frame);
       }
-    default: pa_fail (rt, "malformed structure expression");
+    default:
+      pa_fail (rt, "malformed structure expression");
     }
   return NULL; /* unreachable */
 }
@@ -1252,7 +1292,8 @@ eval_strdec (prt *rt, pa_strdec *sd, pa_env *env, pa_env *frame)
         copy_binds (rt, frame, body_frame);
         return;
       }
-    case PSD_SIGNATURE: return;
+    case PSD_SIGNATURE:
+      return;
     case PSD_FUNCTOR:
       {
         pv *v = pa_new (rt, PV_FUNCTOR);
@@ -1264,7 +1305,8 @@ eval_strdec (prt *rt, pa_strdec *sd, pa_env *env, pa_env *frame)
         pa_bind (rt, frame, sd->fct_name, v);
         return;
       }
-    default: pa_fail (rt, "malformed module declaration");
+    default:
+      pa_fail (rt, "malformed module declaration");
     }
 }
 

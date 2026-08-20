@@ -119,7 +119,8 @@ extern "C"
   ccw_node ccw_ir_build_io_read (ccw_ir *ir, ccw_node blk, const char *dest,
                                  ccw_node fd, ccw_node buffer, ccw_node count);
   ccw_node ccw_ir_build_io_write (ccw_ir *ir, ccw_node blk, const char *dest,
-                                  ccw_node fd, ccw_node buffer, ccw_node count);
+                                  ccw_node fd, ccw_node buffer,
+                                  ccw_node count);
   ccw_node ccw_ir_build_io_close (ccw_ir *ir, ccw_node blk, const char *dest,
                                   ccw_node fd);
   ccw_node ccw_ir_build_io_open (ccw_ir *ir, ccw_node blk, const char *dest,

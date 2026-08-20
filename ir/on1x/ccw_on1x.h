@@ -29,21 +29,20 @@ extern "C"
                                         const char *selector, int cache_slots);
   ccw_node ccw_on1x_build_safepoint (ccw_ir *ir, ccw_node blk);
   ccw_node ccw_on1x_build_deopt (ccw_ir *ir, ccw_node blk, const char *target);
-  ccw_node ccw_on1x_build_syscall (ccw_ir *ir, ccw_node blk,
-                                   const char *dest, ccw_ir_type type,
-                                   int64_t number, const ccw_node *args,
-                                   size_t arg_count);
-  ccw_node ccw_on1x_build_io_read (ccw_ir *ir, ccw_node blk,
-                                   const char *dest, ccw_node fd,
-                                   ccw_node buffer, ccw_node count);
-  ccw_node ccw_on1x_build_io_write (ccw_ir *ir, ccw_node blk,
-                                    const char *dest, ccw_node fd,
-                                    ccw_node buffer, ccw_node count);
-  ccw_node ccw_on1x_build_io_close (ccw_ir *ir, ccw_node blk,
-                                    const char *dest, ccw_node fd);
-  ccw_node ccw_on1x_build_io_open (ccw_ir *ir, ccw_node blk,
-                                   const char *dest, ccw_node path,
-                                   ccw_node flags, ccw_node mode);
+  ccw_node ccw_on1x_build_syscall (ccw_ir *ir, ccw_node blk, const char *dest,
+                                   ccw_ir_type type, int64_t number,
+                                   const ccw_node *args, size_t arg_count);
+  ccw_node ccw_on1x_build_io_read (ccw_ir *ir, ccw_node blk, const char *dest,
+                                   ccw_node fd, ccw_node buffer,
+                                   ccw_node count);
+  ccw_node ccw_on1x_build_io_write (ccw_ir *ir, ccw_node blk, const char *dest,
+                                    ccw_node fd, ccw_node buffer,
+                                    ccw_node count);
+  ccw_node ccw_on1x_build_io_close (ccw_ir *ir, ccw_node blk, const char *dest,
+                                    ccw_node fd);
+  ccw_node ccw_on1x_build_io_open (ccw_ir *ir, ccw_node blk, const char *dest,
+                                   ccw_node path, ccw_node flags,
+                                   ccw_node mode);
 
   /* NULL if `ins` is legal in an On1x module, else the reason. */
   const char *ccw_on1x_reject_reason (const ccw_ir *ir, ccw_node ins);

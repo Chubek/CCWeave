@@ -1634,7 +1634,7 @@ emit_app_spine (sml_parse_ctx *ctx, TSNode *items, int count)
     {
       char opbuf[64];
       const sml_fixity_entry *f
-        = fixity_of_node (ctx, items[i], opbuf, sizeof (opbuf));
+          = fixity_of_node (ctx, items[i], opbuf, sizeof (opbuf));
       if (f != NULL && f->kind != SML_FIX_NONFIX)
         {
           if (op_index < 0 || f->prec < op_copy.prec
@@ -1740,8 +1740,7 @@ emit_exp (sml_parse_ctx *ctx, TSNode node)
               emit_exp (ctx, ts_node_named_child (row, 1));
               emit_close (ctx);
             }
-          else if (strcmp (row_type, "labvar_exprow") == 0
-                   && row_count >= 1)
+          else if (strcmp (row_type, "labvar_exprow") == 0 && row_count >= 1)
             {
               emit_open (ctx, "labvar_exprow");
               emit_raw (ctx, ts_node_named_child (row, 0));

@@ -44,8 +44,8 @@ extern "C"
   typedef struct psx
   {
     int is_list;
-    char *atom;               /* when !is_list */
-    struct psx **items;       /* when is_list */
+    char *atom;         /* when !is_list */
+    struct psx **items; /* when is_list */
     size_t count;
   } psx;
 
@@ -72,39 +72,39 @@ extern "C"
 
   enum pa_exp_kind
   {
-    PE_LIT,   /* lit */
-    PE_VID,   /* path */
-    PE_RECORD,/* labs + items */
-    PE_SEL,   /* sel: #lab as a function */
+    PE_LIT,    /* lit */
+    PE_VID,    /* path */
+    PE_RECORD, /* labs + items */
+    PE_SEL,    /* sel: #lab as a function */
     PE_UNIT,
-    PE_TUPLE, /* items */
-    PE_LIST,  /* items */
-    PE_SEQ,   /* items */
-    PE_LET,   /* decs + a (body sequence) */
-    PE_APP,   /* items[0] applied to items[1..] */
-    PE_CONJ,  /* a, b */
-    PE_DISJ,  /* a, b */
-    PE_HANDLE,/* a + rules */
-    PE_RAISE, /* a */
-    PE_IF,    /* a, b, c (c may be NULL -> unit) */
-    PE_WHILE, /* a, b */
-    PE_CASE,  /* a + rules */
-    PE_FN     /* rules */
+    PE_TUPLE,  /* items */
+    PE_LIST,   /* items */
+    PE_SEQ,    /* items */
+    PE_LET,    /* decs + a (body sequence) */
+    PE_APP,    /* items[0] applied to items[1..] */
+    PE_CONJ,   /* a, b */
+    PE_DISJ,   /* a, b */
+    PE_HANDLE, /* a + rules */
+    PE_RAISE,  /* a */
+    PE_IF,     /* a, b, c (c may be NULL -> unit) */
+    PE_WHILE,  /* a, b */
+    PE_CASE,   /* a + rules */
+    PE_FN      /* rules */
   };
 
   struct pa_exp
   {
     int kind;
-    pv *lit;                          /* PE_LIT */
-    char **path;                      /* PE_VID */
+    pv *lit;     /* PE_LIT */
+    char **path; /* PE_VID */
     size_t path_len;
-    char *sel;                        /* PE_SEL */
-    char **labs;                      /* PE_RECORD */
-    pa_exp **items;                   /* RECORD/TUPLE/LIST/SEQ/APP */
+    char *sel;      /* PE_SEL */
+    char **labs;    /* PE_RECORD */
+    pa_exp **items; /* RECORD/TUPLE/LIST/SEQ/APP */
     size_t count;
-    pa_dec **decs;                    /* PE_LET */
+    pa_dec **decs; /* PE_LET */
     size_t ndecs;
-    pa_rule *rules;                   /* PE_FN/PE_CASE/PE_HANDLE */
+    pa_rule *rules; /* PE_FN/PE_CASE/PE_HANDLE */
     size_t nrules;
     pa_exp *a, *b, *c;
   };
@@ -112,38 +112,38 @@ extern "C"
   enum pa_pat_kind
   {
     PP_WILD,
-    PP_LIT,   /* lit */
-    PP_VID,   /* path: binds unless it resolves to a constructor */
+    PP_LIT, /* lit */
+    PP_VID, /* path: binds unless it resolves to a constructor */
     PP_UNIT,
-    PP_TUPLE, /* items */
-    PP_LIST,  /* items */
-    PP_RECORD,/* labs + items + ellipsis */
-    PP_CTOR,  /* path + arg */
-    PP_AS,    /* aname + asub */
-    PP_OR     /* l, r */
+    PP_TUPLE,  /* items */
+    PP_LIST,   /* items */
+    PP_RECORD, /* labs + items + ellipsis */
+    PP_CTOR,   /* path + arg */
+    PP_AS,     /* aname + asub */
+    PP_OR      /* l, r */
   };
 
   struct pa_pat
   {
     int kind;
-    pv *lit;                          /* PP_LIT */
-    char **path;                      /* PP_VID/PP_CTOR */
+    pv *lit;     /* PP_LIT */
+    char **path; /* PP_VID/PP_CTOR */
     size_t path_len;
-    char *aname;                      /* PP_AS */
-    pa_pat *asub;                     /* PP_AS */
-    pa_pat *l, *r;                    /* PP_OR */
-    char **labs;                      /* PP_RECORD */
+    char *aname;   /* PP_AS */
+    pa_pat *asub;  /* PP_AS */
+    pa_pat *l, *r; /* PP_OR */
+    char **labs;   /* PP_RECORD */
     int ellipsis;
-    pa_pat **items;                   /* TUPLE/LIST/RECORD */
+    pa_pat **items; /* TUPLE/LIST/RECORD */
     size_t count;
-    pa_pat *arg;                      /* PP_CTOR */
+    pa_pat *arg; /* PP_CTOR */
   };
 
   typedef struct
   {
     char *name;
     int has_arg;
-    char **alias_path;   /* exception replication: source constructor */
+    char **alias_path; /* exception replication: source constructor */
     size_t alias_len;
   } pa_condef;
 
@@ -173,26 +173,26 @@ extern "C"
   struct pa_dec
   {
     int kind;
-    pa_dec **seq;                       /* PD_SEQ */
+    pa_dec **seq; /* PD_SEQ */
     size_t nseq;
-    pa_pat *pat;                        /* PD_VAL */
-    pa_exp *rhs;                        /* PD_VAL/PD_DO */
-    int bind_it;                        /* PD_DO */
-    char **recnames;                    /* PD_VALREC */
+    pa_pat *pat;     /* PD_VAL */
+    pa_exp *rhs;     /* PD_VAL/PD_DO */
+    int bind_it;     /* PD_DO */
+    char **recnames; /* PD_VALREC */
     pa_exp **recfns;
     size_t nrec;
-    pa_datdef *dts;                     /* PD_DATATYPE/PD_ABSTYPE */
+    pa_datdef *dts; /* PD_DATATYPE/PD_ABSTYPE */
     size_t ndts;
-    char *repl_name;                    /* PD_DATAREPL */
+    char *repl_name; /* PD_DATAREPL */
     char **repl_path;
     size_t repl_path_len;
-    pa_condef *exns;                    /* PD_EXN */
+    pa_condef *exns; /* PD_EXN */
     size_t nexns;
-    pa_dec **a_decs;                    /* PD_LOCAL/PD_ABSTYPE */
+    pa_dec **a_decs; /* PD_LOCAL/PD_ABSTYPE */
     size_t na;
     pa_dec **b_decs;
     size_t nb;
-    char ***open_paths;                 /* PD_OPEN */
+    char ***open_paths; /* PD_OPEN */
     size_t *open_lens;
     size_t nopen;
   };
@@ -209,14 +209,14 @@ extern "C"
   struct pa_strexp
   {
     int kind;
-    pa_strdec **decs;      /* STRUCT/LET */
+    pa_strdec **decs; /* STRUCT/LET */
     size_t ndecs;
-    char **path;           /* STRID */
+    char **path; /* STRID */
     size_t path_len;
-    pa_strexp *sub;        /* CONSTRAIN/LET */
-    char *fct;             /* FCTAPP */
-    pa_strexp *arg;        /* FCTAPP (strexp argument) */
-    pa_strdec **argdecs;   /* FCTAPP (inline strdec argument) */
+    pa_strexp *sub;      /* CONSTRAIN/LET */
+    char *fct;           /* FCTAPP */
+    pa_strexp *arg;      /* FCTAPP (strexp argument) */
+    pa_strdec **argdecs; /* FCTAPP (inline strdec argument) */
     size_t nargdecs;
   };
 
@@ -238,14 +238,14 @@ extern "C"
   struct pa_strdec
   {
     int kind;
-    pa_dec *dec;                        /* PSD_DEC */
-    pa_strbind *binds;                  /* PSD_STRUCTURE */
+    pa_dec *dec;       /* PSD_DEC */
+    pa_strbind *binds; /* PSD_STRUCTURE */
     size_t nbinds;
-    pa_strdec **a;                      /* PSD_LOCAL */
+    pa_strdec **a; /* PSD_LOCAL */
     size_t na;
     pa_strdec **b;
     size_t nb;
-    char *fct_name;                     /* PSD_FUNCTOR */
+    char *fct_name; /* PSD_FUNCTOR */
     char *fct_param;
     pa_strexp *fct_body;
   };
@@ -281,37 +281,37 @@ extern "C"
   struct pv
   {
     int kind;
-    long long i;                        /* PV_INT */
-    unsigned long long w;               /* PV_WORD */
-    double r;                           /* PV_REAL */
-    int ch;                             /* PV_CHAR */
+    long long i;          /* PV_INT */
+    unsigned long long w; /* PV_WORD */
+    double r;             /* PV_REAL */
+    int ch;               /* PV_CHAR */
     struct
     {
       char *data;
       size_t len;
-    } s;                                /* PV_STRING */
+    } s; /* PV_STRING */
     struct
     {
       pv **items;
       size_t n;
-    } t;                                /* PV_TUPLE */
+    } t; /* PV_TUPLE */
     struct
     {
       char **labs;
       pv **items;
       size_t n;
-    } rec;                              /* PV_RECORD */
+    } rec; /* PV_RECORD */
     struct
     {
       char *name;
       pv *arg;
       int is_exn;
-    } c;                                /* PV_CTOR */
+    } c; /* PV_CTOR */
     struct
     {
       char *name;
       int is_exn;
-    } cf;                               /* PV_CTORFN */
+    } cf; /* PV_CTORFN */
     struct
     {
       pa_rule *rules;
@@ -320,7 +320,7 @@ extern "C"
       char *name;
       unsigned long calls;
       int hot;
-    } f;                                /* PV_CLOSURE */
+    } f; /* PV_CLOSURE */
     struct
     {
       const char *name;
@@ -328,15 +328,15 @@ extern "C"
       pv *(*fn) (prt *, pv *, pv **, int);
       pv **got;
       int ngot;
-    } b;                                /* PV_BUILTIN (curried) */
-    pv *refcell;                        /* PV_REF */
-    pa_env *str;                        /* PV_STRUCT */
+    } b;         /* PV_BUILTIN (curried) */
+    pv *refcell; /* PV_REF */
+    pa_env *str; /* PV_STRUCT */
     struct
     {
       char *param;
       pa_strexp *body;
       pa_env *env;
-    } fc;                               /* PV_FUNCTOR */
+    } fc; /* PV_FUNCTOR */
     struct
     {
       int fd;
@@ -346,7 +346,7 @@ extern "C"
       size_t len;
       size_t pos;
       int is_open;
-    } st;                               /* PV_STREAM */
+    } st; /* PV_STREAM */
   };
 
   /* ---------- environments ---------- */
@@ -391,7 +391,7 @@ extern "C"
 
   typedef struct pa_cache
   {
-    char *key;                /* expanded source text */
+    char *key; /* expanded source text */
     pa_program *prog;
     struct pa_cache *next;
   } pa_cache;
@@ -403,20 +403,20 @@ extern "C"
 
   struct ccw_sml_parthia_runtime
   {
-    sml_ext_entry *extensions;   /* native extension registry (public ABI) */
-    void *arena;                  /* klib blocked arena */
+    sml_ext_entry *extensions; /* native extension registry (public ABI) */
+    void *arena;               /* klib blocked arena */
     pa_env *global;
     pv *v_true;
     pv *v_false;
     pa_handler *handlers;
-    pv *exn;                     /* packet in flight during a raise */
-    pa_tyc *tycs;                /* tycon -> constructor table (datarepl) */
+    pv *exn;      /* packet in flight during a raise */
+    pa_tyc *tycs; /* tycon -> constructor table (datarepl) */
     unsigned gensym;
     unsigned long depth;
-    pa_cache *cache;             /* JIT phrase code cache */
-    unsigned long jit_phrases;   /* phrases compiled */
-    unsigned long jit_hits;      /* cache hits */
-    unsigned long jit_spec;      /* closures tiered up */
+    pa_cache *cache;           /* JIT phrase code cache */
+    unsigned long jit_phrases; /* phrases compiled */
+    unsigned long jit_hits;    /* cache hits */
+    unsigned long jit_spec;    /* closures tiered up */
     int init_failed;
     char init_error[256];
   };

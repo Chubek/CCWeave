@@ -47,26 +47,25 @@ read_stream (FILE *stream, size_t *length)
 static void
 print_help (FILE *stream)
 {
-  fputs (
-      "Usage: sml-parthia [OPTIONS] [FILE.sml]\n"
-      "\n"
-      "Run an SML '97 source file with the Parthia AoT runtime.\n"
-      "With no file, start the interactive REPL.\n"
-      "\n"
-      "Options:\n"
-      "  -h, --help  Show this help text and exit.\n"
-      "\n"
-      "REPL directives:\n"
-      "  #help              List REPL directives.\n"
-      "  #open MODULE       Show a module's structure/signatures.\n"
-      "  #use \"FILE\"        Load and compile SML source.\n"
-      "  #load LIB          Load a native library from SML_PARTHIA_PATH.\n"
-      "  #quit              Leave the REPL.\n"
-      "\n"
-      "Source and library directive targets (use, load, CM.make) resolve\n"
-      "as given first, then through each directory in the comma-separated\n"
-      "SML_PARTHIA_PATH.\n",
-      stream);
+  fputs ("Usage: sml-parthia [OPTIONS] [FILE.sml]\n"
+         "\n"
+         "Run an SML '97 source file with the Parthia AoT runtime.\n"
+         "With no file, start the interactive REPL.\n"
+         "\n"
+         "Options:\n"
+         "  -h, --help  Show this help text and exit.\n"
+         "\n"
+         "REPL directives:\n"
+         "  #help              List REPL directives.\n"
+         "  #open MODULE       Show a module's structure/signatures.\n"
+         "  #use \"FILE\"        Load and compile SML source.\n"
+         "  #load LIB          Load a native library from SML_PARTHIA_PATH.\n"
+         "  #quit              Leave the REPL.\n"
+         "\n"
+         "Source and library directive targets (use, load, CM.make) resolve\n"
+         "as given first, then through each directory in the comma-separated\n"
+         "SML_PARTHIA_PATH.\n",
+         stream);
 }
 
 int
@@ -121,7 +120,8 @@ main (int argc, char **argv)
     {
       free (source);
       ccw_sml_parthia_runtime_free (runtime);
-      fprintf (stderr, "sml-parthia: %s\n", error ? error : "execution failed");
+      fprintf (stderr, "sml-parthia: %s\n",
+               error ? error : "execution failed");
       free (error);
       return 1;
     }

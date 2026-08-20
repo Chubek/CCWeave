@@ -27,11 +27,11 @@
 #include "../../../ir/ccw_ir.h"
 #include "../../../sched/sched.h"
 #include "../../../swaff/ccw_swaff.h"
-#include "../../../toolchain/ccwas/ccwas.h"
-#include "../../../toolchain/ccwld/ccwld.h"
 #include "../../../third_party/ucpp/cpp.h"
 #include "../../../third_party/ucpp/tune.h"
 #include "../../../third_party/ucpp/ucppi.h"
+#include "../../../toolchain/ccwas/ccwas.h"
+#include "../../../toolchain/ccwld/ccwld.h"
 
 #include "kstring.h"
 #include "kvec.h"
@@ -47,193 +47,231 @@ cephyr_driver_strdup (const char *s)
 
 static char *read_file (const char *path, size_t *out_len);
 
-/* Check if an env var is set to a truthy value (1, true, yes, case-insensitive). */
+/* Check if an env var is set to a truthy value (1, true, yes,
+ * case-insensitive). */
 static int
-env_is_truthy(const char *name)
+env_is_truthy (const char *name)
 {
-  const char *val = getenv(name);
-  if (val == NULL) return 0;
-  if (strcmp(val, "1") == 0 || strcmp(val, "true") == 0
-      || strcmp(val, "TRUE") == 0 || strcmp(val, "True") == 0
-      || strcmp(val, "yes") == 0 || strcmp(val, "YES") == 0
-      || strcmp(val, "Yes") == 0 || strcmp(val, "on") == 0
-      || strcmp(val, "ON") == 0 || strcmp(val, "On") == 0)
+  const char *val = getenv (name);
+  if (val == NULL)
+    return 0;
+  if (strcmp (val, "1") == 0 || strcmp (val, "true") == 0
+      || strcmp (val, "TRUE") == 0 || strcmp (val, "True") == 0
+      || strcmp (val, "yes") == 0 || strcmp (val, "YES") == 0
+      || strcmp (val, "Yes") == 0 || strcmp (val, "on") == 0
+      || strcmp (val, "ON") == 0 || strcmp (val, "On") == 0)
     return 1;
   return 0;
 }
 
 /* ---------- preprocessor helpers ---------- */
 
-typedef struct {
+typedef struct
+{
   char *text;
   size_t text_len;
   char *error_message;
 } cephyr_cpp_result;
 
 static void
-cephyr_cpp_result_free(cephyr_cpp_result *res)
+cephyr_cpp_result_free (cephyr_cpp_result *res)
 {
-  if (res == NULL) return;
-  free(res->text);
-  free(res->error_message);
-  memset(res, 0, sizeof(*res));
+  if (res == NULL)
+    return;
+  free (res->text);
+  free (res->error_message);
+  memset (res, 0, sizeof (*res));
 }
 
 /* Run an external preprocessor command on a source file. Returns the
  * preprocessed output as a heap-allocated string. */
 static char *
-cpp_run_external(const char *source_path, const char *cpp_command,
-                 const char *const *options, int option_count,
-                 const char *const *args, int arg_count,
-                 char **error_message)
+cpp_run_external (const char *source_path, const char *cpp_command,
+                  const char *const *options, int option_count,
+                  const char *const *args, int arg_count, char **error_message)
 {
-  kstring_t cmd = {0, 0, NULL};
-  kstring_t output = {0, 0, NULL};
+  kstring_t cmd = { 0, 0, NULL };
+  kstring_t output = { 0, 0, NULL };
   FILE *pipe;
   char buf[4096];
   size_t n;
   int status;
 
-  if (cpp_command == NULL || *cpp_command == '\0') {
-    if (error_message) *error_message = cephyr_driver_strdup("no preprocessor command set");
-    return NULL;
-  }
-  if (kputs(cpp_command, &cmd) == EOF) goto oom;
-  for (int i = 0; i < option_count; ++i) {
-    if (kputc(' ', &cmd) == EOF) goto oom;
-    if (kputs(options[i], &cmd) == EOF) goto oom;
-  }
-  for (int i = 0; i < arg_count; ++i) {
-    if (kputc(' ', &cmd) == EOF) goto oom;
-    if (kputs(args[i], &cmd) == EOF) goto oom;
-  }
-  if (kputc(' ', &cmd) == EOF) goto oom;
-  if (kputs(source_path, &cmd) == EOF) goto oom;
-
-  pipe = popen(cmd.s, "r");
-  free(cmd.s);
-  if (pipe == NULL) {
-    if (error_message) {
-      char ebuf[512];
-      snprintf(ebuf, sizeof(ebuf), "failed to run external preprocessor: %s", cpp_command);
-      *error_message = cephyr_driver_strdup(ebuf);
-    }
-    return NULL;
-  }
-  while ((n = fread(buf, 1, sizeof(buf), pipe)) > 0) {
-    if (kputsn(buf, (int)n, &output) == EOF) {
-      free(output.s);
-      pclose(pipe);
-      if (error_message) *error_message = cephyr_driver_strdup("out of memory");
+  if (cpp_command == NULL || *cpp_command == '\0')
+    {
+      if (error_message)
+        *error_message = cephyr_driver_strdup ("no preprocessor command set");
       return NULL;
     }
-  }
-  status = pclose(pipe);
-  if (status != 0) {
-    free(output.s);
-    if (error_message) {
-      char ebuf[512];
-      snprintf(ebuf, sizeof(ebuf), "external preprocessor exited with status %d", status);
-      *error_message = cephyr_driver_strdup(ebuf);
+  if (kputs (cpp_command, &cmd) == EOF)
+    goto oom;
+  for (int i = 0; i < option_count; ++i)
+    {
+      if (kputc (' ', &cmd) == EOF)
+        goto oom;
+      if (kputs (options[i], &cmd) == EOF)
+        goto oom;
     }
-    return NULL;
-  }
-  return ks_release(&output);
+  for (int i = 0; i < arg_count; ++i)
+    {
+      if (kputc (' ', &cmd) == EOF)
+        goto oom;
+      if (kputs (args[i], &cmd) == EOF)
+        goto oom;
+    }
+  if (kputc (' ', &cmd) == EOF)
+    goto oom;
+  if (kputs (source_path, &cmd) == EOF)
+    goto oom;
+
+  pipe = popen (cmd.s, "r");
+  free (cmd.s);
+  if (pipe == NULL)
+    {
+      if (error_message)
+        {
+          char ebuf[512];
+          snprintf (ebuf, sizeof (ebuf),
+                    "failed to run external preprocessor: %s", cpp_command);
+          *error_message = cephyr_driver_strdup (ebuf);
+        }
+      return NULL;
+    }
+  while ((n = fread (buf, 1, sizeof (buf), pipe)) > 0)
+    {
+      if (kputsn (buf, (int)n, &output) == EOF)
+        {
+          free (output.s);
+          pclose (pipe);
+          if (error_message)
+            *error_message = cephyr_driver_strdup ("out of memory");
+          return NULL;
+        }
+    }
+  status = pclose (pipe);
+  if (status != 0)
+    {
+      free (output.s);
+      if (error_message)
+        {
+          char ebuf[512];
+          snprintf (ebuf, sizeof (ebuf),
+                    "external preprocessor exited with status %d", status);
+          *error_message = cephyr_driver_strdup (ebuf);
+        }
+      return NULL;
+    }
+  return ks_release (&output);
 oom:
-  free(cmd.s);
-  if (error_message) *error_message = cephyr_driver_strdup("out of memory");
+  free (cmd.s);
+  if (error_message)
+    *error_message = cephyr_driver_strdup ("out of memory");
   return NULL;
 }
 
 /* Run ucpp on source text. Returns a cephyr_cpp_result. */
 static cephyr_cpp_result
-cpp_run_ucpp(const char *source_text, size_t source_len,
-             const char *source_name,
-             const char *const *include_paths, int include_path_count,
-             const char *const *defines, int define_count,
-             const char *const *options, int option_count,
-             const char *const *args, int arg_count)
+cpp_run_ucpp (const char *source_text, size_t source_len,
+              const char *source_name, const char *const *include_paths,
+              int include_path_count, const char *const *defines,
+              int define_count, const char *const *options, int option_count,
+              const char *const *args, int arg_count)
 {
   cephyr_cpp_result result;
   FILE *tmpf;
   char *out_buf = NULL;
   size_t out_len = 0;
 
-  memset(&result, 0, sizeof(result));
+  memset (&result, 0, sizeof (result));
 
   (void)include_path_count;
   (void)options;
   (void)option_count;
   (void)args;
   (void)arg_count;
-  init_cpp();
+  init_cpp ();
   no_special_macros = 0;
   c99_compliant = 1;
   c99_hosted = 1;
   emit_defines = emit_assertions = 0;
-  init_tables(1);
+  init_tables (1);
 
-  init_include_path((char **)include_paths);
-  set_init_filename((char *)(source_name ? source_name : "<input>"), 0);
+  init_include_path ((char **)include_paths);
+  set_init_filename ((char *)(source_name ? source_name : "<input>"), 0);
 
   struct lexer_state ls;
-  init_lexer_state(&ls);
-  init_lexer_mode(&ls);
+  init_lexer_state (&ls);
+  init_lexer_mode (&ls);
   ls.flags |= HANDLE_ASSERTIONS | HANDLE_PRAGMA | LINE_NUM | KEEP_OUTPUT;
 
   /* Predefined macros for Cephyr (LP64, x86-64, Linux) */
-  static const char *builtin_macros[] = {
-    "__GNUC__=4", "__GNUC_MINOR__=2", "__GNUC_PATCHLEVEL__=1",
-    "__LP64__", "_LP64",
-    "__x86_64__", "__x86_64", "__amd64__", "__amd64",
-    "__linux__", "__linux", "__unix__", "__unix",
-    "__SIZEOF_POINTER__=8", "__SIZEOF_LONG__=8",
-    "__SIZEOF_INT__=4", "__SIZEOF_SHORT__=2",
-    NULL
-  };
+  static const char *builtin_macros[] = { "__GNUC__=4",
+                                          "__GNUC_MINOR__=2",
+                                          "__GNUC_PATCHLEVEL__=1",
+                                          "__LP64__",
+                                          "_LP64",
+                                          "__x86_64__",
+                                          "__x86_64",
+                                          "__amd64__",
+                                          "__amd64",
+                                          "__linux__",
+                                          "__linux",
+                                          "__unix__",
+                                          "__unix",
+                                          "__SIZEOF_POINTER__=8",
+                                          "__SIZEOF_LONG__=8",
+                                          "__SIZEOF_INT__=4",
+                                          "__SIZEOF_SHORT__=2",
+                                          NULL };
   for (int i = 0; builtin_macros[i] != NULL; i++)
-    define_macro(&ls, (char *)builtin_macros[i]);
+    define_macro (&ls, (char *)builtin_macros[i]);
 
   /* User defines */
-  for (int i = 0; i < define_count; ++i) {
-    if (defines[i] != NULL)
-      define_macro(&ls, (char *)defines[i]);
-  }
+  for (int i = 0; i < define_count; ++i)
+    {
+      if (defines[i] != NULL)
+        define_macro (&ls, (char *)defines[i]);
+    }
 
   /* Redirect output to memory buffer */
   FILE *saved_output = emit_output;
-  emit_output = open_memstream(&out_buf, &out_len);
-  if (emit_output == NULL) {
-    result.error_message = cephyr_driver_strdup("failed to create output buffer for preprocessor");
-    free_lexer_state(&ls);
-    wipeout();
-    return result;
-  }
+  emit_output = open_memstream (&out_buf, &out_len);
+  if (emit_output == NULL)
+    {
+      result.error_message = cephyr_driver_strdup (
+          "failed to create output buffer for preprocessor");
+      free_lexer_state (&ls);
+      wipeout ();
+      return result;
+    }
 
   /* Feed source and run */
-  tmpf = tmpfile();
-  if (tmpf == NULL) {
-    result.error_message = cephyr_driver_strdup("failed to create temp file for preprocessor input");
-    fclose(emit_output);
-    emit_output = saved_output;
-    free_lexer_state(&ls);
-    wipeout();
-    return result;
-  }
-  fwrite(source_text, 1, source_len, tmpf);
-  rewind(tmpf);
-  set_input_file(&ls, tmpf);
-  enter_file(&ls, ls.flags);
-  cpp(&ls);
-  fclose(emit_output);
+  tmpf = tmpfile ();
+  if (tmpf == NULL)
+    {
+      result.error_message = cephyr_driver_strdup (
+          "failed to create temp file for preprocessor input");
+      fclose (emit_output);
+      emit_output = saved_output;
+      free_lexer_state (&ls);
+      wipeout ();
+      return result;
+    }
+  fwrite (source_text, 1, source_len, tmpf);
+  rewind (tmpf);
+  set_input_file (&ls, tmpf);
+  enter_file (&ls, ls.flags);
+  cpp (&ls);
+  fclose (emit_output);
   emit_output = saved_output;
-  free_lexer_state(&ls);
-  wipeout();
+  free_lexer_state (&ls);
+  wipeout ();
 
-  if (out_buf == NULL) {
-    out_buf = cephyr_driver_strdup("");
-    out_len = 0;
-  }
+  if (out_buf == NULL)
+    {
+      out_buf = cephyr_driver_strdup ("");
+      out_len = 0;
+    }
   result.text = out_buf;
   result.text_len = out_len;
   return result;
@@ -969,13 +1007,13 @@ compile_assembly_source (const cephyr_options *opts)
             {
               fprintf (stderr, "cephyr: preprocessor error: %s\n",
                        cpp.error_message);
-              cephyr_cpp_result_free(&cpp);
+              cephyr_cpp_result_free (&cpp);
               free (source);
               return CEPHYR_ERR_PREPROCESSOR;
             }
           preprocessed = cpp.text;
           cpp.text = NULL;
-          cephyr_cpp_result_free(&cpp);
+          cephyr_cpp_result_free (&cpp);
         }
       assembly_text = preprocessed;
     }
@@ -1214,7 +1252,7 @@ cephyr_compile_inner (const cephyr_options *opts)
         {
           fprintf (stderr, "cephyr: preprocessor error: %s\n",
                    cpp_res.error_message);
-          cephyr_cpp_result_free(&cpp_res);
+          cephyr_cpp_result_free (&cpp_res);
           free (source_text);
           return CEPHYR_ERR_PREPROCESSOR;
         }
@@ -1223,7 +1261,7 @@ cephyr_compile_inner (const cephyr_options *opts)
   if (opts->stop_stage == CEPHYR_STOP_PREPROCESS)
     {
       result = write_stage_text (opts->output_path, cpp_res.text);
-      cephyr_cpp_result_free(&cpp_res);
+      cephyr_cpp_result_free (&cpp_res);
       free (source_text);
       return result;
     }
@@ -1232,7 +1270,7 @@ cephyr_compile_inner (const cephyr_options *opts)
   if (!ccw_swaff_available ())
     {
       fprintf (stderr, "cephyr: error: Swaff C frontend not available\n");
-      cephyr_cpp_result_free(&cpp_res);
+      cephyr_cpp_result_free (&cpp_res);
       free (source_text);
       return CEPHYR_ERR_PARSE;
     }
@@ -1255,7 +1293,7 @@ cephyr_compile_inner (const cephyr_options *opts)
                report.error_nodes, report.missing_nodes,
                report.recovered_subtrees, report.unsupported_nodes);
       free (error_msg);
-      cephyr_cpp_result_free(&cpp_res);
+      cephyr_cpp_result_free (&cpp_res);
       free (source_text);
       return CEPHYR_ERR_PARSE;
     }
@@ -1273,7 +1311,7 @@ cephyr_compile_inner (const cephyr_options *opts)
                validate_err ? validate_err : "unknown");
       free (validate_err);
       ccw_ir_module_destroy (ir);
-      cephyr_cpp_result_free(&cpp_res);
+      cephyr_cpp_result_free (&cpp_res);
       free (source_text);
       return CEPHYR_ERR_SEMA;
     }
@@ -1306,8 +1344,7 @@ cephyr_compile_inner (const cephyr_options *opts)
               close (fd);
               assembly_path = cephyr_driver_strdup (assembly_template);
             }
-          if (opts->stop_stage == CEPHYR_STOP_LINK
-              && opts->output_path != NULL
+          if (opts->stop_stage == CEPHYR_STOP_LINK && opts->output_path != NULL
               && strcmp (opts->output_path, "-") != 0)
             {
               object_path = cephyr_driver_strdup (opts->output_path);
@@ -1359,8 +1396,8 @@ cephyr_compile_inner (const cephyr_options *opts)
             }
           if (!opts->keep_temp && assembly_path != NULL)
             unlink (assembly_path);
-          if (opts->stop_stage != CEPHYR_STOP_LINK
-              && !opts->keep_temp && object_path != NULL)
+          if (opts->stop_stage != CEPHYR_STOP_LINK && !opts->keep_temp
+              && object_path != NULL)
             unlink (object_path);
         }
       free (assembly_path);
@@ -1370,7 +1407,7 @@ cephyr_compile_inner (const cephyr_options *opts)
 
   /* Cleanup */
   ccw_ir_module_destroy (ir);
-  cephyr_cpp_result_free(&cpp_res);
+  cephyr_cpp_result_free (&cpp_res);
   free (source_text);
 
   return result;
@@ -1509,9 +1546,15 @@ cephyr_compile (const cephyr_options *opts)
       const char *toolchain_as = getenv ("CEPHYR_TOOLCHAIN_ASSEMBLER");
       const char *env_as = getenv ("CEPHYR_AS");
       if (toolchain_as != NULL && *toolchain_as != '\0')
-        { effective.assembler = toolchain_as; effective.assembler_external = true; }
+        {
+          effective.assembler = toolchain_as;
+          effective.assembler_external = true;
+        }
       else if (env_as != NULL && *env_as != '\0')
-        { effective.assembler = env_as; effective.assembler_external = true; }
+        {
+          effective.assembler = env_as;
+          effective.assembler_external = true;
+        }
     }
   if (effective.assembler == NULL && profile.assembler != NULL)
     {
@@ -1530,9 +1573,9 @@ cephyr_compile (const cephyr_options *opts)
     effective.linker = profile.linker;
   if (effective.assembler == NULL)
     {
-      if (env_is_truthy("CEPHYR_CCWAS_NO_EMBED"))
+      if (env_is_truthy ("CEPHYR_CCWAS_NO_EMBED"))
         effective.assembler_external = true;
-      if (env_is_truthy("CEPHYR_CCWLD_NO_EMBED"))
+      if (env_is_truthy ("CEPHYR_CCWLD_NO_EMBED"))
         {
           /* linker will be discovered as external */
         }
@@ -1624,9 +1667,8 @@ cephyr_compile (const cephyr_options *opts)
       size_t user_include_count
           = (size_t)(opts->include_path_count > 0 ? opts->include_path_count
                                                   : 0);
-      include_paths
-          = (const char **)malloc ((include_count + 1u)
-                                   * sizeof (*include_paths));
+      include_paths = (const char **)malloc ((include_count + 1u)
+                                             * sizeof (*include_paths));
       if (include_paths == NULL)
         goto oom;
       for (size_t i = 0; i < profile.include_path_count; ++i)

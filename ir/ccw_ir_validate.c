@@ -65,8 +65,8 @@ ccw_ir_validate (const ccw_ir *ir, char **error_message)
 
               if (strcmp (n->opcode, CCW_OP_SYSCALL) == 0
                   && (n->children.count < 1 || n->children.count > 7
-                      || ccw_ir_node_get_kind (
-                             ir, n->children.items[0], CCW_NODE_OPERAND)
+                      || ccw_ir_node_get_kind (ir, n->children.items[0],
+                                               CCW_NODE_OPERAND)
                              == NULL
                       || ccw_ir_node_get (ir, n->children.items[0])->okind
                              != CCW_OPND_CONST_INT))

@@ -1,8 +1,8 @@
 #include "ccw_test.h"
 #include "sml_parthia.h"
 
-#include <stdlib.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #ifndef CCW_SML_BASIS_NATIVE_PATH
 #define CCW_SML_BASIS_NATIVE_PATH "libsml_basis.so"
@@ -93,9 +93,8 @@ main (void)
     ccw_sml_parthia_runtime *runtime = ccw_sml_parthia_runtime_new ();
     ccw_sml_parthia_program *loaded;
     char *basis_error = NULL;
-    const char *source
-        = "use \"stdlib-salvo/sml-basis/Basis.sml\";\n"
-          "val it = Option.getOpt (SOME 9, 0)\n";
+    const char *source = "use \"stdlib-salvo/sml-basis/Basis.sml\";\n"
+                         "val it = Option.getOpt (SOME 9, 0)\n";
     loaded = ccw_sml_parthia_compile_with_runtime (
         runtime, source, strlen (source), NULL, &basis_error);
     CCW_CHECK (loaded != NULL, "Basis source could not be loaded: %s",
@@ -123,13 +122,13 @@ main (void)
 
   {
     char *resolved = ccw_sml_parthia_resolve_path ("no/such/file.sml");
-    CCW_CHECK (resolved != NULL
-                   && strcmp (resolved, "no/such/file.sml") == 0,
+    CCW_CHECK (resolved != NULL && strcmp (resolved, "no/such/file.sml") == 0,
                "resolver did not pass literal paths through");
     free (resolved);
-    CCW_CHECK (ccw_sml_parthia_resolve_path (
-                   "parthia-resolver-no-such-bare-name") == NULL,
-               "resolver invented a path for an unsearchable bare name");
+    CCW_CHECK (
+        ccw_sml_parthia_resolve_path ("parthia-resolver-no-such-bare-name")
+            == NULL,
+        "resolver invented a path for an unsearchable bare name");
   }
 
   {
@@ -149,16 +148,15 @@ main (void)
     ccw_sml_parthia_runtime *runtime = ccw_sml_parthia_runtime_new ();
     char *value = NULL;
     char *run_error = NULL;
-    const char *program_text
-        = "val answer = 40 + 2;\n"
-          "val answer2 = answer * 2;\n"
-          "val r = ref answer2;\n"
-          "val _ = r := 84;\n"
-          "val it = !r;\n";
+    const char *program_text = "val answer = 40 + 2;\n"
+                               "val answer2 = answer * 2;\n"
+                               "val r = ref answer2;\n"
+                               "val _ = r := 84;\n"
+                               "val it = !r;\n";
     CCW_CHECK (runtime != NULL
-                   && ccw_sml_parthia_run (
-                       runtime, program_text, strlen (program_text), &value,
-                       &run_error)
+                   && ccw_sml_parthia_run (runtime, program_text,
+                                           strlen (program_text), &value,
+                                           &run_error)
                    && value != NULL && strcmp (value, "84") == 0,
                "AoT evaluation failed: %s (value %s)",
                run_error ? run_error : "(none)", value ? value : "(none)");
@@ -166,12 +164,11 @@ main (void)
     free (run_error);
     value = NULL;
     run_error = NULL;
-    CCW_CHECK (ccw_sml_parthia_eval (runtime, "val it = 7 + 5",
-                                     strlen ("val it = 7 + 5"), &value,
-                                     &run_error)
-                   && value != NULL && strcmp (value, "12") == 0,
-               "JIT phrase evaluation failed: %s",
-               run_error ? run_error : "(none)");
+    CCW_CHECK (
+        ccw_sml_parthia_eval (runtime, "val it = 7 + 5",
+                              strlen ("val it = 7 + 5"), &value, &run_error)
+            && value != NULL && strcmp (value, "12") == 0,
+        "JIT phrase evaluation failed: %s", run_error ? run_error : "(none)");
     free (value);
     free (run_error);
     ccw_sml_parthia_runtime_free (runtime);
@@ -193,7 +190,7 @@ main (void)
     CCW_CHECK (
         runtime != NULL
             && ccw_sml_parthia_run (runtime, source, strlen (source), &value,
-                                     &run_error)
+                                    &run_error)
             && value != NULL
             && strcmp (value, "(34, 40, 2, \"sml-parthia\")") == 0,
         "Basis collection/string operations or infix precedence failed: %s "
@@ -208,9 +205,8 @@ main (void)
     ccw_sml_parthia_runtime *runtime = ccw_sml_parthia_runtime_new ();
     char *value = NULL;
     char *run_error = NULL;
-    const char *source
-        = "val text = \"parentheses () and a semicolon ;\"\n"
-          "val it = #\"x\"\n";
+    const char *source = "val text = \"parentheses () and a semicolon ;\"\n"
+                         "val it = #\"x\"\n";
     CCW_CHECK (ccw_sml_parthia_run (runtime, source, strlen (source), &value,
                                     &run_error)
                    && value != NULL && strcmp (value, "#\"x\"") == 0,
@@ -225,9 +221,8 @@ main (void)
     ccw_sml_parthia_runtime *runtime = ccw_sml_parthia_runtime_new ();
     char *value = NULL;
     char *run_error = NULL;
-    const char *source
-        = "fun fact 0 = 1 | fact n = n * fact (n - 1)\n"
-          "val it = fact 6\n";
+    const char *source = "fun fact 0 = 1 | fact n = n * fact (n - 1)\n"
+                         "val it = fact 6\n";
     CCW_CHECK (ccw_sml_parthia_run (runtime, source, strlen (source), &value,
                                     &run_error)
                    && value != NULL && strcmp (value, "720") == 0,
