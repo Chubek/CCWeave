@@ -56,6 +56,15 @@ extern "C"
     char message[256];
   } ccw_sml_parthia_report;
 
+  /* Execution result strings are malloc'd and owned by the caller.  The
+   * evaluator itself retains all values in the runtime arena. */
+  int ccw_sml_parthia_run (ccw_sml_parthia_runtime *runtime,
+                           const char *source, size_t source_len,
+                           char **result, char **error_message);
+  int ccw_sml_parthia_eval (ccw_sml_parthia_runtime *runtime,
+                            const char *phrase, size_t phrase_len,
+                            char **result, char **error_message);
+
   /* Parse and elaborate an SML source file.  The returned object owns both the
    * surface AST and the signature-erased core description. */
   ccw_sml_parthia_program *

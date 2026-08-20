@@ -2,6 +2,7 @@
 #include "sml_parthia.h"
 
 #include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
 #ifndef CCW_SML_BASIS_NATIVE_PATH
 #define CCW_SML_BASIS_NATIVE_PATH "libsml_basis.so"
@@ -91,6 +92,22 @@ main (void)
   {
     ccw_sml_parthia_runtime *runtime = ccw_sml_parthia_runtime_new ();
     ccw_sml_parthia_program *loaded;
+    char *basis_error = NULL;
+    const char *source
+        = "use \"stdlib-salvo/sml-basis/Basis.sml\";\n"
+          "val it = Option.getOpt (SOME 9, 0)\n";
+    loaded = ccw_sml_parthia_compile_with_runtime (
+        runtime, source, strlen (source), NULL, &basis_error);
+    CCW_CHECK (loaded != NULL, "Basis source could not be loaded: %s",
+               basis_error ? basis_error : "(none)");
+    ccw_sml_parthia_program_destroy (loaded);
+    free (basis_error);
+    ccw_sml_parthia_runtime_free (runtime);
+  }
+
+  {
+    ccw_sml_parthia_runtime *runtime = ccw_sml_parthia_runtime_new ();
+    ccw_sml_parthia_program *loaded;
     const char directive[]
         = "use \"interpreters/sml-parthia/tests/fixtures/use-library.sml\";\n"
           "val local_value = loaded_from_library\n";
@@ -126,6 +143,83 @@ main (void)
             && result == 9,
         "SML Basis FFI call failed");
     ccw_sml_parthia_ffi_close (library);
+  }
+
+  {
+    ccw_sml_parthia_runtime *runtime = ccw_sml_parthia_runtime_new ();
+    char *value = NULL;
+    char *run_error = NULL;
+    const char *program_text
+        = "val answer = 40 + 2;\n"
+          "val answer2 = answer * 2;\n"
+          "val r = ref answer2;\n"
+          "val _ = r := 84;\n"
+          "val it = !r;\n";
+    CCW_CHECK (runtime != NULL
+                   && ccw_sml_parthia_run (
+                       runtime, program_text, strlen (program_text), &value,
+                       &run_error)
+                   && value != NULL && strcmp (value, "84") == 0,
+               "AoT evaluation failed: %s (value %s)",
+               run_error ? run_error : "(none)", value ? value : "(none)");
+    free (value);
+    free (run_error);
+    value = NULL;
+    run_error = NULL;
+    CCW_CHECK (ccw_sml_parthia_eval (runtime, "val it = 7 + 5",
+                                     strlen ("val it = 7 + 5"), &value,
+                                     &run_error)
+                   && value != NULL && strcmp (value, "12") == 0,
+               "JIT phrase evaluation failed: %s",
+               run_error ? run_error : "(none)");
+    free (value);
+    free (run_error);
+    ccw_sml_parthia_runtime_free (runtime);
+  }
+
+  {
+    ccw_sml_parthia_runtime *runtime = ccw_sml_parthia_runtime_new ();
+    char *value = NULL;
+    char *run_error = NULL;
+    const char *source
+        = "fun fact 0 = 1 | fact n = n * fact (n - 1)\n"
+          "val it = fact 6\n";
+    CCW_CHECK (ccw_sml_parthia_run (runtime, source, strlen (source), &value,
+                                    &run_error)
+                   && value != NULL && strcmp (value, "720") == 0,
+               "recursive function evaluation failed: %s",
+               run_error ? run_error : "(none)");
+    free (value);
+    free (run_error);
+    ccw_sml_parthia_runtime_free (runtime);
+  }
+
+  {
+    ccw_sml_parthia_runtime *runtime = ccw_sml_parthia_runtime_new ();
+    char *value = NULL;
+    char *run_error = NULL;
+    const char *source
+        = "val out = TextIO.openOut \"/tmp/ccweave-parthia-io.txt\"\n"
+          "val _ = TextIO.output (out, \"io-ok\")\n"
+          "val _ = TextIO.closeOut out\n"
+          "val it = 1\n";
+    CCW_CHECK (ccw_sml_parthia_run (runtime, source, strlen (source), &value,
+                                    &run_error)
+                   && value != NULL && strcmp (value, "1") == 0,
+               "Basis IO evaluation failed: %s",
+               run_error ? run_error : "(none)");
+    {
+      FILE *file = fopen ("/tmp/ccweave-parthia-io.txt", "rb");
+      char contents[16] = { 0 };
+      size_t got = file != NULL ? fread (contents, 1, 15, file) : 0;
+      if (file != NULL)
+        fclose (file);
+      CCW_CHECK (got == 5 && strcmp (contents, "io-ok") == 0,
+                 "TextIO.output did not write the requested bytes");
+    }
+    free (value);
+    free (run_error);
+    ccw_sml_parthia_runtime_free (runtime);
   }
 
   ccw_sml_parthia_program_destroy (program);

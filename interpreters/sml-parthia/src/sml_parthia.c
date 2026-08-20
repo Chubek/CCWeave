@@ -8,6 +8,7 @@
  */
 
 #include "sml_parthia.h"
+#include "parthia_rt.h"
 #include "ccw_dynalo_bridge.h"
 #include "dyncall.h"
 #include "kstring.h"
@@ -24,19 +25,6 @@ struct ccw_sml_parthia_program
   char *surface_ast;
   char *core_ast;
   ccw_sml_parthia_report report;
-};
-
-typedef struct sml_ext_entry
-{
-  char *name;
-  ccw_sml_native_fn invoke;
-  void *userdata;
-  void *handle;
-  struct sml_ext_entry *next;
-} sml_ext_entry;
-struct ccw_sml_parthia_runtime
-{
-  sml_ext_entry *extensions;
 };
 
 static char *
@@ -639,6 +627,125 @@ ccw_sml_parthia_core_ast (const ccw_sml_parthia_program *program)
   return program == NULL ? NULL : program->core_ast;
 }
 
+static int
+execute_surface (ccw_sml_parthia_runtime *runtime, const char *surface,
+                 char **result, char **error_message)
+{
+  pa_cache *cache;
+  pa_program *compiled = NULL;
+  char *compile_error = NULL;
+  char *shown;
+
+  if (result != NULL)
+    *result = NULL;
+  if (error_message != NULL)
+    *error_message = NULL;
+  if (runtime == NULL || surface == NULL)
+    {
+      set_error (error_message, "sml/parthia: runtime and source are required");
+      return 0;
+    }
+
+  for (cache = runtime->cache; cache != NULL; cache = cache->next)
+    if (strcmp (cache->key, surface) == 0)
+      {
+        runtime->jit_hits++;
+        compiled = cache->prog;
+        break;
+      }
+  if (compiled == NULL)
+    {
+      compiled = pa_compile_surface (runtime, surface, &compile_error);
+      if (compiled == NULL)
+        {
+          set_error (error_message,
+                     compile_error != NULL ? compile_error
+                                            : "sml/parthia: lowering failed");
+          return 0;
+        }
+      cache = (pa_cache *)pa_alloc (runtime, sizeof (*cache));
+      if (cache == NULL)
+        {
+          set_error (error_message, "sml/parthia: out of memory");
+          return 0;
+        }
+      cache->key = pa_strdup (runtime, surface);
+      cache->prog = compiled;
+      cache->next = runtime->cache;
+      runtime->cache = cache;
+      runtime->jit_phrases++;
+    }
+  if (!pa_eval_program (runtime, compiled, error_message))
+    return 0;
+  if (result == NULL)
+    return 1;
+  shown = pa_show (runtime, pa_lookup (runtime, runtime->global, "it"));
+  if (shown == NULL)
+    {
+      set_error (error_message, "sml/parthia: cannot format result");
+      return 0;
+    }
+  *result = dup_text (shown);
+  if (*result == NULL)
+    {
+      set_error (error_message, "sml/parthia: out of memory");
+      return 0;
+    }
+  return 1;
+}
+
+int
+ccw_sml_parthia_run (ccw_sml_parthia_runtime *runtime, const char *source,
+                     size_t source_len, char **result, char **error_message)
+{
+  ccw_sml_parthia_runtime *owned = runtime;
+  ccw_sml_parthia_program *program;
+  int ok;
+  if (owned == NULL)
+    owned = ccw_sml_parthia_runtime_new ();
+  if (owned == NULL)
+    {
+      set_error (error_message, "sml/parthia: cannot create runtime");
+      return 0;
+    }
+  program = ccw_sml_parthia_compile_with_runtime (
+      owned, source, source_len, NULL, error_message);
+  if (program == NULL)
+    {
+      if (runtime == NULL)
+        ccw_sml_parthia_runtime_free (owned);
+      return 0;
+    }
+  ok = execute_surface (owned, program->surface_ast, result, error_message);
+  ccw_sml_parthia_program_destroy (program);
+  if (runtime == NULL)
+    ccw_sml_parthia_runtime_free (owned);
+  return ok;
+}
+
+int
+ccw_sml_parthia_eval (ccw_sml_parthia_runtime *runtime, const char *phrase,
+                      size_t phrase_len, char **result, char **error_message)
+{
+  if (runtime == NULL)
+    {
+      set_error (error_message, "sml/parthia: JIT evaluation needs a runtime");
+      return 0;
+    }
+  {
+    ccw_sml_parthia_program *program
+        = ccw_sml_parthia_compile_with_runtime (
+            runtime, phrase, phrase_len, NULL, error_message);
+    int ok;
+    if (program == NULL)
+      return 0;
+    ok = execute_surface (runtime, program->surface_ast, result,
+                          error_message);
+    ccw_sml_parthia_program_destroy (program);
+    return ok;
+  }
+}
+
 int
 ccw_sml_parthia_structure_count (const ccw_sml_parthia_program *program)
 {
@@ -672,8 +779,19 @@ ccw_sml_parthia_wheretype_count (const ccw_sml_parthia_program *program)
 ccw_sml_parthia_runtime *
 ccw_sml_parthia_runtime_new (void)
 {
-  return (ccw_sml_parthia_runtime *)calloc (1,
-                                            sizeof (ccw_sml_parthia_runtime));
+  ccw_sml_parthia_runtime *runtime
+      = (ccw_sml_parthia_runtime *)calloc (1, sizeof (*runtime));
+  if (runtime == NULL)
+    return NULL;
+  runtime->global = pa_env_new (runtime, NULL);
+  if (runtime->global == NULL)
+    {
+      free (runtime);
+      return NULL;
+    }
+  pa_basis_install (runtime);
+  pa_kio_install (runtime);
+  return runtime;
 }
 void
 ccw_sml_parthia_runtime_free (ccw_sml_parthia_runtime *runtime)
@@ -687,6 +805,12 @@ ccw_sml_parthia_runtime_free (ccw_sml_parthia_runtime *runtime)
       free (e->name);
       ccw_dynalo_close (e->handle);
       free (e);
+    }
+  while (runtime->chunks != NULL)
+    {
+      pa_chunk *chunk = runtime->chunks->next;
+      free (runtime->chunks);
+      runtime->chunks = chunk;
     }
   free (runtime);
 }

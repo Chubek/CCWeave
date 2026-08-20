@@ -1,7 +1,11 @@
 # Parthia Standard ML compiler/interpreter façade (§2, §8).
 
 add_library(sml_parthia STATIC
-  src/sml_parthia.c)
+  src/sml_parthia.c
+  src/parthia_sexp.c
+  src/parthia_compile.c
+  src/parthia_eval.c
+  src/parthia_basis.c)
 target_include_directories(sml_parthia PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}/include
   ${CMAKE_SOURCE_DIR}/swaff)

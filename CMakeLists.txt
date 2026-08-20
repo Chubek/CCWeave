@@ -299,6 +299,8 @@ add_subdirectory(compilers/delphia/tests)
 add_subdirectory(interpreters/moonix/tests)
 add_test(NAME sml-parthia
          COMMAND $<TARGET_FILE:test_sml_parthia>)
+set_tests_properties(sml-parthia PROPERTIES
+  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 add_test(NAME sml-parthia-sched
          COMMAND $<TARGET_FILE:test_sml_parthia_sched>)
 add_test(NAME sml-parthia-cli

@@ -459,3 +459,13 @@ for its ABI. Linux x86-64 uses `open(2)`; AArch64 and RV64 use
 `openat(AT_FDCWD, path, flags, mode)` because their asm-generic tables do not
 provide legacy `open`. This preserves an identical IR-level I/O API without
 inventing a platform-independent kernel syscall number.
+
+# 2026-08-20 — Parthia execution boundary
+
+Parthia's public execution API returns a caller-owned textual rendering of
+the conventional SML `it` binding; values remain arena-owned inside the
+runtime. The initial executable tier is a deterministic core-ML evaluator
+with a phrase cache for JIT reuse, while native scalar extensions and the
+Basis TextIO surface remain behind the existing scalar FFI boundary. This
+keeps aggregate SML values out of the C ABI until the CCWeave native code
+emission and loader contracts expose a stable representation.
