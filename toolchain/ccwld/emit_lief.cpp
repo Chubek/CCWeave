@@ -40,23 +40,24 @@ ccwld_emit_lief (const char *input, const char *output, const char *kind,
       return 0;
     }
 
-  std::unique_ptr<LIEF::ELF::Binary> binary;
+  std::unique_ptr<LIEF::ELF::Binary> binary_ptr;
   try
     {
-      binary.reset (LIEF::ELF::Parser::parse (input));
+      binary_ptr = LIEF::ELF::Parser::parse (input);
     }
   catch (...)
     {
       set_error (error, 6, "LIEF failed to parse input object");
       return 0;
     }
-  if (!binary)
+  if (!binary_ptr)
     {
       set_error (error, 6, "LIEF failed to parse input object");
       return 0;
     }
+  auto &binary = *binary_ptr;
 
-  auto &header = binary->header ();
+  auto &header = binary.header ();
   const std::string output_kind (kind);
   if (output_kind == "reloc")
     header.file_type (LIEF::ELF::Header::FILE_TYPE::REL);
@@ -72,11 +73,11 @@ ccwld_emit_lief (const char *input, const char *output, const char *kind,
 
   if (entry != nullptr)
     {
-      for (auto *symbol : binary->symtab_symbols ())
+      for (auto &symbol : binary.symtab_symbols ())
         {
-          if (symbol != nullptr && symbol->name() == entry)
+          if (symbol.name () == entry)
             {
-              header.entrypoint (symbol->value());
+              header.entrypoint (symbol.value ());
               break;
             }
         }
@@ -88,12 +89,12 @@ ccwld_emit_lief (const char *input, const char *output, const char *kind,
                                    LIEF::ELF::Section::TYPE::NOTE);
       producer.flags (0);
       producer.content (std::vector<uint8_t> (note, note + std::strlen (note)));
-      binary->add (producer, false);
+      binary.add (producer, false);
     }
 
   try
     {
-      LIEF::ELF::Builder builder (*binary);
+      LIEF::ELF::Builder builder (binary);
       builder.build ();
       builder.write (output);
     }

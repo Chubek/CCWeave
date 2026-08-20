@@ -469,3 +469,66 @@ with a phrase cache for JIT reuse, while native scalar extensions and the
 Basis TextIO surface remain behind the existing scalar FFI boundary. This
 keeps aggregate SML values out of the C ABI until the CCWeave native code
 emission and loader contracts expose a stable representation.
+
+## 2026-08-20 — CCWld phase enum canonical location
+
+The `ccwld_phase` enum is defined in `abi/ccwld-plugin.h` (the normative ABI
+header) and consumed by `expr/ccwld_expr.h` via `#include "ccwld-plugin.h"`.
+The duplicate definition previously in `ccwld_expr.h` was removed to avoid a
+redeclaration error when `ccwld.h` includes both headers. The `CCWLD_PHASE_LOAD`
+through `CCWLD_PHASE_EMIT` enumerators (and the `CCWLD_PHASE_RESOLVED` alias)
+are the single source of truth. The include order in `ccwld.h` — ABI headers
+first, then plan/expr — ensures the enum is available before any consumer.
+
+## 2026-08-20 — Anonymous struct typedefs in the plan IR
+
+`ccwld_sym`, `ccwld_mem`, and `ccwld_sec` are defined as `typedef struct { … }`
+(anonymous structs without tags). Pointer and reference types must use
+`ccwld_sym *`, `ccwld_mem *`, `ccwld_sec *` — never `struct ccwld_sym *` etc.
+The tagged form `struct ccwld_plan` is the exception: `ccwld_plan` is defined
+as `typedef struct ccwld_plan { … } ccwld_plan` with a proper tag, so both
+`ccwld_plan *` and `struct ccwld_plan *` are valid. This distinction matters
+in `ccwld_expr.c` where helper functions (`plan_find_symbol`, `plan_find_region`,
+`plan_find_section`) and their call sites use the untagged form.
+
+## 2026-08-20 — LIEF emitter API compatibility with vendored LIEF
+
+The vendored LIEF (third_party/LIEF) API differs from the originally coded
+interface in `emit_lief.cpp`:
+- `LIEF::ELF::Parser::parse(input)` returns `std::unique_ptr<LIEF::ELF::Binary>`,
+  not a raw `LIEF::ELF::Binary *`. The emitter now assigns the result directly
+  rather than calling `.reset()`.
+- `binary.symtab_symbols()` returns an iterable of `LIEF::ELF::Symbol` by value,
+  not pointers. The range-for loop uses `auto &symbol` and accesses members
+  with `.` instead of `->`, and null-check is removed since the iterator never
+  yields null.
+These changes bring the emitter in line with the LIEF version pinned in
+`third_party/VERSIONS.lock`.
+
+## 2026-08-20 — LIEF emission fallback in ccwld_link_run
+
+When `ccwld_emit_lief` fails (e.g. LIEF not built, or parse/emission error),
+`ccwld_link_run` now falls through to the text-based fallback output instead of
+returning the LIEF error immediately. The text fallback writes a
+`CCWLD-OBJECT` header with the serialized plan and `.note.ccw` hash. This
+ensures the convenience API (`ccwld_link_files`) used by Cephyr produces
+output even when LIEF is unavailable, and the text format serves as a
+diagnostic/audit artifact. The LIEF success path still returns early.
+
+## 2026-08-20 — LTO phase in the pipeline dispatch
+
+The phase pipeline in `ccwld_link_run` now includes `CCWLD_PHASE_LTO` between
+resolve and gc, matching the spec §3 order:
+`load → resolve → [LTO] → gc → layout → relocate → emit`.
+Previously the LTO phase was absent from the dispatch, so LTO-configured plans
+would silently skip the LTO recompile step. The LTO backend is still a stub
+(`abi.c`), but the hook point is now correctly sequenced.
+
+## 2026-08-20 — CCWeave build configured with LIEF for Cephyr integration
+
+Cephyr links object files through CCWld's embedding API (`ccwld_link_files`).
+The build is now configured with `CCWEAVE_ENABLE_LIEF=ON` so that
+`emit_lief.cpp` is compiled instead of `emit_lief_stub.c`, producing real ELF
+executables. Without LIEF, the stub returned a hard error; with LIEF enabled,
+the basic single-object link path produces a valid (though minimal) ELF binary
+that Cephyr can use as its default linker backend.

@@ -8,6 +8,8 @@
 #ifndef CCWLD_EXPR_H
 #define CCWLD_EXPR_H
 
+#include "ccwld-plugin.h"
+
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -126,17 +128,7 @@ extern "C"
   } ccwld_plugin;
 
   /* --- phase hook (§3) --- */
-  typedef enum
-  {
-    CCWLD_PHASE_LOAD = 0,
-    CCWLD_PHASE_RESOLVE = 1,
-    CCWLD_PHASE_LTO = 2,
-    CCWLD_PHASE_GC = 3,
-    CCWLD_PHASE_LAYOUT = 4,
-    CCWLD_PHASE_RELOCATE = 5,
-    CCWLD_PHASE_EMIT = 6,
-  } ccwld_phase;
-
+  /* ccwld_phase is defined in ccwld-plugin.h (ABI header) */
   typedef int (*ccwld_hook_fn) (ccwld_phase phase, struct ccwld_link *link,
                                 void *user);
 

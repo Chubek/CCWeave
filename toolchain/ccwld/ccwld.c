@@ -72,6 +72,8 @@ ccwld_link_run (ccwld_plan *p, const char *out, ccwld_error *e)
     return 0;
   if (!phase_dispatch (p, CCWLD_PHASE_RESOLVE, e))
     return 0;
+  if (!phase_dispatch (p, CCWLD_PHASE_LTO, e))
+    return 0;
   if (!phase_dispatch (p, CCWLD_PHASE_GC, e))
     return 0;
   if (!phase_dispatch (p, CCWLD_PHASE_LAYOUT, e))
@@ -91,14 +93,16 @@ ccwld_link_run (ccwld_plan *p, const char *out, ccwld_error *e)
       return ccwld_emit_binaryen (out, p->output.entry, e);
     }
 
-  /* ELF output via LIEF (if available) */
+  /* ELF output via LIEF (if available); fall back to text if LIEF fails */
   if (p->ninputs > 0 && p->inputs[0].path != NULL
       && p->output.format && !strcmp (p->output.format, "elf"))
     {
       int ok = ccwld_emit_lief (p->inputs[0].path, out, p->output.kind,
                                 p->output.format, p->output.entry, hash, e);
-      free (s);
-      return ok;
+      if (ok) {
+        free (s);
+        return ok;
+      }
     }
 
   /* Fallback: write a text-format object with .note.ccw */
