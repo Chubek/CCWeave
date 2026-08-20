@@ -33,7 +33,7 @@ Placement: the two analysis kernels join the loop tier immediately after `loop-u
 - No gather/scatter in v0.1.0: SIMDe emulation cost is unpredictable across targets; non-unit-stride accesses simply fail legality. Reserved error `CCW_E_VEC_ILLEGAL` for a plan that reaches lowering without a mapping (compiler bug, hard error).
 - Pin: SIMDe version, enabled `SIMDE_*` feature macros, and native-vs-emulated status per op family recorded in `.note.ccw`, mirroring the ISL pinning rule, so byte-identical-output CI (double-run diff) covers vector code.
 
-## `Stdrewrite.yaml` consumers
+## `Rewrite-salvo.yaml` consumers
 
 Three rules: apply `opt.loop-vectorize` plans when `analysis.vectorizable` is positive; gate `opt.loop-fusion` so fused loops re-run legality before vectorizing; direct `opt.slp-vectorize` packs into `lower.vector-simde`.
 

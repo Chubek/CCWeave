@@ -96,7 +96,7 @@ local ra = S:require { capability = "codegen.regalloc-linear" }
 
 5. **Plugin contributions.** A plugin that adds pipeline stages exposes a Sched script fragment (a function taking the live `S` and the resolved barriers). The driver applies enabled plugin fragments in a deterministic, manifest-ordered sequence before `S:seal()`, so the resulting plan hash is reproducible for a fixed plugin set. A fragment MAY only add nodes and edges; it MUST NOT reach into IR.
 
-6. **Resolution and validation.** All `require`/`probe`/`rewrite` resolution goes through `manifests/Kernel.yaml` and `manifests/Stdrewrite.yaml` exactly as specified for Sched (no filesystem scanning). The driver refuses to start if any required capability is unlisted, if `S:seal()` fails validation, or if any resolved kernel's `glue_abi` differs from the executor's. Sealed plans are serialized under `compilers/cephyr/sched/plans/` (build artifacts, git-ignored); release builds SHOULD pin their plan hashes in CI via `ccw-sched --hash`.
+6. **Resolution and validation.** All `require`/`probe`/`rewrite` resolution goes through `manifests/Kernel.yaml` and `manifests/Rewrite-salvo.yaml` exactly as specified for Sched (no filesystem scanning). The driver refuses to start if any required capability is unlisted, if `S:seal()` fails validation, or if any resolved kernel's `glue_abi` differs from the executor's. Sealed plans are serialized under `compilers/cephyr/sched/plans/` (build artifacts, git-ignored); release builds SHOULD pin their plan hashes in CI via `ccw-sched --hash`.
 
 ## 9. Diagnostics
 

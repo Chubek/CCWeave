@@ -11,7 +11,7 @@ This document is **normative**. Key words MUST, MUST NOT, SHOULD, and MAY are to
 Sched is **host-side** code (C11, same conformance rules as the Cephyr host per `AGENTS.md`) embedding **Lua 5.5**. Sched itself never touches IR:
 
 - Kernels remain R7RS Scheme libraries invoked through the GlueSTD ABI v1. All IR crosses the boundary as `uint64_t` node IDs (0 = nil), and all structural mutation remains builder-based (`instr-build`, `instr-replace!`, ...).
-- Rewriters remain Stdrewrite rulesets, subject to the equivalence-only rule (D-0007).
+- Rewriters remain Rewrite-salvo rulesets, subject to the equivalence-only rule (D-0007).
 - Sched's sole authority is **ordering and selection**: it decides *which* kernels/rulesets run and *in what order*. It MUST NOT provide any Lua API that reads or mutates IR nodes.
 
 A Sched script therefore cannot violate IR invariants; the worst a malformed script can do is produce an invalid plan, which is rejected before anything runs.
@@ -54,9 +54,9 @@ Scripts run in a **sandboxed** Lua 5.5 state:
 - `S:require { kernel = NAME }` — resolve a kernel by manifest `name`. Errors if absent.
 - `S:require { capability = CAP }` — resolve by capability (e.g. `"opt.gvn"`). Errors if no kernel in `Kernel.yaml` declares it; errors if ambiguous, unless `prefer = NAME` is given.
 - `S:probe { ... }` — same query forms as `require`, but returns `nil` instead of erroring. This is the mechanism for capability-based fallback.
-- `S:rewrite(PATTERN)` — select Stdrewrite rulesets by glob against ruleset names in `Stdrewrite.yaml` (e.g. `"arith.*"`). Returns one batch node; an empty match is an error.
+- `S:rewrite(PATTERN)` — select Rewrite-salvo rulesets by glob against ruleset names in `Rewrite-salvo.yaml` (e.g. `"arith.*"`). Returns one batch node; an empty match is an error.
 
-All resolution is performed **exclusively** against the generated manifests (`Kernel.yaml`, `Stdrewrite.yaml`, `Capabilities.yaml`). Sched MUST NOT scan the filesystem; a kernel that exists on disk but not in the manifest does not exist for Sched.
+All resolution is performed **exclusively** against the generated manifests (`Kernel.yaml`, `Rewrite-salvo.yaml`, `Capabilities.yaml`). Sched MUST NOT scan the filesystem; a kernel that exists on disk but not in the manifest does not exist for Sched.
 
 ### 5.3 Ordering
 

@@ -92,7 +92,7 @@ Swaff tree and survive into bytecode line tables and `vm.deopt-metadata`.
    T2 speculates: guarded unbox → native integer ops. Because Weave IR integer arithmetic is
    wrapping and Lua 5.5 integer arithmetic is also wrapping two's-complement, **all `arith.*`,
    `bitwise.*`, `divmod.*`, and `cmp.*` rewrite-salvo equivalences apply unchanged** on unboxed
-   lanes. The `arith.overflow-guarded` ruleset (side-conditioned, per Stdrewrite.yaml) is used
+   lanes. The `arith.overflow-guarded` ruleset (side-conditioned, per Rewrite-salvo.yaml) is used
    on T2 speculative lanes where overflow guards exist. Float ops use `float.*` rules only where
    Lua's IEEE semantics hold (no fast-math).
 3. **Integer/float distinction** follows Lua 5.5 exactly: `//` and `%` on integers use floor
@@ -138,7 +138,7 @@ Swaff tree and survive into bytecode line tables and `vm.deopt-metadata`.
    invariants have been fully materialized.
 
 5. **Resolution.** The runtime driver resolves plans exactly as Sched specifies, using the
-   manifests `Kernel.yaml` and `Stdrewrite.yaml` (D-0017). A mismatched or broken manifest at
+   manifests `Kernel.yaml` and `Rewrite-salvo.yaml` (D-0017). A mismatched or broken manifest at
    runtime is a fatal initialization error. Sealed plans for T1 and T2 are serialized and
    pinned in CI via `ccw-sched --hash`.
 

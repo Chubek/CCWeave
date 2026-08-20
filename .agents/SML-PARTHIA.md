@@ -6,7 +6,7 @@ Standard ML ('97) compiler on CCWeave
 Decisions: D-0046–D-0053
 Grounding: `Kernel.yaml` (lines 32–38, 45–51, 60–73, 120–126, 300–306,
 348–354, 526–549, 605–611), `Capabilities.yaml` (lines 71–88, 134–135,
-168–169, 182–185), `Stdrewrite.yaml` (218-line revision, no
+168–169, 182–185), `Rewrite-salvo.yaml` (218-line revision, no
 functional-keyed rules)
 
 ---
@@ -23,7 +23,7 @@ inspection:
 2. **No `frontend.*` capability exists yet for SML**, and no Swaff adapter
    for it; both are new work (§2, §6). `frontend.sml` becomes the second
    entry in the tier opened by `frontend.delphi`.
-3. **`Stdrewrite.yaml` has no rules keyed on closure/tail-call/pattern-match
+3. **`Rewrite-salvo.yaml` has no rules keyed on closure/tail-call/pattern-match
    facts**; consumers ship with the compiler or the opt kernels are dead
    weight (§5).
 4. **`lambda-lift` verifies rather than transforms** (`Kernel.yaml`
@@ -101,7 +101,7 @@ order:
   deoptimization. The runtime ships a precise GC whose stack maps are
   emitted as sorted facts alongside the safepoint polls.
 
-## 5. `Stdrewrite.yaml` consumers
+## 5. `Rewrite-salvo.yaml` consumers
 
 - **D-0051**: Ship with the compiler, in the same change: a tail-call-apply
   rule keyed on `opt.tail-call` facts (call → jump materialization), a
@@ -138,7 +138,7 @@ order:
 2. Elaborator (inference, defunctorization) emitting typed core-ML facts.
 3. `functional` stereotype bundle (D-0047) and pipeline bring-up through
    `tail-call-opt`; lambda-lift verification wired as a hard gate.
-4. `Stdrewrite.yaml` consumers (D-0051) with CI diff gates.
+4. `Rewrite-salvo.yaml` consumers (D-0051) with CI diff gates.
 5. Runtime: GC barriers/safepoints (D-0050), exceptions, polymorphic
    equality; full-suite reproducibility gate.
 `

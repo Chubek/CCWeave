@@ -4,7 +4,7 @@ Status: PROPOSAL
 Component: `compilers/dephia/` — a Delphi (Object Pascal) compiler on CCWeave
 Decisions: D-0039–D-0045
 Grounding: `Capabilities.yaml` (lines 31–43, 79–84, 150–152),
-`Kernel-(2).yaml` (lines 60–66, 448–468), `Stdrewrite.yaml` (218-line
+`Kernel-(2).yaml` (lines 60–66, 448–468), `Rewrite-salvo.yaml` (218-line
 revision, no OOP-keyed rules)
 
 ---
@@ -22,7 +22,7 @@ facts established by manifest inspection constrain it:
 2. **There is no `frontend.*` capability tier** in `Capabilities.yaml`, and no
    reference to Delphi, Pascal, or `swaff/adapters` anywhere. The frontend
    adapter and its capabilities are new work (§2, §6).
-3. **`Stdrewrite.yaml` has no rules keyed on object/dispatch facts**, so the
+3. **`Rewrite-salvo.yaml` has no rules keyed on object/dispatch facts**, so the
    OOP kernels currently run without rewrite consumers; Dephia must ship its
    consumers or the optimization tier is dead weight (§5).
 
@@ -92,7 +92,7 @@ stereotype is composition, not encapsulation.
   fully desugared and require a new `lower.oop-interface` capability + kernel
   (§6).
 
-## 5. `Stdrewrite.yaml` consumers
+## 5. `Rewrite-salvo.yaml` consumers
 
 - **D-0043**: Ship, in the same change as the compiler: a devirt-apply rule
   keyed on `opt.oop-devirtualization` facts (rewrites indirect VMT call to
@@ -132,7 +132,7 @@ Codegen consumes the existing tier unchanged: `codegen.isel-*`,
 1. Manifest schema: `stereotypes:` section + `oop` bundle (D-0040).
 2. `ccw_swaff_delphi.c` adapter + `frontend.delphi`, minimal dialect
    (units, classes, virtual dispatch, exceptions).
-3. `Stdrewrite.yaml` consumers (D-0043) with CI gates.
+3. `Rewrite-salvo.yaml` consumers (D-0043) with CI gates.
 4. `oop-interface-lower` and `oop-rtti-emit` kernels.
 5. Dialect expansion (generics, anonymous methods) behind adapter gates.
 `

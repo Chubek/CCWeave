@@ -1,9 +1,9 @@
 # ISLKERN.md — Integrating the Integer Set Library (ISL) into CCWeave
 
 Status: PROPOSAL
-Scope: Kernel/Capability taxonomy, `Stdrewrite.yaml`, `GlueSTD.h`, S7 Executor, IR
+Scope: Kernel/Capability taxonomy, `Rewrite-salvo.yaml`, `GlueSTD.h`, S7 Executor, IR
 Prereq reading: `Kernel.yaml` (loop kernels, lines 357–398), `Capabilities.yaml`
-(lines 21–22, 140–145), `Stdrewrite.yaml` (no loop rules as of 218-line revision)
+(lines 21–22, 140–145), `Rewrite-salvo.yaml` (no loop rules as of 218-line revision)
 
 ---
 
@@ -31,7 +31,7 @@ None of these can answer the questions that unlock real loop optimization:
    skewing, and fusion/distribution decisions as a single schedule object.
 4. **Code generation.** `isl_ast_build` turns a schedule back into a loop AST,
    which we lower to IR — enabling transformations far beyond what
-   pattern-rewrites in `Stdrewrite.yaml` can express.
+   pattern-rewrites in `Rewrite-salvo.yaml` can express.
 5. **Exact counting** (`isl_pw_qpolynomial` / barvinok-style cardinality) for
    cost models: trip counts, footprint sizes, reuse distances.
 
@@ -80,7 +80,7 @@ structural tier; the polyhedral tier coexists and is preferred when
 - `tile-plan` → consumes schedule bands, publishes tile-size candidates
   (`opt.tiling`), sizes from a pinned cost table (no runtime probing).
 
-### 3.3 `Stdrewrite.yaml` consumers
+### 3.3 `Rewrite-salvo.yaml` consumers
 
 Add rules keyed on the new facts — schedule-apply (materialize an
 `isl-schedule` result through AST regeneration), tile-apply, and a
@@ -134,7 +134,7 @@ Without these consumers the kernels are dead weight; ship them together.
 1. `GlueSTD.h` bindings + pinned context + options manifest.
 2. `affine-extract` and `dep-poly` kernels with new capabilities; CI diff gate.
 3. `isl-schedule` / `tile-plan` kernels.
-4. `Stdrewrite.yaml` consumers and IR schedule-apply path.
+4. `Rewrite-salvo.yaml` consumers and IR schedule-apply path.
 5. Gate the structural fusion/unroll rules behind dependence facts.
 
 Adopt ISL only as this complete slice; as established previously, the current
