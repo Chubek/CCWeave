@@ -64,6 +64,12 @@ extern "C"
   int ccwld_link_files (const char *target, const char *output,
                         const char *const *inputs, size_t input_count,
                         const ccwld_link_options *options, ccwld_error *);
+  int ccwld_emit_lief (const char *input, const char *output,
+                       const char *kind, const char *format,
+                       const char *entry, const char *note,
+                       ccwld_error *);
+  int ccwld_emit_binaryen (const char *output, const char *entry,
+                           ccwld_error *);
   void ccwld_free (void *);
   int ccwld_run_lua (const char *, const char *, ccwld_plan **, ccwld_error *);
   int ccwld_run_script (const char *, const char *, const char *,

@@ -1,9 +1,26 @@
-add_library(ccwld STATIC ccwld.c abi.c lccwld/lccwld.c)
+if(TARGET LIB_LIEF)
+  set(CCWLD_EMITTER_SOURCES emit_lief.cpp)
+else()
+  set(CCWLD_EMITTER_SOURCES emit_lief_stub.c)
+endif()
+if(TARGET binaryen)
+  list(APPEND CCWLD_EMITTER_SOURCES emit_binaryen.cpp)
+else()
+  list(APPEND CCWLD_EMITTER_SOURCES emit_binaryen_stub.c)
+endif()
+add_library(ccwld STATIC ccwld.c abi.c lccwld/lccwld.c
+  ${CCWLD_EMITTER_SOURCES})
 target_include_directories(ccwld PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}
   ${CMAKE_CURRENT_SOURCE_DIR}/abi
   ${CMAKE_SOURCE_DIR}/third_party/lua)
 target_link_libraries(ccwld PUBLIC ccw_lua)
+if(TARGET LIB_LIEF)
+  target_link_libraries(ccwld PUBLIC LIB_LIEF)
+endif()
+if(TARGET binaryen)
+  target_link_libraries(ccwld PUBLIC binaryen)
+endif()
 target_compile_definitions(ccwld PRIVATE _POSIX_C_SOURCE=200809L)
 add_executable(ccwld-bin driver/main.c)
 set_target_properties(ccwld-bin PROPERTIES OUTPUT_NAME ccwld)

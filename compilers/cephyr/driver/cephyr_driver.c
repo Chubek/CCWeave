@@ -1306,7 +1306,8 @@ cephyr_compile_inner (const cephyr_options *opts)
               close (fd);
               assembly_path = cephyr_driver_strdup (assembly_template);
             }
-          if (opts->output_path != NULL
+          if (opts->stop_stage == CEPHYR_STOP_LINK
+              && opts->output_path != NULL
               && strcmp (opts->output_path, "-") != 0)
             {
               object_path = cephyr_driver_strdup (opts->output_path);
@@ -1345,6 +1346,10 @@ cephyr_compile_inner (const cephyr_options *opts)
                   ccwas_free_error (assemble_error);
                   result = CEPHYR_ERR_ASSEMBLE;
                 }
+              else if (opts->stop_stage == CEPHYR_STOP_NONE)
+                {
+                  result = link_object (opts, object_path);
+                }
               else if (opts->output_path == NULL
                        || strcmp (opts->output_path, "-") == 0)
                 {
@@ -1354,8 +1359,7 @@ cephyr_compile_inner (const cephyr_options *opts)
             }
           if (!opts->keep_temp && assembly_path != NULL)
             unlink (assembly_path);
-          if ((opts->output_path == NULL
-               || strcmp (opts->output_path, "-") == 0)
+          if (opts->stop_stage != CEPHYR_STOP_LINK
               && !opts->keep_temp && object_path != NULL)
             unlink (object_path);
         }
@@ -1621,7 +1625,8 @@ cephyr_compile (const cephyr_options *opts)
           = (size_t)(opts->include_path_count > 0 ? opts->include_path_count
                                                   : 0);
       include_paths
-          = (const char **)malloc (include_count * sizeof (*include_paths));
+          = (const char **)malloc ((include_count + 1u)
+                                   * sizeof (*include_paths));
       if (include_paths == NULL)
         goto oom;
       for (size_t i = 0; i < profile.include_path_count; ++i)
@@ -1633,6 +1638,7 @@ cephyr_compile (const cephyr_options *opts)
         for (size_t i = 0; i < stdlib.include_dir_count; ++i)
           include_paths[profile.include_path_count + user_include_count + i]
               = stdlib.include_dirs[i];
+      include_paths[include_count] = NULL;
       effective.include_paths = include_paths;
       effective.include_path_count = (int)include_count;
     }

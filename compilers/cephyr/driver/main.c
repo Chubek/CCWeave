@@ -414,7 +414,6 @@ main (int argc, char **argv)
         {
         case 'o':
           opts.output_path = parser.arg;
-          request_stop_stage (&opts, CEPHYR_STOP_LINK);
           break;
         case 'I':
           kv_push (const char *, include_paths, parser.arg);

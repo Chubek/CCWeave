@@ -100,7 +100,8 @@ grow (void **p, size_t *cap, size_t n, size_t sz)
 static int
 validfmt (const char *f)
 {
-  return !f || !strcmp (f, "elf") || !strcmp (f, "pe") || !strcmp (f, "macho");
+  return !f || !strcmp (f, "elf") || !strcmp (f, "pe")
+         || !strcmp (f, "macho") || !strcmp (f, "wasm");
 }
 static int
 validkind (const char *k)
@@ -640,6 +641,16 @@ ccwld_link_run (ccwld_plan *p, const char *out, ccwld_error *e)
     return 0;
   if (!ccwld_plan_hash (p, hash) || !ccwld_plan_serialize (p, &s, &n, e))
     return 0;
+  if (!strcmp (p->output.format, "wasm"))
+    return ccwld_emit_binaryen (out, p->output.entry, e);
+  if (p->ni > 0 && p->inputs[0].path != NULL
+      && !strcmp (p->output.format, "elf"))
+    {
+      if (!ccwld_emit_lief (p->inputs[0].path, out, p->output.kind,
+                            p->output.format, p->output.entry, hash, e))
+        return 0;
+      return 1;
+    }
   f = fopen (out, "wb");
   if (!f)
     {
