@@ -110,6 +110,99 @@ directive_path (const char *line, const char *keyword, char *path,
   return 1;
 }
 
+static int
+path_exists (const char *path)
+{
+  FILE *probe = fopen (path, "rb");
+  if (probe != NULL)
+    {
+      fclose (probe);
+      return 1;
+    }
+  return 0;
+}
+
+/* Probe `leaf` (and its enclosing search directory, when any) for an
+ * existing file.  Returns a malloc'd candidate the caller frees. */
+static char *
+probe_at (const char *base, size_t base_len, const char *leaf,
+          size_t leaf_len)
+{
+  char *candidate;
+  char *cursor;
+  if (base_len + leaf_len + 2u < base_len)
+    return NULL;
+  candidate = (char *)malloc (base_len + leaf_len + 2u);
+  if (candidate == NULL)
+    return NULL;
+  cursor = candidate;
+  if (base_len != 0)
+    {
+      memcpy (cursor, base, base_len);
+      cursor += base_len;
+      *cursor++ = '/';
+    }
+  memcpy (cursor, leaf, leaf_len);
+  cursor[leaf_len] = '\0';
+  if (path_exists (candidate))
+    return candidate;
+  free (candidate);
+  return NULL;
+}
+
+char *
+ccw_sml_parthia_resolve_path (const char *name)
+{
+  const char *search;
+  const char *cursor;
+  const char *leaves[4];
+  char with_so[1100], lib_with_so[1100], lib_only[1100];
+  int leaf_count = 1;
+  int leaf;
+  if (name == NULL || name[0] == '\0')
+    return NULL;
+  if (strchr (name, '/') != NULL || name[0] == '.')
+    return dup_text (name);
+  leaves[0] = name;
+  if (strstr (name, ".so") == NULL)
+    {
+      snprintf (with_so, sizeof (with_so), "%s.so", name);
+      snprintf (lib_with_so, sizeof (lib_with_so), "lib%s.so", name);
+      snprintf (lib_only, sizeof (lib_only), "lib%s", name);
+      leaves[1] = with_so;
+      leaves[2] = lib_with_so;
+      leaves[3] = lib_only;
+      leaf_count = 4;
+    }
+  for (leaf = 0; leaf < leaf_count; ++leaf)
+    {
+      char *found = probe_at ("", 0u, leaves[leaf], strlen (leaves[leaf]));
+      if (found != NULL)
+        return found;
+    }
+  search = getenv ("SML_PARTHIA_PATH");
+  if (search == NULL)
+    return NULL;
+  cursor = search;
+  while (*cursor != '\0')
+    {
+      const char *end = strchr (cursor, ',');
+      size_t dir_len = end ? (size_t)(end - cursor) : strlen (cursor);
+      if (dir_len != 0)
+        for (leaf = 0; leaf < leaf_count; ++leaf)
+          {
+            char *found = probe_at (cursor, dir_len, leaves[leaf],
+                                    strlen (leaves[leaf]));
+            if (found != NULL)
+              return found;
+          }
+      if (end == NULL)
+        break;
+      cursor = end + 1;
+    }
+  return NULL;
+}
+
 static char *
 expand_directives (ccw_sml_parthia_runtime *runtime, const char *source,
                    size_t source_len, char **error_message)
@@ -141,29 +234,63 @@ expand_directives (ccw_sml_parthia_runtime *runtime, const char *source,
       is_use = !is_load && directive_path (line, "use", path, sizeof (path));
       if (is_use)
         {
+          char *resolved = ccw_sml_parthia_resolve_path (path);
           size_t included_len = 0;
-          char *included = read_text_file (path, &included_len);
-          if (!included || kputsn (included, (int)included_len, &out) == EOF)
+          char *included
+              = resolved != NULL ? read_text_file (resolved, &included_len)
+                                 : NULL;
+          if (included == NULL
+              || kputsn (included, (int)included_len, &out) == EOF)
             {
+              char message[1200];
+              if (resolved == NULL)
+                snprintf (message, sizeof (message),
+                          "sml/parthia: cannot load SML source %s: "
+                          "not found in SML_PARTHIA_PATH",
+                          path);
+              else
+                snprintf (message, sizeof (message),
+                          "sml/parthia: cannot read SML source %s: %s",
+                          resolved, strerror (errno));
               free (included);
+              free (resolved);
               free (line);
               free (out.s);
-              set_error (error_message,
-                         "sml/parthia: cannot load SML source directive");
+              set_error (error_message, message);
               return NULL;
             }
           free (included);
+          free (resolved);
         }
       else if (is_load && runtime)
         {
-          if (!ccw_sml_parthia_load_extension (runtime, path))
+          char *resolved = ccw_sml_parthia_resolve_path (path);
+          if (resolved != NULL
+              && !ccw_sml_parthia_load_extension (runtime, resolved))
             {
+              char message[1200];
+              snprintf (message, sizeof (message),
+                        "sml/parthia: native library load failed: %s",
+                        resolved);
+              free (resolved);
               free (line);
               free (out.s);
-              set_error (error_message,
-                         "sml/parthia: native library load failed");
+              set_error (error_message, message);
               return NULL;
             }
+          if (resolved == NULL)
+            {
+              char message[1200];
+              snprintf (message, sizeof (message),
+                        "sml/parthia: native library %s: "
+                        "not found in SML_PARTHIA_PATH",
+                        path);
+              free (line);
+              free (out.s);
+              set_error (error_message, message);
+              return NULL;
+            }
+          free (resolved);
         }
       else if (!is_load && kputsn (line, (int)line_len, &out) == EOF)
         {

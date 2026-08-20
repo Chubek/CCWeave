@@ -105,6 +105,17 @@ main (void)
   }
 
   {
+    char *resolved = ccw_sml_parthia_resolve_path ("no/such/file.sml");
+    CCW_CHECK (resolved != NULL
+                   && strcmp (resolved, "no/such/file.sml") == 0,
+               "resolver did not pass literal paths through");
+    free (resolved);
+    CCW_CHECK (ccw_sml_parthia_resolve_path (
+                   "parthia-resolver-no-such-bare-name") == NULL,
+               "resolver invented a path for an unsearchable bare name");
+  }
+
+  {
     ccw_sml_ffi_library library
         = ccw_sml_parthia_ffi_open (CCW_SML_BASIS_NATIVE_PATH);
     void *symbol = ccw_sml_parthia_ffi_symbol (library, "ccw_sml_basis_abs");

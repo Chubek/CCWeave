@@ -87,80 +87,6 @@ run_phrase (const char *source, size_t length,
   return 1;
 }
 
-static char *
-join_path (const char *root, const char *name)
-{
-  size_t n;
-  char *path;
-  if (!root || !*root || !name || !*name)
-    return NULL;
-  n = strlen (root) + strlen (name) + 2;
-  path = (char *)malloc (n);
-  if (!path)
-    return NULL;
-  snprintf (path, n, "%s/%s", root, name);
-  return path;
-}
-
-static char *
-resolve_library (const char *name)
-{
-  const char *search = getenv ("SML_PARTHIA_PATH");
-  const char *cursor;
-  if (!name)
-    return NULL;
-  if (strchr (name, '/') != NULL || name[0] == '.')
-    {
-      return repl_strdup (name);
-    }
-  if (!search || !*search)
-    return NULL;
-  cursor = search;
-  while (*cursor)
-    {
-      const char *end = strchr (cursor, ':');
-      size_t length = end ? (size_t)(end - cursor) : strlen (cursor);
-      char *root = (char *)malloc (length + 1);
-      char *candidate;
-      char variants[4][1024];
-      int variant_count = 1;
-      if (!root)
-        return NULL;
-      memcpy (root, cursor, length);
-      root[length] = '\0';
-      snprintf (variants[0], sizeof (variants[0]), "%s", name);
-      if (!strstr (name, ".so"))
-        {
-          snprintf (variants[variant_count++], sizeof (variants[0]), "%s.so",
-                    name);
-          snprintf (variants[variant_count++], sizeof (variants[0]),
-                    "lib%s.so", name);
-          snprintf (variants[variant_count++], sizeof (variants[0]), "lib%s",
-                    name);
-        }
-      for (int variant = 0; variant < variant_count; variant++)
-        {
-          candidate = join_path (root, variants[variant]);
-          if (candidate)
-            {
-              FILE *file = fopen (candidate, "rb");
-              if (file)
-                {
-                  fclose (file);
-                  free (root);
-                  return candidate;
-                }
-              free (candidate);
-            }
-        }
-      free (root);
-      if (!end)
-        break;
-      cursor = end + 1;
-    }
-  return NULL;
-}
-
 static int
 print_module_signatures (const char *session, const char *module)
 {
@@ -223,6 +149,8 @@ handle_directive (const char *line, ccw_sml_parthia_runtime *runtime,
       puts ("#use \"FILE\"        load and compile SML source");
       puts ("#load LIB          load a native library from SML_PARTHIA_PATH");
       puts ("#quit              leave the REPL");
+      puts ("targets resolve as given, then through comma-separated");
+      puts ("SML_PARTHIA_PATH directories");
       return 1;
     }
   if (strcmp (command, "quit") == 0 || strcmp (command, "q") == 0)
@@ -247,7 +175,7 @@ handle_directive (const char *line, ccw_sml_parthia_runtime *runtime,
           fputs ("sml-parthia: #load expects a library name\n", stderr);
           return 1;
         }
-      path = resolve_library (name);
+      path = ccw_sml_parthia_resolve_path (name);
       if (!path)
         {
           fprintf (stderr, "sml-parthia: %s not found in SML_PARTHIA_PATH\n",
@@ -273,9 +201,14 @@ handle_directive (const char *line, ccw_sml_parthia_runtime *runtime,
           fputs ("sml-parthia: #use expects a quoted source path\n", stderr);
           return 1;
         }
-      path = resolve_library (name);
+      path = ccw_sml_parthia_resolve_path (name);
       if (!path)
-        path = repl_strdup (name);
+        {
+          fprintf (stderr, "sml-parthia: %s not found in SML_PARTHIA_PATH\n",
+                   name);
+          free (error);
+          return 1;
+        }
       program = ccw_sml_parthia_compile_file (runtime, path, &report, &error);
       if (!program)
         {

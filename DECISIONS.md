@@ -1,5 +1,25 @@
 # Decisions
 
+## 2026-08-20 — SML_PARTHIA_PATH comma-separated directive search
+
+Parthia's `use`, `load`, `#load`, and `CM.make` directive targets now resolve
+through one shared rule: a target that already names a location (contains `/`
+or begins with `.`) is opened literally, so absolute and working-directory
+relative paths keep their native errors; a bare name is probed as given
+first, then with the usual shared-object variants (`NAME`, `NAME.so`,
+`libNAME.so`, `libNAME`), in each directory of the comma-separated
+`SML_PARTHIA_PATH` in order.  The REPL's private colon-separated lookup is
+retired in favour of the public `ccw_sml_parthia_resolve_path`, so REPL and
+file mode agree, and directive failures now name the offending target.  The
+`examples-salvo/sml-parthia` corpus uses bare names (`use "Basis.sml"`) and
+is run with the basis directory on the search path, e.g.
+`SML_PARTHIA_PATH=stdlib-salvo/sml-basis
+./build/interpreters/sml-parthia/sml-parthia
+examples-salvo/sml-parthia/01_hello.sml`.  Installation installs the basis
+to `share/ccweave/sml-basis` and a `bin/sml-parthia` launcher that appends
+that directory, when present, to the caller's `SML_PARTHIA_PATH`; entries
+the user provides keep precedence.
+
 ## 2026-08-19 — dynalo/dyncall back the Moonix and Parthia interop layers
 
 Moonix and SML-Parthia retain their stable C-linkage native-extension,

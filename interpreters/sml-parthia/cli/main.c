@@ -61,7 +61,11 @@ print_help (FILE *stream)
       "  #open MODULE       Show a module's structure/signatures.\n"
       "  #use \"FILE\"        Load and compile SML source.\n"
       "  #load LIB          Load a native library from SML_PARTHIA_PATH.\n"
-      "  #quit              Leave the REPL.\n",
+      "  #quit              Leave the REPL.\n"
+      "\n"
+      "Source and library directive targets (use, load, CM.make) resolve\n"
+      "as given first, then through each directory in the comma-separated\n"
+      "SML_PARTHIA_PATH.\n",
       stream);
 }
 

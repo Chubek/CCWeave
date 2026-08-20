@@ -40,3 +40,15 @@ target_compile_definitions(test_sml_parthia_sched PRIVATE
   CCW_SML_PARTHIA_SCHED_DIR="${CMAKE_CURRENT_SOURCE_DIR}/sched"
   CCW_SML_PARTHIA_MANIFEST_DIR="${CMAKE_SOURCE_DIR}/manifests")
 target_link_libraries(test_sml_parthia_sched PRIVATE sml_parthia)
+
+# Installation: the real binary lives in libexec; bin/ receives a launcher
+# that appends the installed SML Basis Salvo directory (installed by
+# stdlib-salvo/sml-basis) to the comma-separated SML_PARTHIA_PATH.
+configure_file(cli/sml-parthia.in
+               "${CMAKE_CURRENT_BINARY_DIR}/sml-parthia-launcher"
+               @ONLY)
+install(TARGETS sml-parthia
+        RUNTIME DESTINATION ${CMAKE_INSTALL_LIBEXECDIR}/ccweave)
+install(PROGRAMS "${CMAKE_CURRENT_BINARY_DIR}/sml-parthia-launcher"
+        DESTINATION ${CMAKE_INSTALL_BINDIR}
+        RENAME sml-parthia)

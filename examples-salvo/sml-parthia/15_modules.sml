@@ -1,4 +1,4 @@
-use "../../stdlib-salvo/sml-basis/Basis.sml";
+use "Basis.sml";
 structure Counter =
 struct
   val start = 40

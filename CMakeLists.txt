@@ -18,6 +18,10 @@ if(CCWEAVE_ENABLE_ASAN)
   add_link_options(-fsanitize=address,undefined)
 endif()
 
+# Canonical install directories (bin, libexec, share); the sml-parthia
+# launcher and the SML Basis Salvo install rules below consume these.
+include(GNUInstallDirs)
+
 set(CCWEAVE_THIRD_PARTY ${CMAKE_CURRENT_SOURCE_DIR}/third_party)
 set(CCWEAVE_SWAFF_GRAMMARS ${CMAKE_CURRENT_SOURCE_DIR}/swaff/grammars)
 

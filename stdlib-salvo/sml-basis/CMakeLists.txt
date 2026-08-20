@@ -11,3 +11,12 @@ set_target_properties(sml_basis_native PROPERTIES OUTPUT_NAME sml_basis)
 add_library(sml_basis INTERFACE)
 target_include_directories(sml_basis INTERFACE
   ${CMAKE_CURRENT_SOURCE_DIR})
+
+# Install the basis as one directory that both halves share: the installed
+# sml-parthia launcher appends it to the comma-separated SML_PARTHIA_PATH,
+# where `use "Basis.sml"` and bare native-library names are searched.
+install(FILES Basis.sml
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/ccweave/sml-basis)
+install(TARGETS sml_basis_native
+        LIBRARY DESTINATION ${CMAKE_INSTALL_DATADIR}/ccweave/sml-basis
+        RUNTIME DESTINATION ${CMAKE_INSTALL_DATADIR}/ccweave/sml-basis)

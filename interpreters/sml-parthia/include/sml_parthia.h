@@ -69,6 +69,15 @@ extern "C"
       ccw_sml_parthia_runtime *runtime, const char *path,
       ccw_sml_parthia_report *report, char **error_message);
 
+  /* Resolve a `use`/`load`/`#load`/`CM.make` directive target.  Returns a
+   * malloc'd path the caller frees, or NULL when the name is not found.
+   * Paths that already locate a file literally (containing '/' or beginning
+   * with '.') pass through unchanged so absolute and working-directory
+   * relative targets keep their native errors; bare names are probed as given
+   * first, then with the usual shared-object variants, in each directory of
+   * the comma-separated SML_PARTHIA_PATH in order. */
+  char *ccw_sml_parthia_resolve_path (const char *name);
+
   void ccw_sml_parthia_program_destroy (ccw_sml_parthia_program *program);
 
   /* Load one of Parthia's sealed AOT scheduler pipelines.  `level` accepts
