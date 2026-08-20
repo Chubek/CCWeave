@@ -245,7 +245,13 @@ char *
 cephyr_stdlib_discover_manifest (int *is_explicit)
 {
   const char *environment = getenv (CEPHYR_STDLIB_MANIFEST_ENV);
+  const char *libc_env = getenv ("CEPHYR_LIBC_MANIFEST");
 
+  if (libc_env != NULL && *libc_env != '\0')
+    {
+      if (is_explicit != NULL) *is_explicit = 1;
+      return stdlib_strdup (libc_env);
+    }
   if (is_explicit != NULL)
     *is_explicit = 0;
   if (environment != NULL && *environment != '\0')

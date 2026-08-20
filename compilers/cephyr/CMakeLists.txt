@@ -48,13 +48,6 @@ target_compile_definitions(cephyr_ucpp PRIVATE PRAGMA_TOKENIZE)
 set_target_properties(cephyr_ucpp PROPERTIES C_EXTENSIONS ON)
 ccw_vendored_target(cephyr_ucpp)
 
-# --- cpp wrapper ---
-add_library(cephyr_cpp STATIC cpp/cephyr_cpp.c)
-target_include_directories(cephyr_cpp PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/cpp
-  ${CMAKE_SOURCE_DIR}/third_party/ucpp
-  ${CMAKE_SOURCE_DIR}/third_party/klib)
-target_link_libraries(cephyr_cpp PUBLIC cephyr_ucpp ccw_klib)
-
 # --- sema ---
 add_library(cephyr_sema STATIC sema/cephyr_sema.c sema/cephyr_ast.c)
 target_include_directories(cephyr_sema PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/sema
@@ -84,7 +77,7 @@ target_link_libraries(cephyr_stdlib PUBLIC cephyr_cyaml ccw_klib)
 # --- driver ---
 add_library(cephyr_driver STATIC driver/cephyr_driver.c)
 target_include_directories(cephyr_driver PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/driver
-  ${CMAKE_CURRENT_SOURCE_DIR}/cpp ${CMAKE_CURRENT_SOURCE_DIR}/sema
+  ${CMAKE_CURRENT_SOURCE_DIR}/sema
   ${CMAKE_CURRENT_SOURCE_DIR}/lower ${CMAKE_CURRENT_SOURCE_DIR}/include
   ${CMAKE_CURRENT_SOURCE_DIR}/stdmodule
   ${CMAKE_CURRENT_SOURCE_DIR}/stdlib
@@ -95,7 +88,7 @@ target_include_directories(cephyr_driver PUBLIC
 target_include_directories(cephyr_driver PRIVATE
   ${CMAKE_SOURCE_DIR}/toolchain/ccwas
   ${CMAKE_SOURCE_DIR}/toolchain/ccwld)
-target_link_libraries(cephyr_driver PUBLIC cephyr_cpp cephyr_sema cephyr_lower
+target_link_libraries(cephyr_driver PUBLIC cephyr_ucpp cephyr_sema cephyr_lower
   cephyr_stdmodule cephyr_stdlib cephyr_profile ccw_ir ccw_swaff ccw_sched
   ccw_klib ccwas_api ccwld)
 add_dependencies(cephyr_driver ccwas)
