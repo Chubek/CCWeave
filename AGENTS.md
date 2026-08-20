@@ -3,6 +3,25 @@
 You are implementing CCWeave, a modular compiler infrastructure. This file
 tells you how to work in this repository. It is not the specification.
 
+## Languages Implemented So Far
+
+So far, we have implemented compilers and/or interpreters for the following languages, using the infrastructure that we have built:
+- `compilers/cephyr` -> ISO C17
+- `compilers/delphia` -> Delphi
+- `interpreters/moonix` -> Lua
+- `interpreters/sml-parthia` -> Standard ML '97
+
+## Salvos
+
+We have three salvos so far:
+- `stdlib-salvo` -> a salvo of standard libraries.
+  - Implemented libc
+  - Implemented SML Basis
+- `rewrite-salvo` -> a salvo of Oeuph rewrite rules
+- `examples-salvo` -> a salvo of examples for the compilers/interpreters
+  - `examples-salvo/simple` -> Simple code
+  - `examples-salvo/semi-complex` -> Semi-complex algorithms specified in `.agents/SEMI-COMPLEX.md`
+
 ## Normative sources (read before writing any code)
 
 1. `.agents/CCWEAVE_SPECS.md` -- CCWeave Specification v0.1. Defines all
