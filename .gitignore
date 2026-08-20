@@ -1,3 +1,6 @@
+# Manifests directory
+manifests/
+
 # Build artifacts
 build/
 build-*/
