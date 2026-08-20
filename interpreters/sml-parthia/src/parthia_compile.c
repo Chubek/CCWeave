@@ -625,19 +625,33 @@ cx_exp (pcx *cx, psx *n)
       e = mk_exp (cx, PE_LET);
       if (e == NULL)
         return NULL;
-      if (!sx_is (local_part, "local") || !sx_is (in_part, "in"))
+      if (sx_is (local_part, "local") && sx_is (in_part, "in"))
         {
-          cx_fail (cx, "malformed let expression");
-          return NULL;
+          CX_ARRAY (cx, local_part, 1, local_part->count, e->decs, pa_dec,
+                    cx_dec);
+          e->ndecs = local_part->count - 1;
+          body = mk_exp (cx, PE_SEQ);
+          if (body == NULL)
+            return NULL;
+          CX_ARRAY (cx, in_part, 1, in_part->count, body->items, pa_exp,
+                    cx_exp);
+          body->count = in_part->count - 1;
         }
-      CX_ARRAY (cx, local_part, 1, local_part->count, e->decs, pa_dec,
-                cx_dec);
-      e->ndecs = local_part->count - 1;
-      body = mk_exp (cx, PE_SEQ);
-      if (body == NULL)
-        return NULL;
-      CX_ARRAY (cx, in_part, 1, in_part->count, body->items, pa_exp, cx_exp);
-      body->count = in_part->count - 1;
+      else
+        {
+          size_t i;
+          e->ndecs = n->count > 2 ? n->count - 2 : 0;
+          e->decs = (pa_dec **)pa_alloc (
+              cx->rt, (e->ndecs ? e->ndecs : 1u) * sizeof (*e->decs));
+          if (e->decs == NULL)
+            {
+              cx_fail (cx, "out of memory");
+              return NULL;
+            }
+          for (i = 0; i < e->ndecs; i++)
+            e->decs[i] = cx_dec (cx, n->items[1 + i]);
+          body = cx_exp (cx, n->items[n->count - 1]);
+        }
       e->a = body;
       return e;
     }
@@ -795,7 +809,7 @@ cx_pat (pcx *cx, psx *n)
       p->lit = parse_scon (cx, n->items[1]->atom);
       return cx->failed ? NULL : p;
     }
-  if (strcmp (tag, "vid") == 0)
+  if (strcmp (tag, "vid") == 0 || strcmp (tag, "vid_pat") == 0)
     {
       p = mk_pat (cx, PP_VID);
       if (p == NULL)
@@ -862,6 +876,8 @@ cx_pat (pcx *cx, psx *n)
         }
       return p;
     }
+  if (strcmp (tag, "wildcard_pat") == 0 || strcmp (tag, "_") == 0)
+    return mk_pat (cx, PP_WILD);
   if (strcmp (tag, "unit_pat") == 0)
     return mk_pat (cx, PP_UNIT);
   if (strcmp (tag, "tuple_pat") == 0 || strcmp (tag, "vec_pat") == 0)
@@ -893,7 +909,32 @@ cx_pat (pcx *cx, psx *n)
     return cx_pat (cx, n->items[1]);
   if (strcmp (tag, "app") == 0)
     {
-      if (n->count != 3 || !sx_is (n->items[1], "vid"))
+      if (n->count == 4 && sx_is (n->items[2], "vid_pat"))
+        {
+          pa_pat *tuple = mk_pat (cx, PP_TUPLE);
+          if (tuple == NULL)
+            return NULL;
+          p = mk_pat (cx, PP_CTOR);
+          if (p == NULL)
+            return NULL;
+          p->path = split_path (cx, n->items[2]->items[1]->atom,
+                                &p->path_len);
+          tuple->items
+              = (pa_pat **)pa_alloc (cx->rt, 2u * sizeof (*tuple->items));
+          if (tuple->items == NULL)
+            {
+              cx_fail (cx, "out of memory");
+              return NULL;
+            }
+          tuple->count = 2;
+          tuple->items[0] = cx_pat (cx, n->items[1]);
+          tuple->items[1] = cx_pat (cx, n->items[3]);
+          p->arg = tuple;
+          return cx->failed ? NULL : p;
+        }
+      if (n->count != 3
+          || (!sx_is (n->items[1], "vid")
+              && !sx_is (n->items[1], "vid_pat")))
         {
           cx_fail (cx, "malformed constructor pattern");
           return NULL;
@@ -1007,10 +1048,17 @@ cx_fmrule (pcx *cx, psx *m, const char **name, pa_pat ***args,
       if (!child->is_list)
         {
           if (fname == NULL)
-            fname = child->atom;
-          continue;
+            {
+              fname = child->atom;
+              continue;
+            }
         }
       t = sx_tag (child);
+      if (t != NULL && strcmp (t, "null") == 0 && fname == NULL)
+        {
+          fname = "null";
+          continue;
+        }
       if (t != NULL && is_ty_tag (t))
         continue;
       if (used == cap)

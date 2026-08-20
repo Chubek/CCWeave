@@ -5,4 +5,4 @@ add_library(ccw_oeuph STATIC
   ccw_oeuph_ruleset_load.c
 )
 target_include_directories(ccw_oeuph PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(ccw_oeuph PUBLIC ccw_ir ccw_klib)
+target_link_libraries(ccw_oeuph PUBLIC ccw_ir ccw_klib ccw_sfsexp)

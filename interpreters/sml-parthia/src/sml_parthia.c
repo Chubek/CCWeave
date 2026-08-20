@@ -11,6 +11,7 @@
 #include "parthia_rt.h"
 #include "ccw_dynalo_bridge.h"
 #include "dyncall.h"
+#include "kbarena.h"
 #include "kstring.h"
 #include "sched.h"
 
@@ -783,9 +784,16 @@ ccw_sml_parthia_runtime_new (void)
       = (ccw_sml_parthia_runtime *)calloc (1, sizeof (*runtime));
   if (runtime == NULL)
     return NULL;
+  runtime->arena = kba_init (64u * 1024u);
+  if (runtime->arena == NULL)
+    {
+      free (runtime);
+      return NULL;
+    }
   runtime->global = pa_env_new (runtime, NULL);
   if (runtime->global == NULL)
     {
+      kba_destroy (runtime->arena);
       free (runtime);
       return NULL;
     }
@@ -806,12 +814,7 @@ ccw_sml_parthia_runtime_free (ccw_sml_parthia_runtime *runtime)
       ccw_dynalo_close (e->handle);
       free (e);
     }
-  while (runtime->chunks != NULL)
-    {
-      pa_chunk *chunk = runtime->chunks->next;
-      free (runtime->chunks);
-      runtime->chunks = chunk;
-    }
+  kba_destroy (runtime->arena);
   free (runtime);
 }
 int

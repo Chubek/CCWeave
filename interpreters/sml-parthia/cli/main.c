@@ -50,7 +50,7 @@ print_help (FILE *stream)
   fputs (
       "Usage: sml-parthia [OPTIONS] [FILE.sml]\n"
       "\n"
-      "Compile an SML '97 source file and print its deterministic core form.\n"
+      "Run an SML '97 source file with the Parthia AoT runtime.\n"
       "With no file, start the interactive REPL.\n"
       "\n"
       "Options:\n"
@@ -76,8 +76,8 @@ main (int argc, char **argv)
   char *source;
   size_t length;
   char *error = NULL;
-  ccw_sml_parthia_report report;
-  ccw_sml_parthia_program *program;
+  ccw_sml_parthia_runtime *runtime;
+  char *result = NULL;
 
   if (argc == 2
       && (strcmp (argv[1], "-h") == 0 || strcmp (argv[1], "--help") == 0))
@@ -110,17 +110,24 @@ main (int argc, char **argv)
       fprintf (stderr, "sml-parthia: cannot read input\n");
       return 1;
     }
-  program = ccw_sml_parthia_compile (source, length, &report, &error);
-  free (source);
-  if (program == NULL)
+  runtime = ccw_sml_parthia_runtime_new ();
+  if (runtime == NULL)
     {
-      fprintf (stderr, "sml-parthia: %s\n", error ? error : "compile failed");
+      free (source);
+      fprintf (stderr, "sml-parthia: cannot create runtime\n");
+      return 1;
+    }
+  if (!ccw_sml_parthia_run (runtime, source, length, &result, &error))
+    {
+      free (source);
+      ccw_sml_parthia_runtime_free (runtime);
+      fprintf (stderr, "sml-parthia: %s\n", error ? error : "execution failed");
       free (error);
       return 1;
     }
-  fputs (ccw_sml_parthia_core_ast (program), stdout);
-  fputc ('\n', stdout);
-  ccw_sml_parthia_program_destroy (program);
+  free (source);
+  free (result);
+  ccw_sml_parthia_runtime_free (runtime);
   free (error);
   return 0;
 }

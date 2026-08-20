@@ -30,6 +30,9 @@ All the subsystems of CCWeave use `third_party/klib` facilities, e.g. `kstring`,
 - `kstring` can be used for a tagged string;
 ...And so on.
 
+**Parsing S-Expressions**
+Whenever you needed to parse S-Expressions (not Scheme, just homoiconic, data-carrying S-Expressions), use `third_party/sfsexp` library. Wire it into the subsystem's `CMakeLists.txt`.
+
 ## Repository layout (create exactly this; spec §8)
 
 ```

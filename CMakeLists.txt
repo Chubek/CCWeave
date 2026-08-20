@@ -91,9 +91,25 @@ endfunction()
 
 ccw_vendored_target(ccw_isl)
 
-add_library(ccw_klib STATIC ${CCWEAVE_THIRD_PARTY}/klib/kstring.c)
+add_library(ccw_klib STATIC
+  ${CCWEAVE_THIRD_PARTY}/klib/kbarena.c
+  ${CCWEAVE_THIRD_PARTY}/klib/kstring.c)
 target_include_directories(ccw_klib PUBLIC ${CCWEAVE_THIRD_PARTY}/klib)
 ccw_vendored_target(ccw_klib)
+
+add_library(ccw_sfsexp STATIC
+  ${CCWEAVE_THIRD_PARTY}/sfsexp/src/cstring.c
+  ${CCWEAVE_THIRD_PARTY}/sfsexp/src/event_temp.c
+  ${CCWEAVE_THIRD_PARTY}/sfsexp/src/faststack.c
+  ${CCWEAVE_THIRD_PARTY}/sfsexp/src/io.c
+  ${CCWEAVE_THIRD_PARTY}/sfsexp/src/parser.c
+  ${CCWEAVE_THIRD_PARTY}/sfsexp/src/sexp.c
+  ${CCWEAVE_THIRD_PARTY}/sfsexp/src/sexp_memory.c
+  ${CCWEAVE_THIRD_PARTY}/sfsexp/src/sexp_ops.c
+  ${CCWEAVE_THIRD_PARTY}/sfsexp/src/sexp_vis.c)
+target_include_directories(ccw_sfsexp PUBLIC
+  ${CCWEAVE_THIRD_PARTY}/sfsexp/src)
+ccw_vendored_target(ccw_sfsexp)
 
 add_library(ccw_mpc STATIC ${CCWEAVE_THIRD_PARTY}/mpc/mpc.c)
 target_include_directories(ccw_mpc PUBLIC ${CCWEAVE_THIRD_PARTY}/mpc)

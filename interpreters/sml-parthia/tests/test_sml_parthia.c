@@ -182,6 +182,23 @@ main (void)
     char *value = NULL;
     char *run_error = NULL;
     const char *source
+        = "val text = \"parentheses () and a semicolon ;\"\n"
+          "val it = #\"x\"\n";
+    CCW_CHECK (ccw_sml_parthia_run (runtime, source, strlen (source), &value,
+                                    &run_error)
+                   && value != NULL && strcmp (value, "#\"x\"") == 0,
+               "SFSEXP surface parsing lost an SML character literal: %s",
+               run_error ? run_error : "(none)");
+    free (value);
+    free (run_error);
+    ccw_sml_parthia_runtime_free (runtime);
+  }
+
+  {
+    ccw_sml_parthia_runtime *runtime = ccw_sml_parthia_runtime_new ();
+    char *value = NULL;
+    char *run_error = NULL;
+    const char *source
         = "fun fact 0 = 1 | fact n = n * fact (n - 1)\n"
           "val it = fact 6\n";
     CCW_CHECK (ccw_sml_parthia_run (runtime, source, strlen (source), &value,

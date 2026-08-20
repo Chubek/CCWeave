@@ -2,6 +2,8 @@
 set -eu
 
 sml=$1
+script_dir=$(CDPATH= cd -- "$(dirname "$0")" && pwd)
+basis_dir=$(CDPATH= cd -- "$script_dir/../../../stdlib-salvo/sml-basis" && pwd)
 
 help=$("$sml" --help)
 printf '%s\n' "$help" | grep -q '^Usage: sml-parthia \[OPTIONS\] \[FILE.sml\]$'
@@ -15,6 +17,13 @@ output=$(printf '%s\n' \
 
 count=$(printf '%s\n' "$output" | grep -c '^(\?core-ml' || true)
 test "$count" -eq 2
+
+hello=$(mktemp)
+printf 'use "Basis.sml";\nval _ = print "hello, sml-parthia\\n";\n' >"$hello"
+hello_output=$(SML_PARTHIA_PATH="$basis_dir" \
+  "$sml" "$hello")
+test "$hello_output" = "hello, sml-parthia"
+rm -f "$hello"
 
 if printf '%s\n' 'structure A = struct end' | "$sml" >/dev/null 2>"${TMPDIR:-/tmp}/sml-parthia-repl.err"; then
   exit 1

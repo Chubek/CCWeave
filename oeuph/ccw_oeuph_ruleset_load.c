@@ -1,127 +1,28 @@
 /* Loads a stdrewrite ruleset file (§7.3).
  *
- * Format (Scheme s-expressions, read without an engine since rules are
- * data, not code):
- *
- *   (ruleset opt.arith)
- *   (rule mul-two-to-shift
- *         (imul ?x (iconst 2)) (shl ?x (iconst 1))
- *         :bidirectional #t)
- *
- * Every file MUST declare a ruleset name; rules are unordered within it. */
+ * The complete file is wrapped in one synthetic list and parsed by SFSEXP.
+ * This preserves all top-level forms while avoiding a second, subtly
+ * different parenthesis/comment scanner in the host. */
 
 #include "ccw_oeuph.h"
 #include "kstring.h"
 
-#include <ctype.h>
+#include "cstring.h"
+#include "sexp.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-static void
-skip_blanks_and_comments (const char **p)
-{
-  for (;;)
-    {
-      while (**p != '\0' && isspace ((unsigned char)**p))
-        (*p)++;
-      if (**p == ';')
-        {
-          while (**p != '\0' && **p != '\n')
-            (*p)++;
-          continue;
-        }
-      return;
-    }
-}
-
-/* Reads one balanced s-expression into a fresh string. */
-static char *
-read_form (const char **p)
-{
-  skip_blanks_and_comments (p);
-  if (**p != '(')
-    return NULL;
-  const char *start = *p;
-  int depth = 0;
-  while (**p != '\0')
-    {
-      if (**p == '(')
-        depth++;
-      else if (**p == ')')
-        {
-          depth--;
-          if (depth == 0)
-            {
-              (*p)++;
-              break;
-            }
-        }
-      else if (**p == ';')
-        {
-          while (**p != '\0' && **p != '\n')
-            (*p)++;
-          continue;
-        }
-      (*p)++;
-    }
-  if (depth != 0)
-    return NULL;
-  size_t n = (size_t)(*p - start);
-  kstring_t form = { 0, 0, NULL };
-  if (kputsn (start, (int)n, &form) == EOF)
-    return NULL;
-  return ks_release (&form);
-}
-
-/* Copies the next whitespace-delimited token or balanced sub-form. */
-static char *
-next_item (const char **p)
-{
-  skip_blanks_and_comments (p);
-  if (**p == '\0' || **p == ')')
-    return NULL;
-  const char *start = *p;
-  if (**p == '(')
-    {
-      int depth = 0;
-      while (**p != '\0')
-        {
-          if (**p == '(')
-            depth++;
-          else if (**p == ')')
-            {
-              depth--;
-              if (depth == 0)
-                {
-                  (*p)++;
-                  break;
-                }
-            }
-          (*p)++;
-        }
-    }
-  else
-    {
-      while (**p != '\0' && !isspace ((unsigned char)**p) && **p != ')')
-        (*p)++;
-    }
-  size_t n = (size_t)(*p - start);
-  kstring_t item = { 0, 0, NULL };
-  if (kputsn (start, (int)n, &item) == EOF)
-    return NULL;
-  return ks_release (&item);
-}
 
 static char *
 read_whole_file (const char *path)
 {
   FILE *fp = fopen (path, "rb");
-  if (fp == NULL)
-    return NULL;
   kstring_t buf = { 0, 0, NULL };
   char chunk[4096];
   size_t got;
+  if (fp == NULL)
+    return NULL;
   while ((got = fread (chunk, 1, sizeof (chunk), fp)) > 0)
     {
       if (kputsn (chunk, (int)got, &buf) == EOF)
@@ -138,115 +39,212 @@ read_whole_file (const char *path)
 static void
 set_err (char **error_message, const char *msg)
 {
+  kstring_t copy = { 0, 0, NULL };
   if (error_message == NULL)
     return;
-  kstring_t copy = { 0, 0, NULL };
+  *error_message = NULL;
   if (msg != NULL && kputs (msg, &copy) != EOF)
     *error_message = ks_release (&copy);
-  else
-    *error_message = NULL;
+}
+
+static char *
+dup_text (const char *text)
+{
+  size_t length;
+  char *copy;
+  if (text == NULL)
+    return NULL;
+  length = strlen (text);
+  copy = (char *)malloc (length + 1u);
+  if (copy != NULL)
+    memcpy (copy, text, length + 1u);
+  return copy;
+}
+
+static const sexp_t *
+form_item (const sexp_t *form, size_t index)
+{
+  const sexp_t *item = form != NULL ? form->list : NULL;
+  while (item != NULL && index != 0)
+    {
+      item = item->next;
+      index--;
+    }
+  return item;
+}
+
+static size_t
+form_length (const sexp_t *form)
+{
+  const sexp_t *item;
+  size_t count = 0;
+  for (item = form != NULL ? form->list : NULL; item != NULL;
+       item = item->next)
+    count++;
+  return count;
+}
+
+static int
+is_atom (const sexp_t *item, const char *text)
+{
+  return item != NULL && item->ty == SEXP_VALUE && item->val != NULL
+         && strcmp (item->val, text) == 0;
+}
+
+static char *
+print_form (const sexp_t *form)
+{
+  CSTRING *printed = NULL;
+  char *copy;
+  size_t length;
+  if (form == NULL || print_sexp_cstr (&printed, form, 64) < 0
+      || printed == NULL || printed->base == NULL)
+    {
+      if (printed != NULL)
+        sdestroy (printed);
+      return NULL;
+    }
+  length = strlen (printed->base);
+  copy = (char *)malloc (length + 1u);
+  if (copy != NULL)
+    memcpy (copy, printed->base, length + 1u);
+  sdestroy (printed);
+  return copy;
+}
+
+static void
+destroy_parse (sexp_t *root)
+{
+  if (root != NULL)
+    destroy_sexp (root);
+  sexp_cleanup ();
 }
 
 ccw_oeuph_ruleset *
 ccw_oeuph_ruleset_load (const char *path, char **error_message)
 {
-  if (error_message)
+  char *source;
+  char *wrapped;
+  size_t source_length;
+  kstring_t input = { 0, 0, NULL };
+  sexp_t *root;
+  const sexp_t *form;
+  ccw_oeuph_ruleset *ruleset = NULL;
+
+  if (error_message != NULL)
     *error_message = NULL;
-  char *text = read_whole_file (path);
-  if (text == NULL)
+  source = read_whole_file (path);
+  if (source == NULL)
     {
       set_err (error_message, "cannot read ruleset file");
       return NULL;
     }
-
-  ccw_oeuph_ruleset *rs = NULL;
-  const char *cursor = text;
-  char *form = NULL;
-
-  while ((form = read_form (&cursor)) != NULL)
+  source_length = strlen (source);
+  if (kputs ("(ccw-ruleset-root\n", &input) == EOF
+      || kputsn (source, (int)source_length, &input) == EOF
+      || kputs ("\n)", &input) == EOF)
     {
-      const char *inner = form + 1; /* skip '(' */
-      char *head = next_item (&inner);
-      if (head == NULL)
-        {
-          free (form);
-          continue;
-        }
+      free (source);
+      free (input.s);
+      set_err (error_message, "out of memory while reading ruleset file");
+      return NULL;
+    }
+  free (source);
+  wrapped = ks_release (&input);
+  reset_sexp_errno ();
+  root = parse_sexp (wrapped, strlen (wrapped));
+  free (wrapped);
+  if (root == NULL)
+    {
+      set_err (error_message, "invalid ruleset S-expression");
+      sexp_cleanup ();
+      return NULL;
+    }
 
-      if (strcmp (head, "ruleset") == 0)
+  form = root->list != NULL ? root->list->next : NULL;
+  for (; form != NULL; form = form->next)
+    {
+      const sexp_t *head;
+      size_t length;
+      if (form->ty != SEXP_LIST)
         {
-          char *name = next_item (&inner);
-          if (name == NULL)
+          set_err (error_message, "ruleset top-level form must be a list");
+          destroy_parse (root);
+          ccw_oeuph_ruleset_destroy (ruleset);
+          return NULL;
+        }
+      head = form_item (form, 0);
+      length = form_length (form);
+      if (is_atom (head, "ruleset"))
+        {
+          const sexp_t *name = form_item (form, 1);
+          if (length != 2 || name == NULL || name->ty != SEXP_VALUE
+              || name->val == NULL)
             {
-              set_err (error_message, "ruleset form needs a name");
-              free (head);
-              free (form);
-              free (text);
-              ccw_oeuph_ruleset_destroy (rs);
+              set_err (error_message, "ruleset form needs one name");
+              destroy_parse (root);
+              ccw_oeuph_ruleset_destroy (ruleset);
               return NULL;
             }
-          if (rs == NULL)
-            rs = ccw_oeuph_ruleset_create (name);
-          free (name);
+          if (ruleset == NULL)
+            ruleset = ccw_oeuph_ruleset_create (name->val);
         }
-      else if (strcmp (head, "rule") == 0)
+      else if (is_atom (head, "rule"))
         {
-          if (rs == NULL)
+          const sexp_t *name = form_item (form, 1);
+          const sexp_t *lhs = form_item (form, 2);
+          const sexp_t *rhs = form_item (form, 3);
+          bool bidirectional = true;
+          char *lhs_text;
+          char *rhs_text;
+          char *rule_error = NULL;
+          if (ruleset == NULL)
             {
               set_err (error_message,
                        "rule appears before the ruleset declaration");
-              free (head);
-              free (form);
-              free (text);
+              destroy_parse (root);
               return NULL;
             }
-          char *name = next_item (&inner);
-          char *lhs = next_item (&inner);
-          char *rhs = next_item (&inner);
-          bool bidirectional = true; /* bidirectional by default (§7.3) */
-          char *opt = NULL;
-          while ((opt = next_item (&inner)) != NULL)
+          if (length < 4 || name == NULL || name->ty != SEXP_VALUE
+              || name->val == NULL || lhs == NULL || rhs == NULL)
             {
-              if (strcmp (opt, ":bidirectional") == 0)
-                {
-                  char *value = next_item (&inner);
-                  if (value != NULL && strcmp (value, "#f") == 0)
-                    bidirectional = false;
-                  free (value);
-                }
-              free (opt);
+              set_err (error_message, "rule needs name, lhs, and rhs");
+              destroy_parse (root);
+              ccw_oeuph_ruleset_destroy (ruleset);
+              return NULL;
             }
-          if (name != NULL && lhs != NULL && rhs != NULL)
+          for (size_t i = 4; i + 1 < length; i += 2)
             {
-              char *rule_err = NULL;
-              if (ccw_oeuph_rule_add (rs, name, lhs, rhs, bidirectional, NULL,
-                                      &rule_err)
-                  != CCW_OK)
-                {
-                  if (error_message)
-                    *error_message = rule_err;
-                  else
-                    free (rule_err);
-                  free (name);
-                  free (lhs);
-                  free (rhs);
-                  free (head);
-                  free (form);
-                  free (text);
-                  ccw_oeuph_ruleset_destroy (rs);
-                  return NULL;
-                }
+              const sexp_t *option = form_item (form, i);
+              const sexp_t *value = form_item (form, i + 1);
+              if (is_atom (option, ":bidirectional"))
+                bidirectional = !is_atom (value, "#f");
             }
-          free (name);
-          free (lhs);
-          free (rhs);
+          lhs_text = print_form (lhs);
+          rhs_text = print_form (rhs);
+          if (lhs_text == NULL || rhs_text == NULL
+              || ccw_oeuph_rule_add (ruleset, name->val, lhs_text, rhs_text,
+                                      bidirectional, NULL, &rule_error)
+                   != CCW_OK)
+            {
+              if (error_message != NULL)
+                *error_message = rule_error != NULL
+                                     ? rule_error
+                                     : dup_text ("invalid rule");
+              else
+                free (rule_error);
+              free (lhs_text);
+              free (rhs_text);
+              destroy_parse (root);
+              ccw_oeuph_ruleset_destroy (ruleset);
+              return NULL;
+            }
+          free (lhs_text);
+          free (rhs_text);
         }
-      free (head);
-      free (form);
     }
-  free (text);
-
-  if (rs == NULL)
+  destroy_parse (root);
+  if (ruleset == NULL)
     set_err (error_message, "file declares no ruleset");
-  return rs;
+  return ruleset;
 }

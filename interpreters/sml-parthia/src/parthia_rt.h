@@ -35,14 +35,6 @@ extern "C"
 
   /* ---------- arena ---------- */
 
-  typedef struct pa_chunk
-  {
-    struct pa_chunk *next;
-    size_t used;
-    size_t cap;
-    /* data follows the header */
-  } pa_chunk;
-
   void *pa_alloc (prt *rt, size_t size);
   char *pa_strdup (prt *rt, const char *text);
   char *pa_strndup (prt *rt, const char *text, size_t length);
@@ -412,7 +404,7 @@ extern "C"
   struct ccw_sml_parthia_runtime
   {
     sml_ext_entry *extensions;   /* native extension registry (public ABI) */
-    pa_chunk *chunks;
+    void *arena;                  /* klib blocked arena */
     pa_env *global;
     pv *v_true;
     pv *v_false;

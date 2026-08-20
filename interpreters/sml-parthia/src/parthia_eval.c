@@ -9,8 +9,10 @@
  * which preserves later top-level bindings while shortening lookups. */
 
 #include "parthia_rt.h"
+#include "kbarena.h"
 #include "kstring.h"
 
+#include <limits.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -21,28 +23,17 @@
 void *
 pa_alloc (prt *rt, size_t size)
 {
-  pa_chunk *c;
-  void *ptr;
-  size = (size + 15u) & ~(size_t)15u;
-  if (size == 0)
-    size = 16u;
-  c = rt->chunks;
-  if (c == NULL || c->used + size > c->cap)
-    {
-      size_t cap = size > 65536u ? size : 65536u;
-      pa_chunk *fresh
-          = (pa_chunk *)malloc (sizeof (*fresh) + cap);
-      if (fresh == NULL)
-        return NULL;
-      fresh->used = 0;
-      fresh->cap = cap;
-      fresh->next = rt->chunks;
-      rt->chunks = fresh;
-      c = fresh;
-    }
-  ptr = (char *)(c + 1) + c->used;
-  c->used += size;
-  return ptr;
+  size_t aligned;
+  if (rt == NULL || rt->arena == NULL)
+    return NULL;
+  if (size > SIZE_MAX - 15u)
+    return NULL;
+  aligned = (size + 15u) & ~(size_t)15u;
+  if (aligned == 0)
+    aligned = 16u;
+  if (aligned > UINT_MAX)
+    return NULL;
+  return kba_alloc (rt->arena, (unsigned)aligned, 16u);
 }
 
 char *
