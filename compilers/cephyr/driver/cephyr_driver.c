@@ -201,7 +201,8 @@ cpp_run_ucpp (const char *source_text, size_t source_len,
 
   struct lexer_state ls;
   init_lexer_state (&ls);
-  init_lexer_mode (&ls);
+  /* Use CPP flags, not LEXER flags — we want preprocessor output, not tokens */
+  ls.flags = DEFAULT_CPP_FLAGS;
   ls.flags |= HANDLE_ASSERTIONS | HANDLE_PRAGMA | LINE_NUM | KEEP_OUTPUT;
 
   /* Predefined macros for Cephyr (LP64, x86-64, Linux) */
@@ -234,12 +235,12 @@ cpp_run_ucpp (const char *source_text, size_t source_len,
     }
 
   /* Redirect output to memory buffer */
-  FILE *saved_output = emit_output;
-  emit_output = open_memstream (&out_buf, &out_len);
-  if (emit_output == NULL)
+  FILE *mem_output = open_memstream (&out_buf, &out_len);
+  ls.output = mem_output;
+  if (mem_output == NULL)
     {
       result.error_message = cephyr_driver_strdup (
-          "failed to create output buffer for preprocessor");
+          "failed to create memory output for preprocessor");
       free_lexer_state (&ls);
       wipeout ();
       return result;
@@ -251,19 +252,24 @@ cpp_run_ucpp (const char *source_text, size_t source_len,
     {
       result.error_message = cephyr_driver_strdup (
           "failed to create temp file for preprocessor input");
-      fclose (emit_output);
-      emit_output = saved_output;
+      fclose (mem_output);
       free_lexer_state (&ls);
       wipeout ();
       return result;
     }
   fwrite (source_text, 1, source_len, tmpf);
   rewind (tmpf);
-  set_input_file (&ls, tmpf);
+  ls.input = tmpf;
   enter_file (&ls, ls.flags);
-  cpp (&ls);
-  fclose (emit_output);
-  emit_output = saved_output;
+
+  /* cpp() must be called in a loop; each call processes one token/directive
+   * and returns.  CPPERR_EOF signals end-of-file. */
+  {
+    int r;
+    while ((r = cpp (&ls)) < CPPERR_EOF)
+      (void)r;
+  }
+  fclose (mem_output);
   free_lexer_state (&ls);
   wipeout ();
 
