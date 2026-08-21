@@ -421,8 +421,11 @@ lower_binary (ccw_ocaml_lower *ctx, ccw_node *block, TSNode node)
             ? CCW_TY_I1
             : CCW_TY_I64;
   if (left == NULL || right == NULL || dest == NULL
-      || ccw_kliche_binary (ctx->ir, *block, opcode, dest, left, right, type)
-             == 0)
+      || (strncmp (opcode, "icmp.", 5) == 0
+              ? ccw_kliche_cmp (ctx->ir, *block, opcode, dest, left, right,
+                                CCW_TY_I64)
+              : ccw_kliche_binop (ctx->ir, *block, opcode, dest, left, right,
+                                  type)) == 0)
     {
       free (left);
       free (right);

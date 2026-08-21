@@ -1,5 +1,20 @@
 # Decisions
 
+## 2026-08-21 — Kliche helpers are the Swaff lowering boundary
+
+The common Kliche construction helpers introduced with the stereotype
+expansion are part of the public Kliche surface, so Swaff adapters can use
+them without reaching into Kliche implementation headers.  C, Lua, OCaml,
+SML, and Delphi lowering now route arithmetic through `ccw_kliche_binop`,
+comparisons through `ccw_kliche_cmp`, and supported floating-point literals
+through `ccw_kliche_float_const`.  Delphi and Lua loop lowering also use
+`ccw_kliche_loop` for the entry edge while retaining their frontend-specific
+condition/body block construction.  This keeps CST handling in Swaff while
+ensuring all shared lowering patterns receive Kliche's validation and
+canonical core-IR emission.  Existing table/string and language-specific
+operations remain frontend-owned because their runtime contracts are not
+array or scalar Kliche operations.
+
 ## 2026-08-21 — Kliche stereotype de-stubbing and expansion
 
 The kliche stratum was strengthened from thin single-instruction wrappers

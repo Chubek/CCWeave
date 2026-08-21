@@ -120,6 +120,24 @@ extern "C"
                               const char *dest, const char *left_reg,
                               const char *right_reg, ccw_ir_type type);
 
+  /* Shared construction helpers used by frontends.  These preserve the
+   * stereotype boundary while selecting the canonical core-IR shape for
+   * common operations. */
+  ccw_node ccw_kliche_binop (ccw_ir *ir, ccw_node blk, const char *opcode,
+                             const char *dest, const char *lhs,
+                             const char *rhs, ccw_ir_type type);
+  ccw_node ccw_kliche_cmp (ccw_ir *ir, ccw_node blk, const char *pred,
+                           const char *dest, const char *lhs,
+                           const char *rhs, ccw_ir_type type);
+  ccw_node ccw_kliche_alloca (ccw_ir *ir, ccw_node blk, const char *dest,
+                              int64_t byte_count);
+  ccw_node ccw_kliche_gep (ccw_ir *ir, ccw_node blk, const char *dest,
+                           const char *base_reg, int64_t offset);
+  ccw_node ccw_kliche_load (ccw_ir *ir, ccw_node blk, const char *dest,
+                            const char *src_reg, ccw_ir_type type);
+  ccw_node ccw_kliche_store (ccw_ir *ir, ccw_node blk, const char *dst_reg,
+                             const char *value_reg, ccw_ir_type type);
+
   /* --- calls --- */
 
   ccw_node ccw_kliche_call (ccw_ir *ir, ccw_node blk, const char *dest,

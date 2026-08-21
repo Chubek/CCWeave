@@ -335,11 +335,27 @@ lower_number (ccw_c_lower *ctx, ccw_node block, TSNode expr)
   char *text = node_text (expr, ctx->source, ctx->source_len);
   if (text == NULL)
     return NULL;
+  bool is_float = strchr (text, '.') != NULL || strchr (text, 'e') != NULL
+                  || strchr (text, 'E') != NULL;
   errno = 0;
   char *end = NULL;
-  long long value = strtoll (text, &end, 0);
+  long long value = 0;
+  double fvalue = 0.0;
+  if (is_float)
+    fvalue = strtod (text, &end);
+  else
+    value = strtoll (text, &end, 0);
   bool valid = errno == 0 && end != text;
-  while (valid && *end != '\0')
+  if (valid && is_float)
+    {
+      if (*end != '\0' && *end != 'f' && *end != 'F' && *end != 'l'
+          && *end != 'L')
+        valid = false;
+      else if (*end != '\0')
+        end++;
+      valid = valid && *end == '\0';
+    }
+  while (valid && !is_float && *end != '\0')
     {
       if (*end != 'u' && *end != 'U' && *end != 'l' && *end != 'L')
         valid = false;
@@ -348,16 +364,18 @@ lower_number (ccw_c_lower *ctx, ccw_node block, TSNode expr)
   free (text);
   if (!valid)
     {
-      lower_fail (ctx, "swaff C: unsupported integer literal");
+      lower_fail (ctx, "swaff C: unsupported numeric literal");
       return NULL;
     }
 
   char *temp = new_temp (ctx);
   if (temp == NULL
-      || ccw_kliche_int_const (ctx->ir, block, temp, (int64_t)value) == 0)
+      || (is_float
+          ? ccw_kliche_float_const (ctx->ir, block, temp, fvalue) == 0
+          : ccw_kliche_int_const (ctx->ir, block, temp, (int64_t)value) == 0))
     {
       free (temp);
-      lower_fail (ctx, "swaff C: could not lower integer literal");
+      lower_fail (ctx, "swaff C: could not lower numeric literal");
       return NULL;
     }
   return temp;
@@ -403,9 +421,11 @@ lower_binary (ccw_c_lower *ctx, ccw_node block, TSNode expr)
   char *rhs = lower_expression (ctx, block, right);
   char *dest = new_temp (ctx);
   if (lhs == NULL || rhs == NULL || dest == NULL
-      || ccw_kliche_binary (ctx->ir, block, opcode, dest, lhs, rhs,
-                            strncmp (opcode, "icmp.", 5) == 0 ? CCW_TY_I1
-                                                              : CCW_TY_I64)
+      || (strncmp (opcode, "icmp.", 5) == 0
+              ? ccw_kliche_cmp (ctx->ir, block, opcode, dest, lhs, rhs,
+                                CCW_TY_I64)
+              : ccw_kliche_binop (ctx->ir, block, opcode, dest, lhs, rhs,
+                                  CCW_TY_I64))
              == 0)
     {
       free (lhs);
@@ -547,8 +567,8 @@ lower_assignment (ccw_c_lower *ctx, ccw_node block, TSNode expr)
       char *rhs = lower_expression (ctx, block, right);
       value = new_temp (ctx);
       if (opcode == NULL || current == NULL || rhs == NULL || value == NULL
-          || ccw_kliche_binary (ctx->ir, block, opcode, value, current, rhs,
-                                CCW_TY_I64)
+          || ccw_kliche_binop (ctx->ir, block, opcode, value, current, rhs,
+                               CCW_TY_I64)
                  == 0)
         {
           free (current);

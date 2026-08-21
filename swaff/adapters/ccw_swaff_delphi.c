@@ -293,17 +293,26 @@ lower_number (delphi_ctx *ctx, ccw_node block, TSNode n)
       memmove (s, s + 1, strlen (s));
       base = 16;
     }
+  bool is_float = base == 10
+                  && (strchr (s, '.') != NULL || strchr (s, 'e') != NULL
+                      || strchr (s, 'E') != NULL);
   errno = 0;
-  value = strtoll (s, &end, base);
-  if (errno || end == s || *end != '\0' || value < INT64_MIN
-      || value > INT64_MAX)
+  double fvalue = 0.0;
+  if (is_float)
+    fvalue = strtod (s, &end);
+  else
+    value = strtoll (s, &end, base);
+  if (errno || end == s || *end != '\0'
+      || (!is_float && (value < INT64_MIN || value > INT64_MAX)))
     {
       free (s);
       fail (ctx, "swaff Delphi: unsupported numeric literal");
       return NULL;
     }
   dest = new_temp (ctx);
-  if (dest == NULL || ccw_kliche_int_const (ctx->ir, block, dest, value) == 0)
+  if (dest == NULL
+      || (is_float ? ccw_kliche_float_const (ctx->ir, block, dest, fvalue) == 0
+                   : ccw_kliche_int_const (ctx->ir, block, dest, value) == 0))
     {
       free (dest);
       free (s);
@@ -390,8 +399,11 @@ lower_expr (delphi_ctx *ctx, ccw_node block, TSNode n)
       char *dest = new_temp (ctx);
       free (op);
       if (!lhs || !rhs || !ir_op || !dest
-          || ccw_kliche_binary (ctx->ir, block, ir_op, dest, lhs, rhs,
-                                CCW_TY_I64)
+          || (strncmp (ir_op, "icmp.", 5) == 0
+                  ? ccw_kliche_cmp (ctx->ir, block, ir_op, dest, lhs, rhs,
+                                    CCW_TY_I64)
+                  : ccw_kliche_binop (ctx->ir, block, ir_op, dest, lhs, rhs,
+                                      CCW_TY_I64))
                  == 0)
         {
           free (lhs);
@@ -562,7 +574,7 @@ lower_statement (delphi_ctx *ctx, ccw_node *block, TSNode n)
         fail (ctx, "swaff Delphi: could not construct while loop");
       else
         {
-          ccw_kliche_jump (ctx->ir, *block, head);
+          ccw_kliche_loop (ctx->ir, *block, cond, head, body_name, exit);
           ccw_kliche_branch_if (ctx->ir, h, cond, body_name, exit);
           lower_statement (ctx, &b, field (n, "body"));
           if (!terminated (ctx->ir, b))

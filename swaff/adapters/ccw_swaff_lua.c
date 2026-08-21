@@ -378,17 +378,8 @@ lower_number (ccw_lua_lower *ctx, ccw_node block, TSNode node)
   if (is_float)
     {
       double value = strtod (text, &end);
-      ccw_node ins = ccw_ir_instr_build (ctx->ir, "fconst", CCW_TY_F64);
-      if (ins == 0 || ccw_ir_instr_set_dest (ctx->ir, ins, temp) != CCW_OK)
-        {
-          free (text);
-          free (temp);
-          lower_fail (ctx, "swaff Lua: could not lower float literal");
-          return NULL;
-        }
-      ccw_node op = ccw_ir_operand_const_float (ctx->ir, CCW_TY_F64, value);
-      if (op == 0 || ccw_ir_instr_add_operand (ctx->ir, ins, op) != CCW_OK
-          || ccw_ir_block_append_instr (ctx->ir, block, ins) != CCW_OK)
+      if (end == text || *end != '\0'
+          || ccw_kliche_float_const (ctx->ir, block, temp, value) == 0)
         {
           free (text);
           free (temp);
@@ -645,8 +636,13 @@ lower_binary (ccw_lua_lower *ctx, ccw_node block, TSNode expr)
       = strncmp (opcode, "icmp.", 5) == 0 || strncmp (opcode, "logic.", 6) == 0
             ? CCW_TY_I1
             : CCW_TY_I64;
-  if (ccw_kliche_binary (ctx->ir, block, opcode, dest, lhs, rhs, result_type)
-      == 0)
+  ccw_node emitted
+      = strncmp (opcode, "icmp.", 5) == 0
+            ? ccw_kliche_cmp (ctx->ir, block, opcode, dest, lhs, rhs,
+                              CCW_TY_I64)
+            : ccw_kliche_binop (ctx->ir, block, opcode, dest, lhs, rhs,
+                                result_type);
+  if (emitted == 0)
     {
       free (lhs);
       free (rhs);
@@ -1199,7 +1195,8 @@ lower_while (ccw_lua_lower *ctx, ccw_node *block, TSNode node)
   body_block = ccw_ir_block_add (ctx->ir, ctx->fn, body_name);
   merge_block = ccw_ir_block_add (ctx->ir, ctx->fn, merge_name);
 
-  ccw_kliche_jump (ctx->ir, *block, cond_name);
+  ccw_kliche_loop (ctx->ir, *block, cond_name, cond_name, body_name,
+                   merge_name);
 
   break_stack_push (&ctx->break_stack, merge_name);
 
@@ -1392,7 +1389,8 @@ lower_for (ccw_lua_lower *ctx, ccw_node *block, TSNode node)
           if (in_body)
             lower_statement (ctx, &body_block, child);
         }
-      ccw_kliche_jump (ctx->ir, *block, cond_name);
+      ccw_kliche_loop (ctx->ir, *block, cond_name, cond_name, body_name,
+                       merge_name);
       if (!ts_node_is_null (exprlist_node))
         {
           char *iter_result
@@ -1458,8 +1456,8 @@ lower_for (ccw_lua_lower *ctx, ccw_node *block, TSNode node)
           if (var_load != NULL && end_val != NULL)
             {
               char *cmp = new_temp (ctx);
-              ccw_kliche_binary (ctx->ir, cond_block, "icmp.le", cmp, var_load,
-                                 end_val, CCW_TY_I1);
+              ccw_kliche_cmp (ctx->ir, cond_block, "icmp.le", cmp, var_load,
+                              end_val, CCW_TY_I64);
               ccw_kliche_branch_if (ctx->ir, cond_block, cmp, body_name,
                                     merge_name);
             }
@@ -1484,8 +1482,8 @@ lower_for (ccw_lua_lower *ctx, ccw_node *block, TSNode node)
           char *incr = new_temp (ctx);
           if (incr != NULL)
             {
-              ccw_kliche_binary (ctx->ir, incr_block, "iadd", incr, var_load,
-                                 step_val ? step_val : one, CCW_TY_I64);
+              ccw_kliche_binop (ctx->ir, incr_block, "iadd", incr, var_load,
+                                step_val ? step_val : one, CCW_TY_I64);
               char *var_name
                   = node_text (var_node, ctx->source, ctx->source_len);
               if (var_name != NULL)
