@@ -1,5 +1,57 @@
 # Decisions
 
+## 2026-08-21 — Kliche stereotype de-stubbing and expansion
+
+The kliche stratum was strengthened from thin single-instruction wrappers
+into a proper stereotype library (§6.1).  The existing public interface is
+preserved; every existing function signature is unchanged.  New functions
+fill in the missing paradigm constructs.
+
+**Common layer** (`ccw_kliche_common`):
+- All inputs validated (null ir/blk/opcode return 0 immediately).
+- `ccw_kliche_emit` now checks every operand resolution and propagates
+  failures instead of silently producing broken IR.
+- Added `ccw_kliche_emit_multi` for multi-instruction patterns, plus
+  convenience helpers: `ccw_kliche_binop`, `ccw_kliche_cmp`,
+  `ccw_kliche_alloca`, `ccw_kliche_gep`, `ccw_kliche_load`,
+  `ccw_kliche_store`.
+- Operand kind enum extended with `CCW_KO_FLOAT` and `CCW_KO_STR` for
+  float constants and string symbols.
+
+**Functional stereotype** additions:
+- `ccw_kliche_record_alloc`, `ccw_kliche_record_tag`,
+  `ccw_kliche_record_field_get`, `ccw_kliche_record_field_set` —
+  algebraic data types as tagged records.
+- `ccw_kliche_tag_switch` — pattern-matching dispatch via a single
+  `switch` instruction with (tag, default, case*) operands.
+
+**Imperative stereotype** additions:
+- `ccw_kliche_float_const` — float constant emission.
+- `ccw_kliche_loop` — while-loop skeleton (header/body/exit blocks).
+- `ccw_kliche_cast` — numeric type casts (trunc, sext, fpext, fptrunc,
+  sitofp, fptosi) with automatic opcode selection.
+- `ccw_kliche_phi` — SSA phi node with parallel value/block arrays.
+- `ccw_kliche_array_alloc`, `ccw_kliche_array_load`,
+  `ccw_kliche_array_store` — heap-array operations.
+
+**OOP stereotype** additions:
+- `ccw_kliche_new` — allocate and construct an object in one step.
+- `ccw_kliche_vtable_store`, `ccw_kliche_vtable_build` — vtable
+  mutation and construction.
+- `ccw_kliche_field_get`, `ccw_kliche_field_set` — object field access.
+- `ccw_kliche_super_call` — superclass method dispatch through the
+  parent vtable.
+- `ccw_kliche_interface_dispatch` — dispatch through an interface
+  vtable by interface id.
+- `ccw_kliche_instanceof`, `ccw_kliche_dynamic_cast` — type checking
+  and guarded downcast.
+- `ccw_kliche_throw`, `ccw_kliche_rethrow` — exception raising from
+  user code and handler rethrow.
+
+All constructs emit only core-IR instructions; no profile-specific
+constructs are introduced.  The existing `test_kliche_swaff` suite
+(40 checks) passes unchanged.
+
 ## 2026-08-20 — SML_PARTHIA_PATH comma-separated directive search
 
 Parthia's `use`, `load`, `#load`, and `CM.make` directive targets now resolve
