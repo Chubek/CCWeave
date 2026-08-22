@@ -1,0 +1,1023 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width"/>
+<title>A parser for DEC’s ANSI-compatible video terminals</title>
+<link href="../terminal.css" rel="stylesheet"/>
+<link href="dap_style.css" rel="stylesheet"/>
+<link href="../dark-support.css" rel="stylesheet"/>
+<link rel="icon" href="/cover-logo-096.png" sizes="96x96"/>
+<script type="application/ld+json">
+{
+    "@context": "http://schema.org",
+    "@type": "WebPage",
+    "name": "A parser for DEC’s ANSI-compatible video terminals",
+    "author": {
+        "@type": "Person",
+        "name": "Paul Flo Williams"
+    },
+    "datePublished": "2002-03-11",
+    "dateModified": "2017-08-25"
+}
+</script>
+</head>
+<body>
+<header>
+<nav class="breadcrumbs">
+<ol>
+<li><a href="../" title="Home"><svg xmlns="http://www.w3.org/2000/svg" width="92" height="16" version="1.1" id="vt100-net-site-logo">
+  <title>VT100.net</title>
+  <style>
+  .blk { fill: #000000 }
+  .g25 { fill: #626262 }
+  .g50 { fill: #9b9b9b }
+  .g75 { fill: #cccccc }
+  .grd { fill: #006600 }
+  .grl { fill: #00ff00 }
+  .scanlines { fill: black; stroke: #5e5e5e; stroke-width: 0.4; paint-order:stroke fill markers }
+  .dotnet { fill: #404040 }
+  @media (prefers-color-scheme: dark) {
+    .blk { fill: #626262 }
+    .g25 { fill: #9b9b9b }
+    .g50 { fill: #cccccc }
+    .g75 { fill: #ffffff }
+    .scanlines { fill: #00ff00; stroke: #009900 }
+    .dotnet { fill: #909090 }
+  }
+  </style>
+  <g id="term">
+    <rect class="g50" x="05" y="02" width="9" height="1"/>
+    <rect class="blk" x="14" y="02" height="1" width="1"/>
+    <rect class="g50" x="04" y="03" width="11" height="8"/>
+    <rect class="g25" x="05" y="03" width="9" height="7"/>
+    <rect class="blk" x="15" y="03" height="8" width="1"/>
+    <rect class="blk" x="06" y="04" width="8" height="6"/>
+    <rect class="grd" x="07" y="05" width="6" height="4"/>
+    <rect class="grl" x="08" y="05" width="1" height="1"/>
+    <rect class="grl" x="10" y="05" width="1" height="1"/>
+    <rect class="grl" x="07" y="06" width="1" height="1"/>
+    <rect class="grl" x="09" y="06" width="1" height="1"/>
+    <rect class="grl" x="08" y="07" width="1" height="1"/>
+    <rect class="grl" x="10" y="07" width="1" height="1"/>
+    <rect class="blk" x="05" y="11" height="1" width="10"/>
+    <rect class="blk" x="07" y="12" width="1" height="1"/>
+    <rect class="g25" x="08" y="12" width="4" height="1"/>
+    <rect class="blk" x="12" y="12" width="1" height="1"/>
+    <rect class="g25" x="03" y="13" width="13" height="1"/>
+    <rect class="g75" x="04" y="13" width="1" height="1"/>
+    <rect class="g75" x="06" y="13" width="1" height="1"/>
+    <rect class="g75" x="08" y="13" width="1" height="1"/>
+    <rect class="g75" x="10" y="13" width="1" height="1"/>
+    <rect class="g75" x="12" y="13" width="1" height="1"/>
+    <rect class="g75" x="14" y="13" width="1" height="1"/>
+    <rect class="blk" x="16" y="13" width="1" height="1"/>
+    <rect class="g25" x="02" y="14" width="15" height="1"/>
+    <rect class="blk" x="17" y="14" width="1" height="1"/>
+    <rect class="blk" x="02" y="15" width="16" height="1"/>
+  </g>
+  <g id="g1754" style="display:inline">
+    <g class="scanlines">
+      <path d="m 21.632883,3.3333123 c 0,0.2613338 0.07467,0.4666675 0.186667,0.4666675 h 1.418669 c 0.112,0 0.186667,-0.2053337 0.186667,-0.4666675 c 0,-0.2613338 -0.07467,-0.4666675 -0.186667,-0.4666675 h -1.418669 c -0.112,0 -0.186667,0.2053337 -0.186667,0.4666675 z m 5.37601,0 c 0,0.2613338 0.07467,0.4666675 0.186667,0.4666675 h 1.418669 c 0.112,0 0.186667,-0.2053337 0.186667,-0.4666675 c 0,-0.2613338 -0.07467,-0.4666675 -0.186667,-0.4666675 h -1.418669 c -0.112001,0 -0.186667,0.2053337 -0.186667,0.4666675 z m -5.37601,1.86667 c 0,0.2613338 0.07467,0.4666675 0.186667,0.4666675 h 1.418669 c 0.112,0 0.186667,-0.2053337 0.186667,-0.4666675 c 0,-0.2613338 -0.07467,-0.4666675 -0.186667,-0.4666675 h -1.418669 c -0.112,0 -0.186667,0.2053337 -0.186667,0.4666675 z m 5.37601,0 c 0,0.2613338 0.07467,0.4666675 0.186667,0.4666675 h 1.418669 c 0.112,0 0.186667,-0.2053337 0.186667,-0.4666675 c 0,-0.2613338 -0.07467,-0.4666675 -0.186667,-0.4666675 h -1.418669 c -0.112001,0 -0.186667,0.2053337 -0.186667,0.4666675 z m -4.480009,1.86667 c 0,0.2613339 0.07467,0.4666676 0.186667,0.4666676 h 1.41867 c 0.112,0 0.186667,-0.2053337 0.186667,-0.4666676 c 0,-0.2613338 -0.07467,-0.4666675 -0.186667,-0.4666675 h -1.41867 c -0.112,0 -0.186667,0.2053337 -0.186667,0.4666675 z m 3.584007,0 c 0,0.2613339 0.07467,0.4666676 0.186667,0.4666676 h 1.418669 c 0.112,0 0.186667,-0.2053337 0.186667,-0.4666676 c 0,-0.2613338 -0.07467,-0.4666675 -0.186667,-0.4666675 h -1.418669 c -0.112,0 -0.186667,0.2053337 -0.186667,0.4666675 z m -3.584007,1.8666701 c 0,0.2613338 0.07467,0.4666675 0.186667,0.4666675 h 1.41867 c 0.112,0 0.186667,-0.2053337 0.186667,-0.4666675 c 0,-0.2613338 -0.07467,-0.4666675 -0.186667,-0.4666675 h -1.41867 c -0.112,0 -0.186667,0.2053337 -0.186667,0.4666675 z m 3.584007,0 c 0,0.2613338 0.07467,0.4666675 0.186667,0.4666675 h 1.418669 c 0.112,0 0.186667,-0.2053337 0.186667,-0.4666675 c 0,-0.2613338 -0.07467,-0.4666675 -0.186667,-0.4666675 h -1.418669 c -0.112,0 -0.186667,0.2053337 -0.186667,0.4666675 z m -2.688005,1.8666696 c 0,0.261334 0.07467,0.466668 0.186667,0.466668 h 3.210673 c 0.112,0 0.186667,-0.205334 0.186667,-0.466668 c 0,-0.261333 -0.07467,-0.466667 -0.186667,-0.466667 h -3.210673 c -0.112,0 -0.186667,0.205334 -0.186667,0.466667 z m 0,1.86667 c 0,0.261334 0.07467,0.466668 0.186667,0.466668 h 3.210673 c 0.112,0 0.186667,-0.205334 0.186667,-0.466668 c 0,-0.261333 -0.07467,-0.466667 -0.186667,-0.466667 h -3.210673 c -0.112,0 -0.186667,0.205334 -0.186667,0.466667 z m 0.896002,1.86667 c 0,0.261334 0.07467,0.466668 0.186667,0.466668 h 1.418669 c 0.112,0 0.186667,-0.205334 0.186667,-0.466668 c 0,-0.261333 -0.07467,-0.466667 -0.186667,-0.466667 h -1.418669 c -0.112,0 -0.186667,0.205334 -0.186667,0.466667 z" id="path1765"/>
+      <path d="m 30.342891,3.3333123 c 0,0.2613338 0.07467,0.4666675 0.186667,0.4666675 h 6.794678 c 0.112001,0 0.186667,-0.2053337 0.186667,-0.4666675 c 0,-0.2613338 -0.07467,-0.4666675 -0.186667,-0.4666675 h -6.794678 c -0.112001,0 -0.186667,0.2053337 -0.186667,0.4666675 z m 2.688004,1.86667 c 0,0.2613338 0.07467,0.4666675 0.186667,0.4666675 h 1.41867 c 0.112,0 0.186667,-0.2053337 0.186667,-0.4666675 c 0,-0.2613338 -0.07467,-0.4666675 -0.186667,-0.4666675 h -1.41867 c -0.112,0 -0.186667,0.2053337 -0.186667,0.4666675 z m 0,1.86667 c 0,0.2613339 0.07467,0.4666676 0.186667,0.4666676 h 1.41867 c 0.112,0 0.186667,-0.2053337 0.186667,-0.4666676 c 0,-0.2613338 -0.07467,-0.4666675 -0.186667,-0.4666675 h -1.41867 c -0.112,0 -0.186667,0.2053337 -0.186667,0.4666675 z m 0,1.8666701 c 0,0.2613338 0.07467,0.4666675 0.186667,0.4666675 h 1.41867 c 0.112,0 0.186667,-0.2053337 0.186667,-0.4666675 c 0,-0.2613338 -0.07467,-0.4666675 -0.186667,-0.4666675 h -1.41867 c -0.112,0 -0.186667,0.2053337 -0.186667,0.4666675 z m 0,1.8666696 c 0,0.261334 0.07467,0.466668 0.186667,0.466668 h 1.41867 c 0.112,0 0.186667,-0.205334 0.186667,-0.466668 c 0,-0.261333 -0.07467,-0.466667 -0.186667,-0.466667 h -1.41867 c -0.112,0 -0.186667,0.205334 -0.186667,0.466667 z m 0,1.86667 c 0,0.261334 0.07467,0.466668 0.186667,0.466668 h 1.41867 c 0.112,0 0.186667,-0.205334 0.186667,-0.466668 c 0,-0.261333 -0.07467,-0.466667 -0.186667,-0.466667 h -1.41867 c -0.112,0 -0.186667,0.205334 -0.186667,0.466667 z m 0,1.86667 c 0,0.261334 0.07467,0.466668 0.186667,0.466668 h 1.41867 c 0.112,0 0.186667,-0.205334 0.186667,-0.466668 c 0,-0.261333 -0.07467,-0.466667 -0.186667,-0.466667 h -1.41867 c -0.112,0 -0.186667,0.205334 -0.186667,0.466667 z" id="path1767"/>
+      <path d="m 40.490903,3.3333123 c 0,0.2613338 0.07467,0.4666675 0.186667,0.4666675 h 1.418669 c 0.112,0 0.186667,-0.2053337 0.186667,-0.4666675 c 0,-0.2613338 -0.07467,-0.4666675 -0.186667,-0.4666675 h -1.418669 c -0.112,0 -0.186667,0.2053337 -0.186667,0.4666675 z m -0.896002,1.86667 c 0,0.2613338 0.07467,0.4666675 0.186667,0.4666675 h 2.314671 c 0.112,0 0.186667,-0.2053337 0.186667,-0.4666675 c 0,-0.2613338 -0.07467,-0.4666675 -0.186667,-0.4666675 h -2.314671 c -0.112,0 -0.186667,0.2053337 -0.186667,0.4666675 z m -0.896001,1.86667 c 0,0.2613339 0.07467,0.4666676 0.186667,0.4666676 h 3.210672 c 0.112,0 0.186667,-0.2053337 0.186667,-0.4666676 c 0,-0.2613338 -0.07467,-0.4666675 -0.186667,-0.4666675 h -3.210672 c -0.112,0 -0.186667,0.2053337 -0.186667,0.4666675 z m 1.792003,1.8666701 c 0,0.2613338 0.07467,0.4666675 0.186667,0.4666675 h 1.418669 c 0.112,0 0.186667,-0.2053337 0.186667,-0.4666675 c 0,-0.2613338 -0.07467,-0.4666675 -0.186667,-0.4666675 h -1.418669 c -0.112,0 -0.186667,0.2053337 -0.186667,0.4666675 z m 0,1.8666696 c 0,0.261334 0.07467,0.466668 0.186667,0.466668 h 1.418669 c 0.112,0 0.186667,-0.205334 0.186667,-0.466668 c 0,-0.261333 -0.07467,-0.466667 -0.186667,-0.466667 h -1.418669 c -0.112,0 -0.186667,0.205334 -0.186667,0.466667 z m 0,1.86667 c 0,0.261334 0.07467,0.466668 0.186667,0.466668 h 1.418669 c 0.112,0 0.186667,-0.205334 0.186667,-0.466668 c 0,-0.261333 -0.07467,-0.466667 -0.186667,-0.466667 h -1.418669 c -0.112,0 -0.186667,0.205334 -0.186667,0.466667 z m -1.792003,1.86667 c 0,0.261334 0.07467,0.466668 0.186667,0.466668 h 5.002676 c 0.112,0 0.186667,-0.205334 0.186667,-0.466668 c 0,-0.261333 -0.07467,-0.466667 -0.186667,-0.466667 h -5.002676 c -0.112,0 -0.186667,0.205334 -0.186667,0.466667 z" id="path1769"/>
+      <path class="scanlines" d="m 47.80491,3.3333123 c 0,0.2613338 0.07467,0.4666675 0.186667,0.4666675 h 3.210673 c 0.112,0 0.186667,-0.2053337 0.186667,-0.4666675 c 0,-0.2613338 -0.07467,-0.4666675 -0.186667,-0.4666675 h -3.210673 c -0.112,0 -0.186667,0.2053337 -0.186667,0.4666675 z m -0.896002,1.86667 c 0,0.2613338 0.07467,0.4666675 0.186667,0.4666675 h 1.41867 c 0.112,0 0.186667,-0.2053337 0.186667,-0.4666675 c 0,-0.2613338 -0.07467,-0.4666675 -0.186667,-0.4666675 h -1.41867 c -0.112,0 -0.186667,0.2053337 -0.186667,0.4666675 z m 3.584007,0 c 0,0.2613338 0.07467,0.4666675 0.186667,0.4666675 h 1.418669 c 0.112,0 0.186667,-0.2053337 0.186667,-0.4666675 c 0,-0.2613338 -0.07467,-0.4666675 -0.186667,-0.4666675 h -1.418669 c -0.112,0 -0.186667,0.2053337 -0.186667,0.4666675 z m -4.480008,1.86667 c 0,0.2613339 0.07467,0.4666676 0.186667,0.4666676 h 1.418669 c 0.112,0 0.186667,-0.2053337 0.186667,-0.4666676 c 0,-0.2613338 -0.07467,-0.4666675 -0.186667,-0.4666675 h -1.418669 c -0.112,0 -0.186667,0.2053337 -0.186667,0.4666675 z m 5.37601,0 c 0,0.2613339 0.07467,0.4666676 0.186667,0.4666676 h 1.418669 c 0.112,0 0.186667,-0.2053337 0.186667,-0.4666676 c 0,-0.2613338 -0.07467,-0.4666675 -0.186667,-0.4666675 h -1.418669 c -0.112001,0 -0.186667,0.2053337 -0.186667,0.4666675 z m -5.37601,1.8666701 c 0,0.2613338 0.07467,0.4666675 0.186667,0.4666675 h 1.418669 c 0.112,0 0.186667,-0.2053337 0.186667,-0.4666675 c 0,-0.2613338 -0.07467,-0.4666675 -0.186667,-0.4666675 h -1.418669 c -0.112,0 -0.186667,0.2053337 -0.186667,0.4666675 z m 5.37601,0 c 0,0.2613338 0.07467,0.4666675 0.186667,0.4666675 h 1.418669 c 0.112,0 0.186667,-0.2053337 0.186667,-0.4666675 c 0,-0.2613338 -0.07467,-0.4666675 -0.186667,-0.4666675 h -1.418669 c -0.112001,0 -0.186667,0.2053337 -0.186667,0.4666675 z m -5.37601,1.8666696 c 0,0.261334 0.07467,0.466668 0.186667,0.466668 h 1.418669 c 0.112,0 0.186667,-0.205334 0.186667,-0.466668 c 0,-0.261333 -0.07467,-0.466667 -0.186667,-0.466667 h -1.418669 c -0.112,0 -0.186667,0.205334 -0.186667,0.466667 z m 5.37601,0 c 0,0.261334 0.07467,0.466668 0.186667,0.466668 h 1.418669 c 0.112,0 0.186667,-0.205334 0.186667,-0.466668 c 0,-0.261333 -0.07467,-0.466667 -0.186667,-0.466667 h -1.418669 c -0.112001,0 -0.186667,0.205334 -0.186667,0.466667 z m -4.480009,1.86667 c 0,0.261334 0.07467,0.466668 0.186667,0.466668 h 1.41867 c 0.112,0 0.186667,-0.205334 0.186667,-0.466668 c 0,-0.261333 -0.07467,-0.466667 -0.186667,-0.466667 h -1.41867 c -0.112,0 -0.186667,0.205334 -0.186667,0.466667 z m 3.584007,0 c 0,0.261334 0.07467,0.466668 0.186667,0.466668 h 1.418669 c 0.112,0 0.186667,-0.205334 0.186667,-0.466668 c 0,-0.261333 -0.07467,-0.466667 -0.186667,-0.466667 h -1.418669 c -0.112,0 -0.186667,0.205334 -0.186667,0.466667 z m -2.688005,1.86667 c 0,0.261334 0.07467,0.466668 0.186667,0.466668 h 3.210673 c 0.112,0 0.186667,-0.205334 0.186667,-0.466668 c 0,-0.261333 -0.07467,-0.466667 -0.186667,-0.466667 h -3.210673 c -0.112,0 -0.186667,0.205334 -0.186667,0.466667 z" id="path1771"/>
+      <path class="scanlines" d="m 56.514917,3.3333123 c 0,0.2613338 0.07467,0.4666675 0.186667,0.4666675 h 3.210672 c 0.112,0 0.186667,-0.2053337 0.186667,-0.4666675 c 0,-0.2613338 -0.07467,-0.4666675 -0.186667,-0.4666675 h -3.210672 c -0.112,0 -0.186667,0.2053337 -0.186667,0.4666675 z m -0.896002,1.86667 c 0,0.2613338 0.07467,0.4666675 0.186667,0.4666675 h 1.418669 c 0.112001,0 0.186667,-0.2053337 0.186667,-0.4666675 c 0,-0.2613338 -0.07467,-0.4666675 -0.186667,-0.4666675 h -1.418669 c -0.112,0 -0.186667,0.2053337 -0.186667,0.4666675 z m 3.584007,0 c 0,0.2613338 0.07467,0.4666675 0.186667,0.4666675 h 1.418669 c 0.112,0 0.186667,-0.2053337 0.186667,-0.4666675 c 0,-0.2613338 -0.07467,-0.4666675 -0.186667,-0.4666675 h -1.418669 c -0.112001,0 -0.186667,0.2053337 -0.186667,0.4666675 z m -4.480008,1.86667 c 0,0.2613339 0.07467,0.4666676 0.186667,0.4666676 h 1.418669 c 0.112,0 0.186667,-0.2053337 0.186667,-0.4666676 c 0,-0.2613338 -0.07467,-0.4666675 -0.186667,-0.4666675 h -1.418669 c -0.112001,0 -0.186667,0.2053337 -0.186667,0.4666675 z m 5.376009,0 c 0,0.2613339 0.07467,0.4666676 0.186667,0.4666676 h 1.418669 c 0.112001,0 0.186667,-0.2053337 0.186667,-0.4666676 c 0,-0.2613338 -0.07467,-0.4666675 -0.186667,-0.4666675 h -1.418669 c -0.112,0 -0.186667,0.2053337 -0.186667,0.4666675 z m -5.376009,1.8666701 c 0,0.2613338 0.07467,0.4666675 0.186667,0.4666675 h 1.418669 c 0.112,0 0.186667,-0.2053337 0.186667,-0.4666675 c 0,-0.2613338 -0.07467,-0.4666675 -0.186667,-0.4666675 h -1.418669 c -0.112001,0 -0.186667,0.2053337 -0.186667,0.4666675 z m 5.376009,0 c 0,0.2613338 0.07467,0.4666675 0.186667,0.4666675 h 1.418669 c 0.112001,0 0.186667,-0.2053337 0.186667,-0.4666675 c 0,-0.2613338 -0.07467,-0.4666675 -0.186667,-0.4666675 h -1.418669 c -0.112,0 -0.186667,0.2053337 -0.186667,0.4666675 z m -5.376009,1.8666696 c 0,0.261334 0.07467,0.466668 0.186667,0.466668 h 1.418669 c 0.112,0 0.186667,-0.205334 0.186667,-0.466668 c 0,-0.261333 -0.07467,-0.466667 -0.186667,-0.466667 h -1.418669 c -0.112001,0 -0.186667,0.205334 -0.186667,0.466667 z m 5.376009,0 c 0,0.261334 0.07467,0.466668 0.186667,0.466668 h 1.418669 c 0.112001,0 0.186667,-0.205334 0.186667,-0.466668 c 0,-0.261333 -0.07467,-0.466667 -0.186667,-0.466667 h -1.418669 c -0.112,0 -0.186667,0.205334 -0.186667,0.466667 z m -4.480008,1.86667 c 0,0.261334 0.07467,0.466668 0.186667,0.466668 h 1.418669 c 0.112001,0 0.186667,-0.205334 0.186667,-0.466668 c 0,-0.261333 -0.07467,-0.466667 -0.186667,-0.466667 h -1.418669 c -0.112,0 -0.186667,0.205334 -0.186667,0.466667 z m 3.584007,0 c 0,0.261334 0.07467,0.466668 0.186667,0.466668 h 1.418669 c 0.112,0 0.186667,-0.205334 0.186667,-0.466668 c 0,-0.261333 -0.07467,-0.466667 -0.186667,-0.466667 h -1.418669 c -0.112001,0 -0.186667,0.205334 -0.186667,0.466667 z m -2.688005,1.86667 c 0,0.261334 0.07467,0.466668 0.186667,0.466668 h 3.210672 c 0.112,0 0.186667,-0.205334 0.186667,-0.466668 c 0,-0.261333 -0.07467,-0.466667 -0.186667,-0.466667 h -3.210672 c -0.112,0 -0.186667,0.205334 -0.186667,0.466667 z" id="path1773"/>
+    </g>
+    <g class="dotnet">
+      <path d="m 65.076956,12.647997 q 0.466667,0 0.784001,0.336 q 0.336001,0.336001 0.336001,0.802669 q 0,0.504 -0.354668,0.858668 q -0.354667,0.354667 -0.858668,0.354667 q -0.448001,0 -0.802668,-0.298667 q -0.336001,-0.298667 -0.336001,-0.746668 q 0,-0.541335 0.354668,-0.914669 q 0.354667,-0.392 0.877335,-0.392 z" id="path1756"/>
+      <path d="m 68.362297,13.394665 l 1.661336,-4.6480086 q 0.112,-0.2240004 0.09333,-0.5040009 q -0.01867,-0.2800005 -0.224001,-0.2800005 q -0.410667,0 -0.933335,0.4293341 q -0.504001,0.4106674 -0.578668,0.4106674 q -0.205333,0 -0.205333,-0.3920007 q 0,-0.3920007 0.858668,-1.1013353 q 0.858668,-0.7093346 1.680003,-0.7093346 q 1.064002,0 0.634668,1.86667 q -0.01867,0.093333 0.056,0.1306669 q 0.07467,0.037333 0.149334,-0.018667 q 1.997336,-1.9786702 3.714673,-1.9786702 q 0.634668,0 0.765335,0.7840014 q 0.149333,0.7653347 -0.168001,1.6426696 l -1.437336,4.1253411 q -0.112,0.317334 0.149334,0.317334 q 0.392001,0 0.914668,-0.448001 q 0.522668,-0.448001 0.616001,-0.448001 q 0.130667,0 0.130667,0.242667 q 0,0.522668 -0.952001,1.306669 q -0.952002,0.765335 -1.75467,0.765335 q -0.821335,0 -0.821335,-0.765335 q 0,-0.28 0.112,-0.578668 l 1.493336,-4.2560073 q 0.597335,-1.6426696 -0.01867,-1.6426696 q -0.840001,0 -1.848003,1.1573354 q -1.008002,1.1573354 -1.773336,2.6133385 q -0.746668,1.437335 -1.269336,2.893338 q -0.186667,0.560001 -0.448001,0.578668 q -0.224,0.01867 -0.560001,-0.186667 q -0.317334,-0.186667 -0.317334,-0.280001 q 0,-0.224 0.280001,-1.026668 z" id="path1758"/>
+      <path d="m 79.487639,10.071992 q 0,0.130667 0.112,0.130667 q 1.026669,0 1.829337,-0.8026681 q 0.821335,-0.8213348 0.821335,-1.6053362 q 0,-0.4480008 -0.672001,-0.4480008 q -0.448001,0 -1.269336,1.0266685 q -0.821335,1.0080018 -0.821335,1.6986696 z m 2.370671,-3.4720061 q 1.792003,0 1.792003,1.4373359 q 0,1.0453352 -1.512002,1.9600035 q -1.493336,0.8960017 -2.725339,0.8960017 q -0.130667,0 -0.224,0.317334 q -0.09333,0.298667 -0.09333,0.616001 q 0,0.728001 0.280001,1.250669 q 0.28,0.522668 0.858668,0.522668 q 0.373334,0 0.802668,-0.205334 q 0.429334,-0.224001 0.728002,-0.448001 q 0.298667,-0.224 0.354667,-0.224 q 0.261334,0 0.261334,0.448 q 0,0.429335 -0.989335,1.064002 q -0.989336,0.616001 -1.978671,0.616001 q -0.914668,0 -1.437336,-0.821334 q -0.522667,-0.821335 -0.522667,-1.885337 q 0,-2.053337 1.400002,-3.7893403 q 1.400003,-1.7546698 3.005339,-1.7546698 z" id="path1760"/>
+      <path d="m 87.663666,4.9759829 q 0.317334,0 0.317334,0.4666675 q 0,0.4480009 -0.280001,1.5306695 h 1.885337 q 0.485334,0 0.485334,0.2800005 q 0,0.186667 -0.298667,0.4853342 q -0.280001,0.2800005 -0.560001,0.2800005 h -1.736003 l -1.362669,5.1333429 q -0.07467,0.317334 0.149333,0.317334 q 0.392001,0 0.914668,-0.448001 q 0.522668,-0.448001 0.616002,-0.448001 q 0.130666,0 0.130666,0.242667 q 0,0.522668 -0.914668,1.306669 q -0.896001,0.765335 -1.69867,0.765335 q -0.821334,0 -0.821334,-0.765335 q 0,-0.130667 0.112,-0.578668 l 1.456002,-5.5253429 h -0.877334 q -0.429335,0 -0.429335,-0.2613338 q 0,-0.2426671 0.242668,-0.5040009 q 0.261333,-0.2800005 0.541334,-0.2800005 h 0.746668 l 0.261334,-1.0453352 q 0.03733,-0.2240005 0.373334,-0.5786678 q 0.354667,-0.373334 0.746668,-0.373334 z" id="path1762"/>
+    </g>
+  </g>
+</svg></a></li>
+<li><a href="./" title="Emulation">Emulation</a></li>
+</ol>
+</nav>
+</header>
+
+<h1>A parser for DEC’s ANSI-compatible video terminals</h1>
+<h2 id="DESIGN">Design Aims</h2>
+<p>This document presents a state machine for a parser for escape and control sequences, suitable
+for use in a VT emulator. It is claimed to have two important properties:</p>
+<ul>
+<li><p><strong>Completeness</strong> – it specifies the actions and transitions for every incoming
+character for every state of the parser. In particular, it covers the behaviour of the C0 controls (0/0
+to 1/15) and characters 10/0 to 15/15 for every state.</p>
+<p><em>Completeness</em> does not mean that this state diagram contains all the information you need
+to write a terminal emulator! There are no details here of the mapping of character sets or of cursor
+movement behaviour, to name just two examples. However, it does specify how every incoming character affects the parser’s
+state.</p></li>
+<li><p><strong>Correctness</strong> – if you were to feed this parser a stream of characters that
+is random or deliberately <em>pathological</em>, it is claimed that this parser will exhibit the same
+visible behaviour as any one of DEC’s 8-bit ANSI-compatible terminals, from VT220 to VT525. A VT100-series parser would be
+simpler still, as the VT100 only supports 7-bit characters.</p></li>
+</ul>
+<p>During the discussion of this design, I will mention some real terminal emulators by name. This is for
+comparative purposes only and no criticism is intended of decisions made by the authors or maintainers of
+the applications referred to. After all, I am not presenting a product to the world, merely an <em>ideal
+software model</em> and I am free to ignore efficiency!</p>
+<p>In this document, “VT500” is used as shorthand for the VT500 series of terminals, the VT510, VT520 and VT525.</p>
+<h3>Why <em>DEC-compatible</em>, not just <em>ANSI-compatible</em>?</h3>
+<p>All of DEC’s terminals from the VT100 onward are compatible with ANSI X3.64-1979, “Additional Controls for Use with American National
+Standard Code for Information Interchange”, hereafter referred to just as X3.64.
+However, X3.64 defines many implementation-dependent features and error conditions <em>without defining recovery procedures</em>. A sample of these is
+given below; a more detailed treatment appears later.</p>
+<ul>
+<li><p>Occurrences of characters 00-1F or 7F-FF in an escape sequence or control sequence is an error condition whose
+recovery is not specified.</p></li>
+<li><p>For control sequences, the maximum length of parameter string is defined by implementation.</p></li>
+<li><p>For control sequences, occurrences of a parameter character after an intermediate character is an error
+condition.</p></li>
+</ul>
+<p>A terminal is a closed
+box that doesn’t normally report errors in its input stream to the host, so it must define a recovery
+procedure for all the circumstances left undefined by X3.64. DEC defined the recoveries for their
+terminals, so emulators should match these exactly<a href="#FOOTMATCH">¹</a>.</p>
+<h2 id="DIAGRAM">The State Diagram</h2>
+
+<svg xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd" xmlns="http://www.w3.org/2000/svg" xmlns:svg="http://www.w3.org/2000/svg" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:cc="http://creativecommons.org/ns#" xmlns:dc="http://purl.org/dc/elements/1.1/" id="svg1" version="1.1" viewBox="60 0 1400 1030" font-family="Helvetica" sodipodi:docname="20230121_extracted_ansi_diagram_resaved.svg" inkscape:version="1.2.1 (9c6d41e410, 2022-07-14)">
+  <title id="title2">VT500-Series Parser</title>
+  <metadata id="metadata4">
+    <rdf:RDF>
+      <cc:Work rdf:about="">
+        <dc:format>image/svg+xml</dc:format>
+        <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
+        <dc:title>VT500-Series Parser</dc:title>
+        <dc:creator>
+          <cc:Agent>
+            <dc:title>Paul Flo Williams &lt;paul@frixxon.co.uk&gt;</dc:title>
+          </cc:Agent>
+        </dc:creator>
+        <dc:rights>
+          <cc:Agent>
+            <dc:title/>
+          </cc:Agent>
+        </dc:rights>
+        <dc:source>http://vt100.net/emu/dec_ansi_parser</dc:source>
+        <dc:language>en</dc:language>
+        <cc:license rdf:resource="http://creativecommons.org/licenses/by-nc-sa/3.0/"/>
+      </cc:Work>
+      <cc:License rdf:about="http://creativecommons.org/licenses/by-nc-sa/3.0/">
+        <cc:permits rdf:resource="http://creativecommons.org/ns#Reproduction"/>
+        <cc:permits rdf:resource="http://creativecommons.org/ns#Distribution"/>
+        <cc:requires rdf:resource="http://creativecommons.org/ns#Notice"/>
+        <cc:requires rdf:resource="http://creativecommons.org/ns#Attribution"/>
+        <cc:prohibits rdf:resource="http://creativecommons.org/ns#CommercialUse"/>
+        <cc:permits rdf:resource="http://creativecommons.org/ns#DerivativeWorks"/>
+        <cc:requires rdf:resource="http://creativecommons.org/ns#ShareAlike"/>
+      </cc:License>
+    </rdf:RDF>
+  </metadata>
+  <defs id="defs12">
+    <marker style="overflow:visible;" id="Dot_l" refX="0.0" refY="0.0" orient="auto" inkscape:stockid="Dot_l">
+      <path transform="scale(0.8) translate(7.125493, 1)" style="fill-rule:evenodd;marker-start:none;marker-end:none;stroke:none" d="M -2.5,-1.0 C -2.5,1.7600000 -4.7400000,4.0 -7.5,4.0 C -10.260000,4.0 -12.5,1.7600000 -12.5,-1.0 C -12.5,-3.7600000 -10.260000,-6.0 -7.5,-6.0 C -4.7400000,-6.0 -2.5,-3.7600000 -2.5,-1.0 z " id="path41"/>
+    </marker>
+    <marker style="overflow:visible;" id="Arrow2L" refX="0.0" refY="0.0" orient="auto" inkscape:stockid="Arrow2L">
+      <path transform="scale(1.1) translate(-5,0)" d="M 8.7185878,4.0337352 L -2.2072895,0.016013256 L 8.7185884,-4.0017078 C 6.9730900,-1.6296469 6.9831476,1.6157441 8.7185878,4.0337352 z " style="font-size:12.0;fill-rule:evenodd;stroke:none;stroke-width:0.62500000;stroke-linejoin:round;" id="path2097" sodipodi:nodetypes="cccc"/>
+    </marker>
+    <marker inkscape:stockid="Arrow2Lend" orient="auto" refY="0.0" refX="0.0" id="Arrow2Lend" style="overflow:visible;" inkscape:isstock="true">
+      <path id="path4163" fill="#000000" d="M 8.7185878,4.0337352 L -2.2072895,0.016013256 L 8.7185884,-4.0017078 C 6.9730900,-1.6296469 6.9831476,1.6157441 8.7185878,4.0337352 z " transform="scale(1.1) rotate(180) translate(1,0)"/>
+    </marker>
+  </defs>
+  <sodipodi:namedview id="base" snaptoguides="true" guidetolerance="5mm" showgrid="true" inkscape:zoom="0.8623457" inkscape:cx="625.03935" inkscape:cy="418.0458" inkscape:window-width="2560" inkscape:window-height="1389" inkscape:window-x="0" inkscape:window-y="27" pagecolor="#ffffff" bordercolor="#666666" borderopacity="1.0" inkscape:showpageshadow="2" inkscape:pageopacity="0.0" inkscape:pagecheckerboard="0" inkscape:deskcolor="#d1d1d1" inkscape:window-maximized="1" inkscape:current-layer="svg1"/>
+  <style>
+  .diagbox { fill: white }
+  .interstate { stroke: black; stroke-width: 1pt }
+  .stateboxdup { stroke: black; fill: #ccc; stroke-dasharray: 5,5 }
+    /* markers */
+    #Arrow2L path { fill: black }
+    #Arrow2Lend path { fill: black }
+    #Dot_l path { fill: black }
+    /* end of markers */
+  text { fill: black }
+  .statesep { stroke: black; stroke-width: 1pt }
+  .state rect { fill: #eeee9f; stroke: black; stroke-width: 1pt }
+
+  @media (prefers-color-scheme: dark) {
+    .diagbox { fill: black }
+    .interstate { stroke: white; stroke-width: 1pt }
+    .stateboxdup { stroke: white; fill: #666; stroke-dasharray: 5,5 } /* light: fill=#ccc */
+    /* markers */
+    #Arrow2L path { fill: white }
+    #Arrow2Lend path { fill: white }
+    #Dot_l path { fill: white }
+    /* end of markers */
+    text { fill: white }
+    .statesep { stroke-width: 1pt; stroke: white }
+    .state rect { fill: #066; stroke: white; stroke-width: 1pt } /* light: #eeee9f */
+  }
+  </style>
+  <rect class="diagbox" x="0" y="0" width="1489" height="1150" id="rect15"/>
+  <text id="legend-dcs-entry-to-dcs-inter" font-size="12px" x="1175.797859" y="411.404413"><tspan id="tspan17">20-2F / collect</tspan></text>
+  <text id="legend-dcs-entry-to-dcs-ignore" font-size="12px" x="1127.071297" y="519.615350"><tspan id="tspan20">3A</tspan></text>
+  <text id="legend-dcs-inter-to-dcs-ignore" font-size="12px" x="1302.993172" y="499.365350"><tspan id="tspan23">30-3F</tspan></text>
+  <text id="legend-dcs-param-to-dcs-inter" font-size="12px" x="1259.961922" y="747.427850"><tspan id="tspan26">20-2F / collect</tspan></text>
+  <text id="legend-dcs-param-to-dcs-ignore" font-size="12px" x="1140" y="725"><tspan id="tspan29">3A,3C-3F</tspan></text>
+  <text id="legend-dcs-entry-to-dcs-param" font-size="12px" x="1066.5887" y="642.77313"><tspan id="tspan32">30-39,3B / param</tspan><tspan x="1066.5887" dy="15" id="tspan34">3C-3F / collect</tspan></text>
+  <text id="legend-dcs-entry-to-dcs-pass" font-size="12px" x="972.032234" y="658.201288"><tspan id="tspan37">40-7E</tspan></text>
+  <text id="legend-dcs-param-to-dcs-pass" font-size="12px" x="1208.071297" y="812.607538"><tspan id="tspan40">40-7E</tspan></text>
+  <text id="legend-dcs-inter-to-dcs-pass" font-size="12px" x="1389.055672" y="673.388788"><tspan id="tspan43">40-7E</tspan></text>
+  <text id="legend-escape-to-sos" font-size="12px" x="865.086922" y="307.623163"><tspan id="tspan46">58,5E,5F</tspan></text>
+  <text id="legend-escape-to-escape-inter" font-size="12px" x="632.844734" y="218.396600"><tspan id="tspan49">20-2F / collect</tspan></text>
+  <text id="legend-escape-inter-to-ground" font-size="12px" x="412.625984" y="144.357538"><tspan id="tspan52">30-7E / esc_dispatch</tspan></text>
+  <text id="legend-escape-to-ground" font-size="12px" x="475" y="235"><tspan id="tspan55">30-4F,51-57,59,5A,</tspan><tspan x="475" dy="15" id="tspan57">5C,60-7E / esc_dispatch</tspan></text>
+  <text id="legend-escape-to-csi-entry" font-size="12px" x="691.063484" y="622.763788"><tspan id="tspan60">5B</tspan></text>
+  <text id="legend-csi-entry-to-csi-param" font-size="12px" x="458" y="540"><tspan id="tspan63">30-39,3B / param</tspan><tspan x="458.18848" dy="15" id="tspan65">3C-3F / collect</tspan></text>
+  <text id="legend-csi-entry-to-csi-ignore" font-size="12px" x="514.508797" y="765.779413"><tspan id="tspan68">3A</tspan></text>
+  <text id="legend-cgi-inter-to-csi-ignore" font-size="12px" x="243.665047" y="767.045038"><tspan id="tspan71">30-3F</tspan></text>
+  <text id="legend-csi-entry-to-csi-inter" font-size="12px" x="381.43427" y="887.65723"><tspan id="tspan74">20-2F / collect</tspan></text>
+  <text id="legend-csi-inter-to-ground" font-size="12px" x="75.087791" y="494.86545"><tspan id="tspan77">40-7E / csi_dispatch</tspan></text>
+  <text id="legend-escape-to-osc" font-size="12px" x="795" y="500"><tspan id="tspan80">5D</tspan></text>
+  <text id="legend-escape-to-dcs-entry" font-size="12px" x="898" y="419"><tspan id="tspan83">50</tspan></text>
+  <text id="diagram-title" style="font-weight:bold;font-size:22px" x="600" y="45"><tspan id="tspan86">VT500-Series Parser</tspan></text>
+  <text id="diagram-credits" style="font-size:12px" x="600" y="65"><tspan id="tspan89">Copyright 2002‒2017 Paul Flo Williams</tspan></text>
+  <g id="explain-gr" transform="translate(750,910)">
+    <rect x="0" y="0" width="225" height="110" fill="#eeeeee" opacity="0.5" stroke="black" stroke-width="1pt" id="rect92"/>
+    <text x="5" y="17" font-size="12px" id="text106"><tspan font-weight="bold" id="tspan94">Treatment of codes A0‒FF</tspan><tspan x="5" dy="15" id="tspan96">In all cases shown here, codes</tspan><tspan x="5" dy="15" id="tspan98">A0‒FF (GR area) are treated identically</tspan><tspan x="5" dy="15" id="tspan100">to codes 20‒7F (GL area). This</tspan><tspan x="5" dy="15" id="tspan102">symmetry does not extend to the C0</tspan><tspan x="5" dy="15" id="tspan104">and C1 areas.</tspan></text>
+  </g>
+  <path id="path-start-to-ground" class="interstate" style="fill:none;fill-rule:evenodd;stroke-linecap:butt;stroke-linejoin:miter;marker-start:url(#Arrow2L);marker-end:url(#Dot_l);" d="M 159.44882,114.51324 L 120.31138,76.100571"/>
+  <path id="path-esc-inter-to-ground" class="interstate" style="fill:none;fill-rule:evenodd;stroke-linecap:butt;stroke-linejoin:miter;marker-start:url(#Arrow2L);" d="M 312.37472,148.57730 L 566.76806,152.20114"/>
+  <path id="path-escape-to-sos" class="interstate" style="fill:none;fill-rule:evenodd;stroke-linecap:butt;stroke-linejoin:miter;marker-start:url(#Arrow2L);" d="M 911.75732,201.48532 L 805.21652,379.77809"/>
+  <path id="path-escape-to-escape-inter" class="interstate" style="fill:none;fill-rule:evenodd;stroke-linecap:butt;stroke-linejoin:miter;marker-start:url(#Arrow2L);" d="M 603.73119,194.96242 L 705.92339,380.50285"/>
+  <path id="path-escape-to-dcs-entry" class="interstate" style="fill:none;fill-rule:evenodd;stroke-linecap:butt;stroke-linejoin:miter;marker-start:url(#Arrow2L);" d="M 970.46347,427.61273 L 828.40907,418.91552"/>
+  <path id="path-dcs-entry-to-dcs-inter" class="interstate" style="fill:none;fill-rule:evenodd;stroke-linecap:butt;stroke-linejoin:miter;marker-start:url(#Arrow2L);" d="M 1283.5630,427.61273 L 1122.6646,425.43843"/>
+  <path id="path-dcs-inter-to-dcs-ignore" class="interstate" style="fill:none;fill-rule:evenodd;stroke-linecap:butt;stroke-linejoin:miter;marker-start:url(#Arrow2L);" d="M 1305.3059,553.72225 L 1355.3149,464.57587"/>
+  <path id="path-dcs-entry-to-dcs-ignore" class="interstate" style="fill:none;fill-rule:evenodd;stroke-linecap:butt;stroke-linejoin:miter;marker-start:url(#Arrow2L);" d="M 1174.1231,550.09842 L 1116.1417,463.12634"/>
+  <path id="path-dcs-entry-to-dcs-param" class="interstate" style="fill:none;fill-rule:evenodd;stroke-linecap:butt;stroke-linejoin:miter;marker-start:url(#Arrow2L);" d="M 1063.5961,724.76735 L 1063.2337,464.57586"/>
+  <path id="path-dcs-param-to-dcs-ignore" class="interstate" style="fill:none;fill-rule:evenodd;stroke-linecap:butt;stroke-linejoin:miter;marker-start:url(#Arrow2L);" d="M 1196.5909,638.52003 L 1122.6646,732.73978"/>
+  <path id="path-escape-to-osc" class="interstate" style="fill:none;fill-rule:evenodd;stroke-linecap:butt;stroke-linejoin:miter;marker-start:url(#Arrow2L);" d="M 803.04222,623.29992 L 775.50106,452.97959"/>
+  <path id="path-csi-inter-to-csi-ignore" class="interstate" style="fill:none;fill-rule:evenodd;stroke-linecap:butt;stroke-linejoin:miter;marker-start:url(#Arrow2L);" d="M 337.74159,716.79491 L 240.62276,817.53756"/>
+  <path id="path-csi-entry-to-csi-ignore" class="interstate" style="fill:none;fill-rule:evenodd;stroke-linecap:butt;stroke-linejoin:miter;marker-start:url(#Arrow2L);" d="M 454.42912,714.62060 L 573.89138,835.23219"/>
+  <path id="path-csi-entry-to-csi-param" class="interstate" style="fill:none;fill-rule:evenodd;stroke-linecap:butt;stroke-linejoin:miter;marker-start:url(#Arrow2L);" d="M 431.23657,526.18110 L 605.48095,832.33312"/>
+  <path id="path-csi-entry-to-csi-inter" class="interstate" style="fill:none;fill-rule:evenodd;stroke-linecap:butt;stroke-linejoin:miter;marker-start:url(#Arrow2L);" d="M 261.64101,863.92267 L 568.21760,873.34465"/>
+  <path id="path-csi-inter-to-ground" class="interstate" style="fill:none;fill-rule:evenodd;stroke-linecap:butt;stroke-linejoin:miter;marker-start:url(#Arrow2L);" d="M 222.41975,196.50738 L 152.72140,817.64272"/>
+  <path id="path-escape-to-csi-entry" class="interstate" style="fill:none;fill-rule:evenodd;stroke-linecap:butt;stroke-linejoin:miter;marker-start:url(#Arrow2L);" d="M 685.70881,824.81756 L 734.90765,452.75134"/>
+  <path id="path-dcs-param-to-dcs-inter" class="interstate" style="fill:none;fill-rule:evenodd;stroke-linecap:butt;stroke-linejoin:miter;marker-start:url(#Arrow2L);" d="M 1367.3177,472.22587 C 1364.2428,704.89539 1232.0210,768.44388 1166.4225,768.44388"/>
+  <path id="path-dcs-inter-to-dcs-pass" class="interstate" style="fill:none;fill-rule:evenodd;stroke-linecap:butt;stroke-linejoin:miter;marker-start:url(#Arrow2L);" d="M 1382.6923,853.51687 L 1381.6674,464.02607"/>
+  <path id="path-dcs-param-to-dcs-pass" class="interstate" style="fill:none;fill-rule:evenodd;stroke-linecap:butt;stroke-linejoin:miter;marker-start:url(#Arrow2L);" d="M 1293.5195,863.76664 L 1156.1727,805.34301"/>
+  <path id="path-dcs-entry-to-dcs-pass" class="interstate" style="fill:none;fill-rule:evenodd;stroke-linecap:butt;stroke-linejoin:miter;marker-start:url(#Arrow2L);marker-end:none;" d="M 1291.4695,907.84059 C 1168.4724,964.21426 1043.4254,940.63986 989.10166,864.79161 C 908.12857,737.69461 1027.0258,465.05104 1027.0258,465.05104"/>
+  <path id="path-escape-to-ground" class="interstate" style="fill:none;fill-rule:evenodd;stroke-linecap:butt;stroke-linejoin:miter;marker-start:url(#Arrow2L);" d="M 313.64260,172.93294 C 441.42291,173.61626 568.17826,392.61942 685.70881,393.30274"/>
+  <!-- ground -->
+  <g id="anywhere-to-ground" transform="translate(197,18)">
+    <rect class="stateboxdup" x="0" y="0" width="70" height="35" rx="7" ry="7" id="rect131"/>
+    <text x="35" y="20" font-size="12px" text-anchor="middle" id="text133">anywhere</text>
+  </g>
+  <line class="interstate" x1="232" y1="53" x2="232" y2="118" marker-end="url(#Arrow2Lend)" id="line136"/>
+  <text x="236" y="68" font-size="12px" id="text144"><tspan x="236" dy="0" id="tspan138">18,1A / execute</tspan><tspan x="236" dy="15" id="tspan140">80-8F,91-97,99,9A / execute</tspan><tspan x="236" dy="15" id="tspan142">9C / (no action)</tspan></text>
+  <g id="state-ground" class="state" transform="translate(162,118)">
+    <rect x="0" y="0" width="140" height="70" rx="10" ry="10" id="rect146"/>
+    <text x="70" y="18" text-anchor="middle" font-size="12px" id="text148">ground</text>
+    <line class="statesep" x1="10" y1="24" x2="130" y2="24" id="line150"/>
+    <text x="10" y="35" font-size="8px" id="text156"><tspan x="10" dy="0" id="tspan152">event 00-17,19,1C-1F / execute</tspan><tspan x="10" dy="9" id="tspan154">event 20-7F / print</tspan></text>
+  </g>
+  <!-- escape -->
+  <g id="anywhere-to-escape" transform="translate(723,300)">
+    <rect class="stateboxdup" x="0" y="0" width="70" height="35" ry="7" rx="7" id="rect159"/>
+    <text x="35" y="20" font-size="12px" text-anchor="middle" id="text161">anywhere</text>
+  </g>
+  <line class="interstate" x1="758" y1="335" x2="758" y2="380" marker-end="url(#Arrow2Lend)" id="line164"/>
+  <text x="762" y="350" font-size="12px" id="text168"><tspan id="tspan166">1B</tspan></text>
+  <g id="state-escape" class="state" transform="translate(688,380)">
+    <rect x="0" y="0" width="140" height="70" rx="10" ry="10" id="rect170"/>
+    <text x="70" y="18" text-anchor="middle" font-size="12px" id="text172">escape</text>
+    <line class="statesep" x1="10" y1="24" x2="130" y2="24" id="line174"/>
+    <text x="10" y="35" font-size="8px" id="text182"><tspan x="10" dy="0" id="tspan176">entry / clear</tspan><tspan x="10" dy="9" id="tspan178">event 00-17,19,1C-1F / execute</tspan><tspan x="10" dy="9" id="tspan180">event 7F / ignore</tspan></text>
+  </g>
+  <!-- escape intermediate -->
+  <g id="state-escape-intermediate" class="state" transform="translate(568,115)">
+    <rect x="0" y="0" width="140" height="70" rx="10" ry="10" id="rect185"/>
+    <text x="70" y="18" text-anchor="middle" font-size="12px" id="text187">escape intermediate</text>
+    <line class="statesep" x1="10" y1="24" x2="130" y2="24" id="line189"/>
+    <text x="10" y="35" font-size="8px" id="text197"><tspan x="10" dy="0" id="tspan191">event 00-17,19,1C-1F / execute</tspan><tspan x="10" dy="9" id="tspan193">event 20-2F / collect</tspan><tspan x="10" dy="9" id="tspan195">event 7F / ignore</tspan></text>
+  </g>
+  <!-- csi entry -->
+  <g id="anywhere-to-csi-entry" transform="translate(605,753)">
+    <rect class="stateboxdup" x="0" y="0" width="70" height="35" ry="7" rx="7" id="rect200"/>
+    <text x="35" y="20" font-size="12px" text-anchor="middle" id="text202">anywhere</text>
+  </g>
+  <line class="interstate" x1="640" y1="788" x2="640" y2="833" marker-end="url(#Arrow2Lend)" id="line205"/>
+  <text x="644" y="803" font-size="12px" id="text209"><tspan id="tspan207">9B</tspan></text>
+  <g id="state-csi-entry" class="state" transform="translate(570,833)">
+    <rect x="0" y="0" width="140" height="70" rx="10" ry="10" id="rect211"/>
+    <text x="70" y="18" text-anchor="middle" font-size="12px" id="text213">csi entry</text>
+    <line class="statesep" x1="10" y1="24" x2="130" y2="24" id="line215"/>
+    <text x="10" y="35" font-size="8px" id="text223"><tspan x="10" dy="0" id="tspan217">entry / clear</tspan><tspan x="10" dy="9" id="tspan219">event 00-17,19,1C-1F / execute</tspan><tspan x="10" dy="9" id="tspan221">event 7F / ignore</tspan></text>
+  </g>
+  <path class="interstate" d="M 640,903 L 640,933 C 640,943 630,953 620,953 L 90,953 C 80,953 70,943 70,933 L 70 180 C 70,170 80,160 90,160 L 162,160" fill="none" marker-end="url(#Arrow2Lend)" id="path226"/>
+  <text id="legend-csi-entry-to-ground" x="507" y="943" font-size="12px"><tspan id="tspan228">40-7E / csi_dispatch</tspan></text>
+  <!-- csi param -->
+  <g id="state-csi-param" class="state" transform="translate(308,446)">
+    <rect x="0" y="0" width="140" height="70" rx="10" ry="10" id="rect231"/>
+    <text x="70" y="18" text-anchor="middle" font-size="12px" id="text233">csi param</text>
+    <line class="statesep" x1="10" y1="24" x2="130" y2="24" id="line235"/>
+    <text x="10" y="35" font-size="8px" id="text243"><tspan x="10" dy="0" id="tspan237">event 00-17,19,1C-1F / execute</tspan><tspan x="10" dy="9" id="tspan239">event 30-39,3B / param</tspan><tspan x="10" dy="9" id="tspan241">event 7F / ignore</tspan></text>
+  </g>
+  <line class="interstate" x1="321" y1="446" x2="249" y2="188" marker-end="url(#Arrow2Lend)" id="line246"/>
+  <text id="legend-csi-param-to-ground" style="font-size:12px" x="309.69904" y="375.69104"><tspan id="tspan248">40-7E / csi_dispatch</tspan></text>
+  <line class="interstate" x1="337" y1="518" x2="200" y2="809" marker-end="url(#Arrow2Lend)" id="line251"/>
+  <text id="legend-csi-param-to-csi-inter" style="font-size:12px" x="218.985359" y="589.857538"><tspan id="tspan253">20-2F / collect</tspan></text>
+  <path id="path-csi-param-to-csi-ignore" class="interstate" style="fill:none;fill-rule:evenodd;stroke-linecap:butt;stroke-linejoin:miter;marker-start:url(#Arrow2L);" d="M 372,629 L 372,516"/>
+  <text id="legend-csi-param-to-csi-ignore" style="font-size:12px" x="381.618172" y="590.490350"><tspan id="tspan257">3A,3C-3F</tspan></text>
+  <!-- csi intermediate -->
+  <g id="state-csi-intermediate" class="state" transform="translate(109,819)">
+    <rect x="0" y="0" width="140" height="70" rx="10" ry="10" id="rect260"/>
+    <text x="70" y="18" text-anchor="middle" font-size="12px" id="text262">csi intermediate</text>
+    <line class="statesep" x1="10" y1="24" x2="130" y2="24" id="line264"/>
+    <text x="10" y="35" font-size="8px" id="text272"><tspan x="10" dy="0" id="tspan266">event 00-17,19,1C-1F / execute</tspan><tspan x="10" dy="9" id="tspan268">event 20-2F / collect</tspan><tspan x="10" dy="9" id="tspan270">event 7F / ignore</tspan></text>
+  </g>
+  <!-- csi ignore -->
+  <g id="state-csi-ignore" class="state" transform="translate(310,639)">
+    <rect x="0" y="0" width="140" height="70" rx="10" ry="10" id="rect275"/>
+    <text x="70" y="18" text-anchor="middle" font-size="12px" id="text277">csi ignore</text>
+    <line class="statesep" x1="10" y1="24" x2="130" y2="24" id="line279"/>
+    <text x="10" y="35" font-size="8px" id="text285"><tspan x="10" dy="0" id="tspan281">event 00-17,19,1C-1F / execute</tspan><tspan x="10" dy="9" id="tspan283">event 20-3F,7F / ignore</tspan></text>
+  </g>
+  <path id="path-csi-ignore-to-ground" class="interstate" style="marker-start:url(#Arrow2L)" d="M 380,744 L 380,709"/>
+  <text id="legend-csi-ignore-to-ground" font-size="12px" x="384" y="724"><tspan id="tspan289">40-7E</tspan></text>
+  <g id="csi-ignore-to-ground" transform="translate(345,754)">
+    <rect class="stateboxdup" x="0" y="0" width="70" height="35" ry="7" rx="7" id="rect292"/>
+    <text x="35" y="20" font-size="12px" text-anchor="middle" id="text294">ground</text>
+  </g>
+  <!-- dcs entry -->
+  <g id="anywhere-to-dcs-entry" transform="translate(1015,314)">
+    <rect class="stateboxdup" x="0" y="0" width="70" height="35" ry="7" rx="7" id="rect297"/>
+    <text x="35" y="20" font-size="12px" text-anchor="middle" id="text299">anywhere</text>
+  </g>
+  <line class="interstate" x1="1050" y1="349" x2="1050" y2="394" marker-end="url(#Arrow2Lend)" id="line302"/>
+  <text id="legend-anywhere-to-dcs-entry" style="font-size:12px" x="1054" y="364"><tspan id="tspan304">90</tspan></text>
+  <g id="state-dcs-entry" class="state" transform="translate(980,394)">
+    <rect x="0" y="0" width="140" height="70" rx="10" ry="10" id="rect307"/>
+    <text x="70" y="18" text-anchor="middle" font-size="12px" id="text309">dcs entry</text>
+    <line class="statesep" x1="10" y1="24" x2="130" y2="24" id="line311"/>
+    <text x="10" y="35" font-size="8px" id="text319"><tspan x="10" dy="0" id="tspan313">entry / clear</tspan><tspan x="10" dy="9" id="tspan315">event 00-17,19,1C-1F / ignore</tspan><tspan x="10" dy="9" id="tspan317">event 7F / ignore</tspan></text>
+  </g>
+  <!-- dcs param -->
+  <g id="state-dcs-param" class="state" transform="translate(1023,734)">
+    <rect x="0" y="0" width="140" height="70" rx="10" ry="10" id="rect322"/>
+    <text x="70" y="18" text-anchor="middle" font-size="12px" id="text324">dcs param</text>
+    <line class="statesep" x1="10" y1="24" x2="130" y2="24" id="line326"/>
+    <text x="10" y="35" font-size="8px" id="text334"><tspan x="10" dy="0" id="tspan328">event 00-17,19,1C-1F / ignore</tspan><tspan x="10" dy="9" id="tspan330">event 30-39,3B / param</tspan><tspan x="10" dy="9" id="tspan332">event 7F / ignore</tspan></text>
+  </g>
+  <!-- dcs intermediate -->
+  <g id="state-dcs-intermediate" class="state" transform="translate(1293,393)">
+    <rect x="0" y="0" width="140" height="70" rx="10" ry="10" id="rect337"/>
+    <text x="70" y="18" text-anchor="middle" font-size="12px" id="text339">dcs intermediate</text>
+    <line class="statesep" x1="10" y1="24" x2="130" y2="24" id="line341"/>
+    <text x="10" y="35" font-size="8px" id="text349"><tspan x="10" dy="0" id="tspan343">event 00-17,19,1C-1F / ignore</tspan><tspan x="10" dy="9" id="tspan345">event 20-2F / collect</tspan><tspan x="10" dy="9" id="tspan347">event 7F / ignore</tspan></text>
+  </g>
+  <!-- dcs ignore -->
+  <g id="state-dcs-ignore" class="state" transform="translate(1161,559)">
+    <rect x="0" y="0" width="140" height="70" rx="10" ry="10" id="rect352"/>
+    <text x="70" y="18" font-size="12px" text-anchor="middle" id="text354">dcs ignore</text>
+    <line class="statesep" x1="10" y1="24" x2="130" y2="24" id="line356"/>
+    <text x="10" y="35" font-size="8px" id="text360"><tspan x="10" dy="0" id="tspan358">event 00-17,19,1C-1F,20-7F / ignore</tspan></text>
+  </g>
+  <line class="interstate" x1="1231" y1="629" x2="1231" y2="674" marker-end="url(#Arrow2Lend)" id="line363"/>
+  <text id="legend-dcs-ignore-to-ground" style="font-size:12px" x="1235" y="644"><tspan id="tspan365">9C</tspan></text>
+  <g id="dcs-ignore-to-ground" transform="translate(1196,674)">
+    <rect class="stateboxdup" x="0" y="0" width="70" height="35" ry="7" rx="7" id="rect368"/>
+    <text x="35" y="20" font-size="12px" text-anchor="middle" id="text370">ground</text>
+  </g>
+  <!-- dcs passthrough -->
+  <g id="state-dcs-passthrough" class="state" transform="translate(1300,863)">
+    <rect x="0" y="0" width="140" height="70" rx="10" ry="10" id="rect373"/>
+    <text x="70" y="18" font-size="12px" text-anchor="middle" id="text375">dcs passthrough</text>
+    <line class="statesep" x1="10" y1="24" x2="130" y2="24" id="line377"/>
+    <text x="10" y="35" font-size="8px" id="text387"><tspan x="10" dy="0" id="tspan379">entry / hook</tspan><tspan x="10" dy="9" id="tspan381">event 00-17,19,1C-1F,20-7E / put</tspan><tspan x="10" dy="9" id="tspan383">event 7F / ignore</tspan><tspan x="10" dy="9" id="tspan385">exit / unhook</tspan></text>
+  </g>
+  <line class="interstate" x1="1370" y1="933" x2="1370" y2="978" marker-end="url(#Arrow2Lend)" id="line390"/>
+  <text id="legend-dcs-pass-to-ground" style="font-size:12px;" x="1374" y="948"><tspan id="tspan392">9C</tspan></text>
+  <g id="dcs-pass-to-ground" transform="translate(1335,978)">
+    <rect class="stateboxdup" x="0" y="0" width="70" height="35" ry="7" rx="7" id="rect395"/>
+    <text x="35" y="20" font-size="12px" text-anchor="middle" id="text397">ground</text>
+  </g>
+  <!-- osc string -->
+  <g id="anywhere-to-osc-string" transform="translate(804,552)">
+    <rect class="stateboxdup" x="0" y="0" width="70" height="35" ry="7" rx="7" id="rect400"/>
+    <text x="35" y="20" font-size="12px" text-anchor="middle" id="text402">anywhere</text>
+  </g>
+  <line class="interstate" x1="839" y1="587" x2="839" y2="632" marker-end="url(#Arrow2Lend)" id="line405"/>
+  <text x="843" y="602" font-size="12px" id="text409"><tspan id="tspan407">9D</tspan></text>
+  <g id="state-osc-string" class="state" transform="translate(769,632)">
+    <rect x="0" y="0" width="140" height="70" rx="10" ry="10" id="rect411"/>
+    <line class="statesep" x1="10" y1="24" x2="130" y2="24"/>
+    <text text-anchor="middle" font-size="12px" x="70" y="18" id="text415">osc string</text>
+    <text font-size="8px" text-anchor="start" x="10" y="35" id="text425"><tspan x="10" dy="0" id="tspan417">entry / osc_start</tspan><tspan x="10" dy="9" id="tspan419">event 00-17,19,1C-1F / ignore</tspan><tspan x="10" dy="9" id="tspan421">event 20-7F / osc_put</tspan><tspan x="10" dy="9" id="tspan423">exit / osc_end</tspan></text>
+  </g>
+  <line class="interstate" x1="839" y1="702" x2="839" y2="747" marker-end="url(#Arrow2Lend)" id="line428"/>
+  <text x="843" y="717" font-size="12px" id="text432"><tspan id="tspan430">9C</tspan></text>
+  <g id="osc-to-ground" transform="translate(804,747)">
+    <rect class="stateboxdup" x="0" y="0" width="70" height="35" ry="7" rx="7" id="rect434"/>
+    <text x="35" y="20" font-size="12px" text-anchor="middle" id="text436">ground</text>
+  </g>
+  <!-- sos/pm/apc string -->
+  <g id="anywhere-to-sos" transform="translate(944,42)">
+    <rect class="stateboxdup" x="0" y="0" width="70" height="35" ry="7" rx="7" id="rect439"/>
+    <text x="35" y="20" font-size="12px" text-anchor="middle" id="text441">anywhere</text>
+  </g>
+  <line class="interstate" x1="979" y1="77" x2="979" y2="122" marker-end="url(#Arrow2Lend)" id="line444"/>
+  <text id="legend-anywhere-to-sos" style="font-size:12px;" x="983" y="92"><tspan id="tspan446">98,9E,9F</tspan></text>
+  <g id="state-sos" class="state" transform="translate(909,122)">
+    <rect x="0" y="0" width="140" height="70" rx="10" ry="10" id="rect449"/>
+    <line class="statesep" x1="10" y1="24" x2="130" y2="24"/>
+    <text x="70" y="18" font-size="12px" text-anchor="middle" id="text453">sos/pm/apc string</text>
+    <text x="10" y="35" font-size="8px" id="text457"><tspan id="tspan455">event 00-17,19,1C-1F,20-7F / ignore</tspan></text>
+  </g>
+  <line class="interstate" x1="979" y1="192" x2="979" y2="237" marker-end="url(#Arrow2Lend)" id="line460"/>
+  <text x="983" y="207" font-size="12px" id="text464"><tspan id="tspan462">9C</tspan></text>
+  <g id="sos-to-ground" transform="translate(944,237)">
+    <rect class="stateboxdup" x="0" y="0" width="70" height="35" ry="7" rx="7" id="rect466"/>
+    <text x="35" y="20" font-size="12px" text-anchor="middle" id="text468">ground</text>
+  </g>
+</svg>
+
+<p>The UML State Diagram should be readable to anyone who has seen a picture of a state machine
+before, but here are some notes on reading it.</p>
+<ul>
+<li><p>Rounded boxes are <dfn>states</dfn>. A horizontal line separates the name of the state
+from the event list. The event list contains several event/action pairs, as shown below.</p>
+<p class="example">entry / osc_start<br/>
+event 01-17,19,1C-1F / ignore<br/>
+event 20-7F / osc_put<br/>
+exit / osc_end</p>
+<p>The <em>entry</em> event happens when a state is first entered. The <em>events</em>
+list incoming symbols which cause an action to take place while remaining in that state.
+The action associated with the <em>exit</em> event happens when an incoming symbol
+causes a transition from this state to another state (or even back to the same state). When going
+from one state to another, the actions take place in this order:</p>
+<ol>
+<li><em>exit</em> action from old state</li>
+<li>transition action</li>
+<li><em>entry</em> action to new state</li>
+</ol></li>
+<li><p>States with grey backgrounds are duplicates of a state described more fully
+somewhere else on the diagram. They are present to prevent too many lines crossing. Transitions shown
+with grey lines serve as reminders that certain events cause a change of state from anywhere.</p></li>
+<li><p>All events in this diagram are the hex values of the incoming bytes. Although we are used to presenting
+sequences in the form <code>ESC [ 3 m</code> for readability, using hex values instead of ASCII
+characters emphasises that these sequences are not dependent on the character encoding in use.</p></li>
+<li><p>Section numbers (e.g. §3.5.6) refer to ANSI X3.64.</p></li>
+<li><p>There are no explicit actions shown for incoming codes in the GR area (A0-FF). In all states, these
+codes are treated identically to GL codes 20-7F. This behaviour is suggested in Appendix H of X3.64:</p>
+<blockquote class="xstd">
+<p>In an 8-bit code, the bit
+combinations of columns 10 to 15
+(except 10/0 and 15/15) are permitted
+to represent:</p>
+<ul>
+<li>parameters, intermediates, and
+    finals of a control sequence;</li>
+<li>the contents of a control
+    string;</li>
+<li>the operand of a single-shift
+    character.</li>
+</ul>
+<p>In these situations, the bit
+combinations in the range 10/1 to
+15/14 have the same meanings as the
+corresponding bit combinations in
+the range 2/1 to 7/14.</p>
+</blockquote></li>
+</ul>
+<h2 id="STATES">State Definitions</h2>
+<dl>
+<dt id="STGRO">ground</dt>
+<dd><p>This is the initial state of the parser, and the state used to consume all characters other than components of
+escape and control sequences.</p>
+<p>GL characters (20 to 7F) are printed. I have included 20 (SP) and 7F (DEL) in this area, although both
+codes have special behaviour. If a 94-character set is mapped into GL, 20 will cause a space to be displayed,
+and 7F will be ignored. When a 96-character set is mapped into GL, both 20 and 7F may cause a character
+to be displayed. Later models of the VT220 included the DEC Multinational Character Set (MCS), which has 94
+characters in its supplemental set (i.e. the characters supplied in addition to ASCII), so terminals only
+claiming VT220 compatibility can always ignore 7F. The VT320 introduced ISO Latin-1, which has 96 characters
+in its supplemental set, so emulators with a VT320 compatibility mode need to treat 7F as a printable character.</p></dd>
+<dt id="STESC">escape</dt>
+<dd><p>This state is entered whenever the C0 control ESC is received. This will immediately cancel any
+escape sequence, control sequence or control string in progress. If an escape sequence or control sequence
+was in progress, “cancel” means that the sequence will have no effect, because the final character that
+determines the control function (in conjunction with any intermediates) will not have been received.
+However, the ESC that cancels a control string may occur after the control function has been determined
+and the following string has had some effect on terminal state. For example, some soft characters may already
+have been defined. Cancelling a control string does not undo these effects.</p>
+<p>A control string that started with DCS, OSC, PM or APC is usually terminated by the C1 control ST
+(String Terminator). In a 7-bit environment, ST will be represented by <code>ESC \</code> (1B 5C).
+However, receiving the ESC character will “cancel” the control string, so the ST control function that is
+invoked by the arrival of the following “\” is essentially a “no-op” function. Does this point seem like
+pure trivia? Maybe, but I worried for ages about whether the control string recogniser needed a one character
+lookahead in order to know whether <code>ESC \</code> was going to terminate it. The actual solution
+became clear when I was using ReGIS on a VT330: sending ESC immediately caused the graphics output cursor
+to disappear from the screen, so I knew that the control string had already finished before the “\” arrived.
+Many of the clues that enabled me to derive this state diagram have been as subtle as that.</p></dd>
+<dt id="STESCINT">escape intermediate</dt>
+<dd><p>This state is entered when an intermediate character arrives in an escape sequence. Escape sequences
+have no parameters, so the control function to be invoked is determined by the intermediate and final
+characters. In this parser there is just one <em>escape intermediate</em>, and the parser uses the <a href="#ACCOL"><em>collect</em></a>
+action to remember intermediate characters as they arrive, for processing by the <a href="#ACESCDIS"><em>esc_dispatch</em></a> action
+when the final character arrives. An alternate approach (and the one adopted by <span class="tt">xterm</span>) is to have
+multiple copies of this state and choose the next appropriate one as each intermediate character arrives.
+I think that this alternate approach is merely an optimisation; the approach presented here doesn’t require
+any more states if the repertoire of supported control functions increases.</p>
+<p>This state is only split from the <a href="#STESC"><em>escape</em></a> state because certain escape sequences are the 7-bit
+representations of C1 controls that change the state of the parser. Without these “compatibility sequences”,
+there could just be one escape state to collect intermediates and dispatch the sequence when a final character
+was received.</p></dd>
+<dt id="STCSIENT">csi entry</dt>
+<dd><p>This state is entered when the control function CSI is recognised, in 7-bit or 8-bit form. This state
+will only deal with the
+first character of a control sequence, because the characters 3C-3F can only appear as the first character
+of a control sequence, if they appear at all. Strictly speaking, X3.64 says that the entire string is “subject
+to private or experimental interpretation” if the first character is one of 3C-3F, which allows sequences like <code>CSI ?::&lt;? F</code>, but Digital’s
+terminals only ever used one private-marker character at a time. As far as I am aware, only characters 3D (=), 3E (&gt;) and 3F (?) were
+used by Digital.</p>
+<p>C0 controls are executed immediately during the recognition of a control sequence. C1 controls will cancel
+the sequence and then be executed. I imagine this treatment of C1 controls is prompted by the consideration that the 7-bit (ESC Fe) and
+8-bit representations of C1 controls should act in the same way. When the first character of the 7-bit representation, ESC,
+is received, it will cancel the control sequence, so the 8-bit representation should do so as well.</p></dd>
+<dt id="STCSIPAR">csi param</dt>
+<dd><p>This state is entered when a parameter character is recognised in a control sequence. It then
+recognises other parameter characters until an intermediate or final character appears. Further occurrences
+of the private-marker characters 3C-3F or the character 3A, which has no standardised meaning, will cause
+transition to the <a href="#STCSIIGN"><em>csi ignore</em></a> state.</p></dd>
+<dt id="STCSIINT">csi intermediate</dt>
+<dd><p>This state is entered when an intermediate character is recognised in a control sequence. It then
+recognises other intermediate characters until a final character appears. If any more parameter characters
+appear, this is an error condition which will cause a transition to the <a href="#STCSIIGN"><em>csi ignore</em></a> state.</p>
+<p>Neither X3.64 nor Digital defined any control sequences with more than one intermediate character, although X3.64
+doesn’t place any limit on the possible number.</p></dd>
+<dt id="STCSIIGN">csi ignore</dt>
+<dd><p>This state is used to consume remaining characters of a control sequence that is still being
+recognised, but has already been disregarded as malformed. This state will only exit when a final character
+is recognised, at which point it transitions to <a href="#STGRO"><em>ground</em></a> state without dispatching the control
+function. This state may be entered because:</p>
+<ol>
+<li>a private-marker character 3C-3F is recognised in any place other than the first character of the control sequence,</li>
+<li>the character 3A appears anywhere, or</li>
+<li>a parameter character 30-3F occurs after an intermediate character has been recognised.</li>
+</ol>
+<p>C0 controls will still be executed while a control sequence is being ignored.</p></dd>
+<dt id="STDCSENT">dcs entry</dt>
+<dd><p>This state is entered when the control function DCS is recognised, in 7-bit or 8-bit form. X3.64 doesn’t define
+any structure for device control strings, but Digital made them appear like control sequences followed by a data
+string, with a form and length dependent on the control function. This state is only used to recognise
+the first character of the control string, mirroring the <a href="#STCSIENT"><em>csi entry</em></a> state.</p>
+<p>C0 controls other than CAN, SUB and ESC are <strong>not</strong> executed while recognising the first part of a device control string.</p></dd>
+<dt id="STDCSPAR">dcs param</dt>
+<dd><p>This state is entered when a parameter character is recognised in a device control string. It then
+recognises other parameter characters until an intermediate or final character appears. Occurrences of the
+private-marker characters 3C-3F or the undefined character 3A will cause a transition to the <a href="#STDCSIGN"><em>dcs ignore</em></a>
+state.</p></dd>
+<dt id="STDCSINT">dcs intermediate</dt>
+<dd><p>This state is entered when an intermediate character is recognised in a device control string. It
+then recognises other intermediate characters until a final character appears. If any more parameter
+characters appear, this is an error condition which will cause a transition to the <a href="#STDCSIGN"><em>dcs ignore</em></a> state.</p></dd>
+<dt id="STDCSPAS">dcs passthrough</dt>
+<dd><p>This state is a shortcut for writing state machines for all possible device control strings into the
+main parser. When a final character has been recognised in a device control string, this state will establish
+a channel to a handler for the appropriate control function, and then pass all subsequent characters through
+to this alternate handler, until the data string is terminated (usually by recognising the ST control function).</p>
+<p>This state has an exit action so that the control function handler can be informed when the data string has
+come to an end. This is so that the last soft character in a DECDLD string can be completed when there is no other means
+of knowing that its definition has ended, for example.</p></dd>
+<dt id="STDCSIGN">dcs ignore</dt>
+<dd><p>This state is used to consume remaining characters of a device control string that is still being
+recognised, but has already been disregarded as malformed. This state will only exit when the control function
+ST is recognised, at which point it transitions to <a href="#STGRO"><em>ground</em></a> state. This state may be entered because:</p>
+<ol>
+<li>a private-marker character 3C-3F is recognised in any place other than the first character of the control string,</li>
+<li>the character 3A appears anywhere, or</li>
+<li>a parameter character 30-3F occurs after an intermediate character has been recognised.</li>
+</ol>
+<p>These conditions are only errors in the first part of the control string, until a final character has
+been recognised. The data string that follows is not checked by this parser.</p></dd>
+<dt id="STOSCSTR">osc string</dt>
+<dd><p>This state is entered when the control function OSC (Operating System Command) is recognised.
+On entry it prepares an external parser for OSC strings and passes all printable characters to a handler
+function. C0 controls other than CAN, SUB and ESC are ignored during reception of the control string.</p>
+<p>The only control functions invoked by OSC strings are DECSIN (Set Icon Name) and DECSWT (Set Window Title),
+present on the multisession VT520 and VT525 terminals. Earlier terminals treat OSC in the same way as PM and APC, ignoring the
+entire control string.</p></dd>
+<dt id="STSOS">sos/pm/apc string</dt>
+<dd><p>The VT500 doesn’t define any function for these control strings, so this state ignores all
+received characters until the control function ST is recognised.</p></dd>
+<dt id="STANY">anywhere</dt>
+<dd><p>This isn’t a real state. It is used on the state diagram to show transitions that can occur
+from any state to some other state. These invariant transitions are:</p>
+<ul>
+<li><p>On the VT220, VT420 and VT500, the C0 controls CAN and SUB cancel any escape sequence, control sequence or
+control string in progress and return to ground state. SUB will also display the error character, a reversed
+question mark, “␦”. The programmer’s information for the VT320 says that CAN and SUB “no longer” cancel these
+sequences, so there must have been a rethink when the VT420 was being designed.</p></li>
+<li><p>All C1 controls cancel any escape sequence, control sequence or
+control string in progress and are executed. Control functions special to this parser, i.e. DCS, SOS, CSI, OSC, PM and APC, cause
+a transition to their appropriate states. All other C1 control functions (even those with no defined meaning), cause a
+transition to <a href="#STGRO"><em>ground</em></a> state.</p></li>
+</ul>
+<p>On terminals earlier than the VT500, there would have been one other invariant action: the C0 control NUL
+was ignored on input to the terminal and would not take part in any processing. Its only purpose was as a
+time-fill character. However, the VT500 defines a control function DECNULM (Null Mode), which allows NUL to
+be passed to an attached printer. So in this parser, NUL is treated the same as other C0 controls.</p></dd>
+</dl>
+<h2 id="ACTIONS">Action Definitions</h2>
+<p>An event may cause one of these actions to occur with or without a change of state.</p>
+<dl>
+<dt id="ACIGN">ignore</dt>
+<dd><p>The character or control is not processed. No observable difference in the terminal’s state would
+occur if the character that caused this action was not present in the input stream. (Therefore, this action can only occur within a state.)</p></dd>
+<dt id="ACPRI">print</dt>
+<dd><p>This action only occurs in <a href="#STGRO"><em>ground</em></a> state. The current code should be mapped to a glyph
+according to the character set mappings and shift states in effect, and that glyph should be displayed. 20 (SP) and 7F (DEL) have special
+behaviour in later VT series, as described in <a href="#STGRO"><em>ground</em></a>.</p></dd>
+<dt id="ACEXE">execute</dt>
+<dd><p>The C0 or C1 control function should be executed, which may have any one of a variety of effects,
+including changing the cursor position, suspending or resuming communications or changing the shift states in
+effect. There are no parameters to this action.</p></dd>
+<dt id="ACRES">clear</dt>
+<dd><p>This action causes the current private flag, intermediate characters, final character and parameters to be forgotten. This occurs on entry
+to the <a href="#STESC">escape</a>, <a href="#STCSIENT">csi entry</a> and <a href="#STDCSENT">dcs entry</a> states, so that erroneous sequences
+like <code>CSI 3 ; 1 CSI 2 J</code> are handled correctly.</p></dd>
+<dt id="ACCOL">collect</dt>
+<dd><p>The private marker or intermediate character should be stored for later use in selecting a control
+function to be executed when a final character arrives. X3.64 doesn’t place any limit on the number of
+intermediate characters allowed before a final character, although it doesn’t define any control sequences
+with more than one. Digital defined escape sequences with two intermediate characters, and
+control sequences and device control strings with one. If more than two intermediate characters arrive, the
+parser can just flag this so that the dispatch can be turned into a null operation.</p></dd>
+<dt id="ACPAR">param</dt>
+<dd><p>This action collects the characters of a parameter string for a control sequence or device control sequence
+and builds a list of parameters. The characters processed by this action are the digits 0-9 (codes 30-39) and
+the semicolon (code 3B). The semicolon separates parameters. There is no limit to the number of characters
+in a parameter string, although a maximum of 16 parameters need be stored. If more than 16 parameters arrive,
+all the extra parameters are silently ignored.</p>
+<p>The VT500 Programmer Information is inconsistent regarding the maximum value that a parameter can take. In
+section 4.3.3.2 of EK-VT520-RM it says that “any parameter greater than 9999 (decimal) is set to 9999 (decimal)”.
+However, in the description of DECSR (Secure Reset), its parameter is allowed to range from 0 to 16383. Because individual
+control functions need to make sure that numeric parameters are within specific limits,
+the supported maximum is not critical, but it must be at least 16383.</p>
+<p>Most control functions support default values for their parameters. The default value for a parameter is
+given by either leaving the parameter blank, or specifying a value of zero. Judging by previous threads on the
+newsgroup <a href="news:comp.terminals">comp.terminals</a>, this causes some confusion, with the occasional
+assertion that zero is the default parameter value for control functions. This is not the case: many control
+functions have a default value of 1, one (GSM) has a default value of 100, and some have no default. However,
+in all cases the default value is <em>represented</em> by either zero or a blank value.</p>
+<p>In the standard ECMA-48, which can be considered X3.64’s successor<a href="#FOOTECMA48">²</a>,
+there is a distinction between a parameter with an empty value (representing the default value), and one
+that has the value zero. There used to be a mode, ZDM (Zero Default Mode), in which the two cases were treated identically,
+but that is now deprecated in the fifth edition (1991). Although a VT500 parser needs to treat both empty and zero
+parameters as representing the default, it is worth considering future extensions by distinguishing them internally.</p></dd>
+<dt id="ACESCDIS">esc_dispatch</dt>
+<dd><p>The final character of an escape sequence has arrived, so determined the control function to be executed
+from the intermediate character(s) and final character, and execute it. The intermediate characters are available
+because <a href="#ACCOL"><em>collect</em></a> stored them as they arrived.</p></dd>
+<dt id="ACCSIDIS">csi_dispatch</dt>
+<dd><p>A final character has arrived, so determine the control function to be executed from private marker,
+intermediate character(s) and final character, and execute it, passing in the parameter list. The private marker and intermediate characters are
+available because <a href="#ACCOL"><em>collect</em></a> stored them as they arrived.</p>
+<p>Digital mostly used private markers to extend the parameters of existing X3.64-defined control functions,
+while keeping a similar meaning. A few examples are shown in the table below.</p>
+<table class="major">
+<thead>
+<tr>
+<th>No Private Marker</th>
+<th>With Private Marker</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>SM, Set ANSI Modes</td>
+<td>SM, Set Digital Private Modes</td>
+</tr>
+<tr>
+<td>ED, Erase in Display</td>
+<td>DECSED, Selective Erase in Display</td>
+</tr>
+<tr>
+<td>CPR, Cursor Position Report</td>
+<td>DECXCPR, Extended Cursor Position Report</td>
+</tr>
+</tbody>
+</table>
+<p>In the cases above, <em>csi_dispatch</em> needn’t know about the private marker at all, as long as it is
+passed along to the control function when it is executed. However, the VT500 has a single case where
+the use of a private marker selects an entirely different control function (DECSTBM, Set Top and Bottom
+Margins and DECPCTERM, Enter/Exit PCTerm or Scancode Mode), so this action needs to use the private
+marker in its choice. <span class="tt">xterm</span> takes the same approach for efficiency, even though it doesn’t
+support DECPCTERM.</p>
+<p>The selected control function will have access to the list of parameters, which it will use some or all
+of. If more parameters are supplied than the control function requires, only the earliest parameters will be
+used and the rest will be ignored. If too few parameters are supplied, default values will be used. If the
+control function has no default values, defaulted parameters will be ignored; this may result in the control
+function having no effect. For example, if the SM (Set Mode)
+control function is invoked with the sequence <code>CSI 2;0;5 h</code>, the second parameter will be ignored because
+SM has no default value.</p></dd>
+<dt id="ACHOO">hook</dt>
+<dd><p>This action is invoked when a final character arrives in the first part of a device control string.
+It determines the control function from the private marker, intermediate character(s) and final character,
+and executes it, passing in the parameter list. It also selects a handler function for the rest of the
+characters in the control string. This handler function will be called by the <a href="#ACPUT"><em>put</em></a> action for every
+character in the control string as it arrives.</p>
+<p>This way of handling device control strings has been selected because it allows the simple plugging-in of
+extra parsers as functionality is added. Support for a fairly simple control string like DECDLD (Downline Load) could be
+added into the main parser if soft characters were required, but the main parser is no place for complicated
+protocols like ReGIS.</p></dd>
+<dt id="ACPUT">put</dt>
+<dd><p>This action passes characters from the data string part of a device control string to a handler that
+has previously been selected by the <a href="#ACHOO"><em>hook</em></a> action. C0 controls are also passed to the handler.</p></dd>
+<dt id="ACUNH">unhook</dt>
+<dd><p>When a device control string is terminated by ST, CAN, SUB or ESC, this action calls the previously
+selected handler function with an “end of data” parameter. This allows the handler to finish neatly.</p></dd>
+<dt id="ACOSCSTA">osc_start</dt>
+<dd><p>When the control function OSC (Operating System Command) is recognised, this action initializes an
+external parser (the “OSC Handler”) to handle the characters from the control string. OSC control strings are not structured
+in the same way as device control strings, so there is no choice of parsers.</p></dd>
+<dt id="ACOSCPUT">osc_put</dt>
+<dd><p>This action passes characters from the control string to the OSC Handler as they arrive. There is
+therefore no need to buffer characters until the end of the control string is recognised.</p></dd>
+<dt id="ACOSCEND">osc_end</dt>
+<dd><p>This action is called when the OSC string is terminated by ST, CAN, SUB or ESC, to allow the OSC handler
+to finish neatly.</p></dd>
+</dl>
+<h2 id="GAPS">What X3.64 Doesn’t Say</h2>
+<p>As I said above, X3.64 deliberately leaves some decisions to implementers. It doesn’t define recovery
+from error conditions, and some limits are implementation dependent. The following sections define
+DEC’s method of coping with all of these sections of the standard.</p>
+<ul>
+<li><p><strong>X3.64:</strong> <cite>§2.2.3 Classes of Bit Combinations</cite></p>
+<blockquote class="xstd">
+<p>Example: The format of an Escape sequence
+as defined in ANSI X3.41-1974 and used in
+this standard is:</p>
+<pre>     ESC I...I F</pre>
+<span class="ellipsis">[...]</span>
+<p>(4) <span class="hilite">The occurrence of characters in the
+inclusive ranges of 0/0 to 1/15 and 7/15
+to 15/15 is an error condition whose
+recovery is not specified.</span></p>
+</blockquote>
+<p><strong>DEC:</strong> The C0 controls 00-1F are executed, 7F is ignored, C1 controls 80-9F are executed (cancelling the escape
+sequence) and
+GR codes A0-FF are treated as GL codes 20-7F.</p></li>
+<li><p><strong>X3.64:</strong> <cite>§3.2.1 Software Control Strings</cite></p>
+<blockquote class="xstd">
+<p>The opening delimiters for the
+software strings are:</p>
+<table class="emb">
+<tbody>
+<tr>
+<td style="text-align:center">Name</td>
+<td>Mnemonic</td>
+</tr>
+<tr>
+<td>Operating System Command</td>
+<td>OSC</td>
+</tr>
+<tr>
+<td>Privacy Message</td>
+<td>PM</td>
+</tr>
+<tr>
+<td>Application Program Command</td>
+<td>APC</td>
+</tr>
+</tbody>
+</table>
+<p>The string is terminated by the occurrence
+of a String Terminator (see 3.2.3). <span class="hilite">The
+occurrence of other control characters
+and/or characters from columns 10 to 15
+within such a string are error conditions
+whose recovery is not specified by this
+standard.</span></p>
+</blockquote>
+<p><strong>DEC:</strong> None of Digital’s terminals define any meaning for received Privacy Message or Application
+Program Command strings. C0 controls, GL characters and GR characters are ignored. C1 controls
+will cancel the sequence.</p>
+<p>The VT500 defines two Operating System Commands, DECSIN (Set Icon Name) and DECSWT (Set Window Title).
+C0 controls are ignored in these sequences. C1 controls will cancel the sequence.</p></li>
+<li><p><strong>X3.64:</strong> <cite>§3.2.2 Device Control Strings</cite></p>
+<blockquote class="xstd">
+<p>These strings take
+the form of the introducer character DCS
+followed by one or more bit combinations
+representing the function.  These may be
+characters from columns 2 to 7, excluding
+7/15 (2/0 to 7/14)</p>
+<span class="ellipsis">[...]</span>
+<p><span class="hilite">The occurrence of
+other control characters and/or characters
+from columns 10 to 15 within such a string
+are error conditions whose recovery is not
+specified by this standard.</span></p>
+</blockquote>
+<p><strong>DEC:</strong> On Digital’s terminals, device control strings have structure
+that is not specified by X3.64. The first section of a device control string has the same
+structure as a control sequence, up to what would be the final character of a control
+sequence. At that point, the device function is determined from the intermediate and
+final characters, and the rest of the string has a meaning specific to the selected
+device function. In the first section, C0 controls are ignored. In the second section,
+C0 controls may or may not have a meaning to the device function. If they have no meaning
+for the device function (e.g. when defining soft characters with DECDLD) they will be silently
+ignored. If they have a meaning for the device function (e.g. when in ReGIS mode), they will
+be acted upon.</p></li>
+<li><p><strong>X3.64:</strong> <cite>§3.5 Control Sequence Functions</cite></p>
+<blockquote class="xstd">
+<p>The general form of a control sequence
+function is as follows:</p>
+<pre>    CSI P...P I...I F</pre>
+<span class="ellipsis">[...]</span>
+<p> (2) P...P is called the “parameter
+string.” The minimum length is zero, and
+<span class="hilite">the maximum length is defined by the
+implementation.</span>  However, all bit
+combinations are from 3/0 to 3/15
+inclusive.</p>
+<span class="ellipsis">[...]</span>
+<p> (5) <span class="hilite">The occurrence of bit combinations
+from columns 0 and 1 (0/0 to 1/15), from
+columns 8 to 15 (8/0 to 15/15), or
+position 7/15 in control sequences are
+error conditions whose recovery is not
+specified by this standard.</span></p>
+</blockquote>
+<p><strong>DEC:</strong> There is no limit to the number of characters in the parameter
+string, but a maximum of 16 parameters will be processed. All parameters beyond the 16th will
+be silently ignored. In a control sequence the C0 controls 00-1F are executed, 7F is ignored, C1 controls 80-9F are executed
+(cancelling the control sequence) and
+GR codes A0-FF are treated as GL codes 20-7F.</p></li>
+<li><p><strong>X3.64:</strong> <cite>§3.5.1 Parameter Values</cite></p>
+<blockquote class="xstd">
+<p>The bit combination 3/10 is reserved for
+future standardization.</p>
+</blockquote>
+<p><strong>DEC:</strong> Character 3A (ASCII colon) will cause the control sequence to be ignored,
+though <strong>not</strong> cancelled. All characters up to a valid final character will be collected,
+but then no action will take place.</p></li>
+<li><p><strong>X3.64:</strong> <cite>§3.5.5 Selective Parameters</cite></p>
+<blockquote class="xstd">
+<p>The maximum number of
+parameters in a selective Control Sequence
+is implementation-defined, as is the order
+of performance and the effect of
+conflicting or unusual combinations.</p>
+</blockquote>
+<p><strong>DEC:</strong> There can be a maximum of 16 parameters in
+a control sequence. All parameters beyond the 16th will
+be silently ignored. Parameters are processed from first to last, with
+conflicts simply resolved by allowing later parameters to override the
+effects of earlier ones. This means that the sequence <code>CSI 7;0 m</code>
+will not set the reverse video attribute, because the parameter ‘7’ is cancelled
+by the ‘0’.</p></li>
+<li><p><strong>X3.64:</strong> <cite>§3.5.6 Structure of Control Sequences</cite></p>
+<blockquote class="xstd">
+<p>For both numeric and selective parameters
+the complete control sequence structure
+is:</p>
+<p> CSI P11...P1m 3/11 P21...P2m 3/11 ... 3/11 Pn1...Pnm I...I F</p>
+<p> If P11 is 3/0 to 3/11, inclusive, the
+parameter string is interpreted according
+to the standard format described below.</p>
+<p>If P11 is 3/12 to 3/15, inclusive, the
+entire parameter string is subject to
+private or experimental interpretation.</p>
+<span class="ellipsis">[...]</span>
+<p> (2) Px1...Pxm is a numeric or selective
+parameter.  Pxy is 3/0 to 3/9 inclusive
+for standardized parameters.  <span class="hilite">Occurrences
+of 3/12 to 3/15 inclusive are undefined.</span></p>
+<span class="ellipsis">[...]</span>
+<p>NOTE: <span class="hilite">The occurrence of bit combinations
+in the following inclusive ranges: 0/0 to
+1/15, or 7/15 to 15/15, or the occurrence
+of a P after an I has been encountered is
+an error condition whose recovery is not
+specified by this standard.</span></p>
+</blockquote>
+<p><strong>DEC:</strong> Occurrences of 3C to 3F in positions other than
+the first character of the parameter string cause the entire control sequence
+to be ignored. In a control sequence the C0 controls 00-1F are executed, 7F is ignored, C1 controls 80-9F are executed
+(cancelling the control sequence) and
+GR codes A0-FF are treated as GL codes 20-7F.</p></li>
+</ul>
+<h2 id="IMPLEMENTATION">An Implementation</h2>
+<p>As of 2005, Josh Haberman has implemented this parser in C and placed it in the public domain.
+You will also need Ruby to create the parser tables at compile time. It’s on <a href="https://github.com/haberman/vtparse">GitHub</a>.</p>
+<h2 id="QUESTIONS">Any Questions?</h2>
+<p>If you have any questions about this document, please send them to me, no matter how trivial you think they are.
+Even if the answer is already stated here, it may need clarification (or writing in bigger letters!)
+If you try to write the parser for a terminal emulator from this specification and you find you need a leap of logic,
+I’ve not done my job properly, and I’d like to hear about it.</p>
+<h2 id="FOOTNOTES">Footnotes</h2>
+<ol class="footnotes">
+<li id="FOOTMATCH"><p>It is debatable how far it is necessary to go with making an emulator match the
+error-recovery behaviour of the terminal, for two
+reasons. Firstly, for the practical reason that information on error recovery isn’t contained in DEC’s terminal
+manuals and discovering it means taking detailed and seemingly-endless notes about the terminal’s
+behaviour when certain bizarre sequences are sent to it. (OK, I’ve done that!)</p>
+<p>Secondly, how often would erroneous sequences be sent
+to the terminal anyway? I would answer this by saying that people who write applications for terminals
+don’t always read the manuals and may rely on some observed behaviour of the terminal without realising
+that they are seeing the effects of error recovery. It appears to be common knowledge among emulator
+writers (<a href="http://groups.google.com/groups?selm=odhghg2ymj.fsf%40donald.xylogics.com">and their critics</a>) that the sequence <code>CSI 2 LF C</code> moves
+the cursor two columns right and one row down. How many realise that this behaviour is not specified in
+X3.64, but just happens to have been the error recovery chosen by the designers of the VT100?
+The lesson I take from this is that if you’re going to emulate a real terminal, you should match
+all observable behaviour.</p></li>
+<li id="FOOTECMA48"><p>With its first edition having been published in 1976, <a href="http://www.ecma-international.org/publications/standards/Ecma-048.htm">ECMA-48</a> “Control Functions for Coded Character Sets” predates ANSI X3.64
+and has been updated for longer. As ECMA make their standards available free of charge, I find
+it surprising that anyone ever bothered claiming conformance with ANSI X3.64.</p></li>
+</ol>
+<footer>
+<div class="citation">Citation: Williams, Paul Flo. “A parser for DEC’s ANSI-compatible video terminals.” <i>VT100.net</i>. <a href="https://vt100.net/emu/dec_ansi_parser">https://vt100.net/emu/dec_ansi_parser</a></div>
+<!--
+<div>Copyright 2002&#x2012;2017 <a href="https://hisdeedsaredust.com">Paul Flo Williams</a>.</div>
+<div>This work is licensed under a <a rel="license" href="http://creativecommons.org/licenses/by/4.0/">Creative Commons Attribution 4.0 International License</a>.</div>
+<div>[<a href="#CHANGELIST" onclick="document.getElementById('CHANGELIST').style.display='block';return true;">Changed 2017-08-25</a>]</div>
+<dl id="CHANGELIST" style="display:none">
+<dt class="date">2017-08-25</dt>
+<dd class="desc">
+<p>I re-read this document for the first time in years and noticed that the SVG version of the parser diagram
+was utterly broken, so I’ve reworked it and, in doing so, removed the old PNG export, as I think that
+browser support for SVG is now good enough to use directly within this specification.</p>
+<p>Minor changes to the diagram:</p>
+<ol>
+	<li>The “convenience” states now have dashed lines round them, to indicate that they are
+		only there to make the diagram clearer.</li>
+	<li>I’ve moved all incoming convenience links to the top of states, and outgoing ones to
+		the bottom, which makes it look more consistent.</li>
+	<li>The convenience state “anywhere” that led directly into “ground” used to be green, but
+		that made it look important, as if it was a real state, so I’ve de-emphasised it to match
+		the others.</li>
+</ol>
+</dd>
+	<dt class="date">2005-09-13</dt>
+	<dd class="desc"><ul>
+<li><p>Removed description of sequence type <em>dispatch</em> into <em>esc_dispatch</em> and <em>csi_dispatch</em> to clarify
+the different handling of escape and control sequences.</p></li>
+<li><p>Added <em>clear</em> action to make it explicit when intermediate characters and parameters are reset.</p></li>
+<li><p>Josh has supplied an implementation of this parser, placed in the Public Domain.</p></li>
+<li><p>Added one word to “None of Digital’s terminals define any meaning for <ins>received</ins> Privacy Message
+or Application Program Command strings” because the VT420 and VT500 Series
+can send information on key presses to the host as APC strings.</p></li>
+<li><p>Removed the overlap between <em>ground</em> state's internal actions and those that cause a transition from
+anywhere to <em>ground</em>.</p></li>
+	</ul></dd>
+	<dt class="date">2005-09-07</dt>
+	<dd class="desc"><ul>
+<li><p>Noted that going to <em>ground</em> state causes intermediate characters and numeric parameters to be forgotten.</p></li>
+<li><p><em>dispatch</em> needs to know whether the current sequence is an escape sequence or a control sequence, because
+<code>ESC <var>Final</var></code> is different from <code>CSI <var>Final</var></code>. Josh suggested separate
+<em>esc_dispatch</em> and <em>csi_dispatch</em> actions. This document retains a single <em>dispatch</em> action for both
+types of sequence by saying that the current sequence type is remembered on entry to the <em>escape</em> or <em>csi entry</em> states.</p></li>
+<li><p>The diagram showed 9C (ST) prompting the <em>execute</em> action in one place, but having no action other than a
+transition to <em>ground</em> in all other places. The action has been removed, because there is never any work to do for 9C,
+for reasons explained in the description of the <em>escape</em> state.</p></li>
+<li><p>Removed the short section which covered some implementation trivia on <span class="tt">xterm</span> and <span class="tt">PuTTY</span> because it
+inadvertently gave the impression that this document had somehow influenced the parsers of these emulators. My attempted
+rewording to correct this impression was much more verbose than the trivia, so I’ve removed it entirely!</p></li>
+</ul>
+<p>Thanks to Joshua Haberman for the discussion which prompted the above changes. Some other minor fixes:</p><ul>
+<li><p>The state diagram is now maintained with <a href="http://www.inkscape.org/">Inkscape</a> rather than
+<a href="http://sodipodi.sourceforge.net/">Sodipodi</a>, because of the former’s support for markers (proper arrow heads!)</p></li>
+<li><p>Where actions and states are discussed, their names have been linked to their full descriptions.</p></li>
+<li><p>In the description of <em>dcs passthrough</em>, the phrase “soft character in a string” didn't make sense unless you knew
+I was taking about the control function DECDLD (Downline Load).</p></li>
+<li><p>In <em>ground</em> state, 98 (SOS) was grouped with other C1 controls that had the <em>execute</em> action, when in fact
+it causes a transition to <em>sos/pm/apc string</em> state.</p></li>
+</ul></dd>
+<dt class="date">2003-09-01</dt>
+<dd class="desc"><ul>
+<li><p>Corrected link to ECMA-48.</p></li>
+</ul></dd>
+<dt class="date">2003-05-20</dt>
+<dd class="desc"><ul>
+<li><p>Corrected dcs_intermediate state in diagram, which showed intermediate characters (20-2F) being ignored, when
+they should have been collected. Thanks to Jamie Lokier for spotting this.</p></li>
+</ul></dd>
+<dt class="date">2002-09-27</dt>
+<dd class="desc"><ul>
+<li><p>Added a new version of the statechart diagram, in SVG format.</p></li>
+<li><p>Corrected description of the chart to mention <em>event</em>, not <em>on</em> actions.</p></li>
+</ul></dd>
+<dt class="date">2002-03-26</dt>
+<dd class="desc"><ul>
+<li>Changed spelling of ‘despatch’ to more common ‘dispatch’.</li>
+<li><p>In the description of the state <em>csi entry</em>, amended</p>
+<blockquote>
+<p>As far as I am aware, only characters 3C (&lt;), 3E (&gt;) and 3F (?) were
+used by Digital; 3D (=) was used by other terminal manufacturers.</p>
+</blockquote>
+<p>to</p>
+<blockquote>
+<p>As far as I am aware, only characters 3D (=), 3E (&gt;) and 3F (?) were
+used by Digital.</p>
+</blockquote>
+<p>3C (&lt;) may have been used by other manufacturers, but I can’t be bothered to find
+examples.</p></li>
+</ul></dd>
+<dt class="date">2002-03-11</dt>
+<dd class="desc">First published.</dd>
+</dl>-->
+</footer>
+</body>
+</html>

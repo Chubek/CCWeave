@@ -11,10 +11,12 @@ endif()
 
 option(PICORL_BUILD_DOCS "Build Doxygen documentation" ON)
 
-add_subdirectory(qamrpp-lpikorl)
+add_subdirectory(third_party/TTyPack)
+add_subdirectory(third_party/QaMRpp)
+add_subdirectory(third_party/QaMRpp/third_party/PikoRL/qamrpp-lpikorl)
 
 add_executable(pikorl-cli
-  pikorl-cli.cpp
+  third_party/QaMRpp/third_party/PikoRL/pikorl-cli.cpp
 )
 target_compile_features(pikorl-cli PRIVATE cxx_std_17)
 set_target_properties(pikorl-cli PROPERTIES OUTPUT_NAME pikorl)

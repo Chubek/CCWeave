@@ -1,22 +1,26 @@
 #ifndef QAMRPP_READLINE_HPP
 #define QAMRPP_READLINE_HPP
-
+ 
+#include <cstdio>
 #include <fstream>
+#include <functional>
 #include <iostream>
+#include <memory>
 #include <set>
 #include <sstream>
 #include <string>
 #include <vector>
-#include <functional>
-
+ 
 #ifndef _WIN32
-#include <cstdio>
 #include <termios.h>
 #include <unistd.h>
 #endif
+ 
+#include <TTyTk/TTyTk-EscapeCodes.hpp>
+#include <TTyUtils/TTyUtils-HistoryFile.hpp>
 
 namespace qamrpp {
-
+ 
 class Readline {
 public:
     using Completer = std::function<std::vector<std::string>(const std::string&)>;
@@ -26,7 +30,7 @@ public:
         std::set<std::string> operators;
         std::set<std::string> literals;
     };
-
+ 
     Readline() {
         syntax_.keywords = {
             "if", "else", "elseif", "while", "for", "function", "return",
@@ -42,11 +46,11 @@ public:
         return false;
 #endif
     }
-
+ 
     static std::string color(const std::string& text, const char* code) {
-        return std::string("\033[") + code + "m" + text + "\033[0m";
+        return std::string(ttytk::esc::csi) + code + "m" + text + std::string(ttytk::esc::csi) + "0m";
     }
-
+ 
     std::string highlight(const std::string& line) const {
         if (!use_color_) return line;
         std::string out;
@@ -122,11 +126,11 @@ public:
         size_t cursor = line.size();
         size_t history_index = history_.size();
         auto redraw = [&]() {
-            std::cout << "\r\033[2K" << prompt << highlight(line);
+            std::cout << "\r" << ttytk::esc::csi << "2K" << prompt << highlight(line);
             const size_t visual_end = prompt.size() + line.size();
             const size_t visual_cursor = prompt.size() + cursor;
             if (visual_end > visual_cursor) {
-                std::cout << "\033[" << (visual_end - visual_cursor) << "D";
+                std::cout << ttytk::esc::csi << (visual_end - visual_cursor) << "D";
             }
             std::cout.flush();
         };
@@ -141,7 +145,7 @@ public:
                 break;
             }
             if (c == '\n' || c == '\r') {
-                std::cout << "\r\033[2K" << prompt << highlight(line) << "\n";
+                std::cout << "\r" << ttytk::esc::csi << "2K" << prompt << highlight(line) << "\n";
                 break;
             }
             if (c == 4) {
@@ -284,25 +288,43 @@ public:
         }
         return true;
     }
-
+ 
     void load_history(const std::string& path) {
         history_.clear();
-        std::ifstream in(path.c_str());
-        std::string line;
-        while (std::getline(in, line)) history_.push_back(line);
+        history_file_.reset(new ttyutils::hist::History(path));
+        if (history_file_->load()) {
+            for (const auto& entry : history_file_->entries()) {
+                history_.push_back(entry.text);
+            }
+        }
     }
-
+ 
     void save_history(const std::string& path) {
+        if (history_file_ && history_file_->entries().size() == history_.size()) {
+            // Entries already persisted via append(); ensure trailing entries are flushed.
+            for (size_t i = history_file_->entries().size(); i < history_.size(); ++i) {
+                ttyutils::hist::Entry entry;
+                entry.text = history_[i];
+                static_cast<void>(history_file_->append(std::move(entry)));
+            }
+            return;
+        }
         std::ofstream out(path.c_str(), std::ios::out | std::ios::trunc);
         for (size_t i = 0; i < history_.size(); ++i) out << history_[i] << "\n";
     }
-
+ 
     void add_history(const std::string& line) {
         polyrl_history_add(history_, line);
+        if (history_file_) {
+            ttyutils::hist::Entry entry;
+            entry.text = line;
+            static_cast<void>(history_file_->append(std::move(entry)));
+        }
     }
-
+ 
 private:
     std::vector<std::string> history_;
+    std::unique_ptr<ttyutils::hist::History> history_file_;
     Completer completer_;
     Syntax syntax_;
     bool use_color_ = true;

@@ -58,7 +58,7 @@ if(MAKE_DOCS)
       @ONLY
   )
 
-  add_custom_target(docs ALL
+  add_custom_target(qamrpp-docs ALL
       COMMAND ${DOXYGEN_EXECUTABLE} ${CMAKE_CURRENT_BINARY_DIR}/Doxyfile
       WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
       COMMENT "Generating API documentation with Doxygen"
@@ -66,7 +66,7 @@ if(MAKE_DOCS)
   )
 
   set(_QAMRPP_DOCS_INSTALL_DEST "${CMAKE_INSTALL_DOCDIR}/qamrpp")
-  add_custom_target(docs-install DEPENDS docs)
+  add_custom_target(qamrpp-docs-install DEPENDS qamrpp-docs)
 
   install(
       DIRECTORY ${DOXYGEN_OUTPUT_DIR}/html/
@@ -81,13 +81,17 @@ if(MAKE_DOCS)
   )
 
   if(TARGET install)
-      add_dependencies(install docs-install)
+      add_dependencies(install qamrpp-docs-install)
   endif()
 endif()
 
 add_subdirectory(stdlib)
 add_subdirectory(stdlib++)
 add_subdirectory(plugins)
+
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/../TTyPack/CMakeLists.txt AND NOT TARGET TTyTk)
+  add_subdirectory(../TTyPack ${CMAKE_CURRENT_BINARY_DIR}/TTyPack)
+endif()
 
 if(BUILD_CLI)
   add_subdirectory(cli)

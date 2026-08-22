@@ -1,0 +1,96 @@
+# Compiled object files
+*.o
+*.lo
+*.la
+*.obj
+
+# Compiled dynamic libraries
+*.so
+*.so.*
+*.dylib
+*.dll
+
+# Compiled static libraries
+*.a
+*.lib
+
+# Executables (for tests, examples, demos)
+*.exe
+*.out
+*.app
+
+# Build directories
+build/
+build-*/
+build_*/
+Build/
+bin/
+obj/
+out/
+
+# Autotools
+/autom4te.cache
+/aclocal.m4
+/compile
+/config.guess
+/config.h
+/config.h.in
+/config.log
+/config.status
+/config.sub
+/configure
+/depcomp
+/install-sh
+/libtool
+/ltmain.sh
+/missing
+/stamp-h1
+
+# CMake
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+CTestTestfile.cmake
+Makefile
+*.cmake
+
+# Make
+*.d
+*.gcno
+*.gcda
+*.gcov
+
+# Debugger / profiler
+gmon.out
+vgcore.*
+*.perf
+
+# IDEs and editors
+# VS Code
+.vscode/
+
+# CLion / JetBrains
+.idea/
+
+# Eclipse
+.project
+.cproject
+
+# Vim
+*.swp
+*.swo
+
+# Emacs
+*~
+\#*\#
+
+# MacOS
+.DS_Store
+
+# Other common junk
+*.log
+*.tmp
+
+# Agentic AI
+AGENTS.md
+.claude
