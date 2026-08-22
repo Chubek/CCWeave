@@ -1,5 +1,6 @@
 #include "parthia_rt.h"
 
+#include "kstring.h"
 #include <errno.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -148,6 +149,38 @@ op_int_to_string (prt *rt, pv *self, pv **args, int n)
 }
 
 static pv *
+op_int_max (prt *rt, pv *self, pv **args, int n)
+{
+  (void)self;
+  if (n != 1 || args[0] == NULL || args[0]->kind != PV_TUPLE
+      || args[0]->t.n != 2 || args[0]->t.items[0] == NULL
+      || args[0]->t.items[0]->kind != PV_INT
+      || args[0]->t.items[1] == NULL
+      || args[0]->t.items[1]->kind != PV_INT)
+    pa_fail (rt, "integer value expected");
+  return pa_int (rt,
+                 args[0]->t.items[0]->i > args[0]->t.items[1]->i
+                     ? args[0]->t.items[0]->i
+                     : args[0]->t.items[1]->i);
+}
+
+static pv *
+op_int_min (prt *rt, pv *self, pv **args, int n)
+{
+  (void)self;
+  if (n != 1 || args[0] == NULL || args[0]->kind != PV_TUPLE
+      || args[0]->t.n != 2 || args[0]->t.items[0] == NULL
+      || args[0]->t.items[0]->kind != PV_INT
+      || args[0]->t.items[1] == NULL
+      || args[0]->t.items[1]->kind != PV_INT)
+    pa_fail (rt, "integer value expected");
+  return pa_int (rt,
+                 args[0]->t.items[0]->i < args[0]->t.items[1]->i
+                     ? args[0]->t.items[0]->i
+                     : args[0]->t.items[1]->i);
+}
+
+static pv *
 op_bool_to_string (prt *rt, pv *self, pv **args, int n)
 {
   (void)self;
@@ -166,6 +199,63 @@ op_string_size (prt *rt, pv *self, pv **args, int n)
   if (n != 1 || args[0] == NULL || args[0]->kind != PV_STRING)
     pa_fail (rt, "string value expected");
   return pa_int (rt, (long long)args[0]->s.len);
+}
+
+static pv *
+op_string_substring (prt *rt, pv *self, pv **args, int n)
+{
+  pv *s;
+  long long start, len;
+  (void)self;
+  if (n != 3 || args[0] == NULL || args[0]->kind != PV_STRING
+      || args[1] == NULL || args[1]->kind != PV_INT || args[2] == NULL
+      || args[2]->kind != PV_INT)
+    pa_fail (rt, "string, start, length expected");
+  s = args[0];
+  start = args[1]->i;
+  len = args[2]->i;
+  if (start < 0 || len < 0 || (size_t)start > s->s.len
+      || (size_t)(start + len) > s->s.len)
+    pa_fail (rt, "Subscript");
+  return pa_string (rt, s->s.data + start, (size_t)len);
+}
+
+static pv *
+op_string_concat_with (prt *rt, pv *self, pv **args, int n)
+{
+  const char *sep_data;
+  size_t sep_len;
+  kstring_t out = { 0, 0, NULL };
+  pv *cursor;
+  int first = 1;
+  (void)self;
+  if (n != 2 || args[0] == NULL || args[0]->kind != PV_STRING)
+    pa_fail (rt, "string separator expected");
+  sep_data = args[0]->s.data;
+  sep_len = args[0]->s.len;
+  cursor = args[1];
+  while (cursor != NULL && cursor->kind == PV_CTOR
+         && strcmp (cursor->c.name, "::") == 0 && cursor->c.arg != NULL
+         && cursor->c.arg->kind == PV_TUPLE && cursor->c.arg->t.n == 2)
+    {
+      pv *item = cursor->c.arg->t.items[0];
+      if (item == NULL || item->kind != PV_STRING)
+        pa_fail (rt, "string list expected");
+      if (!first)
+        kputsn (sep_data, (int)sep_len, &out);
+      kputsn (item->s.data, (int)item->s.len, &out);
+      first = 0;
+      cursor = cursor->c.arg->t.items[1];
+    }
+  if (cursor != NULL
+      && !(cursor->kind == PV_CTOR && strcmp (cursor->c.name, "nil") == 0
+           && cursor->c.arg == NULL))
+    pa_fail (rt, "string list expected");
+  {
+    pv *result = pa_string (rt, out.s, out.l);
+    free (out.s);
+    return result;
+  }
 }
 
 static pv *
@@ -253,6 +343,69 @@ op_ge (prt *r, pv *s, pv **a, int n)
 {
   (void)s;
   return compare_int (r, a, n, 3);
+}
+
+static pv *
+op_append (prt *rt, pv *self, pv **args, int n)
+{
+  pv *left, *right;
+  (void)self;
+  if (n != 2)
+    pa_fail (rt, "list append arity");
+  left = args[0];
+  right = args[1];
+  /* Copy left list, then append right */
+  if (left == NULL || left->kind == PV_CTOR
+      || right == NULL || right->kind == PV_CTOR)
+    {
+      /* Build reversed copy of left */
+      pv *reversed = pa_ctor_make (rt, "nil", NULL, 0);
+      pv *cursor = left;
+      while (cursor != NULL && cursor->kind == PV_CTOR
+             && strcmp (cursor->c.name, "::") == 0 && cursor->c.arg != NULL
+             && cursor->c.arg->kind == PV_TUPLE && cursor->c.arg->t.n == 2)
+        {
+          pv *pair = pa_new (rt, PV_TUPLE);
+          if (pair == NULL)
+            pa_fail (rt, "out of memory");
+          pair->t.n = 2;
+          pair->t.items = (pv **)pa_alloc (rt, 2u * sizeof (pv *));
+          if (pair->t.items == NULL)
+            pa_fail (rt, "out of memory");
+          pair->t.items[0] = cursor->c.arg->t.items[0];
+          pair->t.items[1] = reversed;
+          reversed = pa_ctor_make (rt, "::", pair, 0);
+          cursor = cursor->c.arg->t.items[1];
+        }
+      if (cursor != NULL
+          && !(cursor->kind == PV_CTOR
+               && strcmp (cursor->c.name, "nil") == 0 && cursor->c.arg == NULL))
+        pa_fail (rt, "list value expected");
+      /* Now reverse reversed onto right */
+      {
+        pv *result = right;
+        cursor = reversed;
+        while (cursor != NULL && cursor->kind == PV_CTOR
+               && strcmp (cursor->c.name, "::") == 0 && cursor->c.arg != NULL
+               && cursor->c.arg->kind == PV_TUPLE && cursor->c.arg->t.n == 2)
+          {
+            pv *pair = pa_new (rt, PV_TUPLE);
+            if (pair == NULL)
+              pa_fail (rt, "out of memory");
+            pair->t.n = 2;
+            pair->t.items = (pv **)pa_alloc (rt, 2u * sizeof (pv *));
+            if (pair->t.items == NULL)
+              pa_fail (rt, "out of memory");
+            pair->t.items[0] = cursor->c.arg->t.items[0];
+            pair->t.items[1] = result;
+            result = pa_ctor_make (rt, "::", pair, 0);
+            cursor = cursor->c.arg->t.items[1];
+          }
+        return result;
+      }
+    }
+  pa_fail (rt, "list value expected");
+  return NULL;
 }
 
 static pv *
@@ -396,22 +549,23 @@ install_struct_value (prt *rt, const char *name, const char **members,
 void
 pa_basis_install (prt *rt)
 {
-  static const char *names[] = { "+", "-",  "*", "div", "mod", "::", "^",
+  static const char *names[] = { "+", "-",  "*", "div", "mod", "::", "^", "@",
                                  "<", "<=", ">", ">=",  "=",   "<>" };
   static pv *(*fns[]) (prt *, pv *, pv **, int)
-      = { op_add, op_sub, op_mul, op_div, op_mod,   op_cons,    op_concat,
-          op_lt,  op_le,  op_gt,  op_ge,  op_equal, op_notequal };
-  static const int arities[] = { 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2 };
-  static const char *int_members[] = { "toString" };
-  static pv *(*int_fns[]) (prt *, pv *, pv **, int) = { op_int_to_string };
-  static const int int_arities[] = { 1 };
+      = { op_add, op_sub, op_mul, op_div, op_mod,   op_cons,    op_concat, op_append,
+         op_lt,  op_le,  op_gt,  op_ge,  op_equal, op_notequal };
+  static const int arities[] = { 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2 };
+  static const char *int_members[] = { "toString", "max", "min" };
+  static pv *(*int_fns[]) (prt *, pv *, pv **, int)
+      = { op_int_to_string, op_int_max, op_int_min };
+  static const int int_arities[] = { 1, 1, 1 };
   static const char *bool_members[] = { "toString" };
   static pv *(*bool_fns[]) (prt *, pv *, pv **, int) = { op_bool_to_string };
   static const int bool_arities[] = { 1 };
-  static const char *string_members[] = { "size", "concat" };
+  static const char *string_members[] = { "size", "substring", "concat", "concatWith" };
   static pv *(*string_fns[]) (prt *, pv *, pv **, int)
-      = { op_string_size, op_string_concat };
-  static const int string_arities[] = { 1, 1 };
+      = { op_string_size, op_string_substring, op_string_concat, op_string_concat_with };
+  static const int string_arities[] = { 1, 3, 1, 2 };
   size_t i;
   pa_bind (rt, rt->global, "true", pa_ctor_make (rt, "true", NULL, 0));
   pa_bind (rt, rt->global, "false", pa_ctor_make (rt, "false", NULL, 0));

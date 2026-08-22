@@ -373,10 +373,24 @@ lower_boolean (ccw_sml_lower *ctx, ccw_node block, bool value)
   return dest;
 }
 
+/* Extract the longvid text from a vid_exp node, stripping the optional `op'
+ * prefix.  For plain `vid` nodes this is equivalent to node_text. */
+static char *
+vid_exp_text (TSNode node, const char *source, size_t source_len)
+{
+  if (node_is (node, "vid_exp"))
+    {
+      TSNode longvid = first_named_child (node);
+      if (!ts_node_is_null (longvid))
+        return node_text (longvid, source, source_len);
+    }
+  return node_text (node, source, source_len);
+}
+
 static char *
 lower_value (ccw_sml_lower *ctx, ccw_node block, TSNode node)
 {
-  char *name = node_text (node, ctx->source, ctx->source_len);
+  char *name = vid_exp_text (node, ctx->source, ctx->source_len);
   if (name == NULL)
     {
       lower_fail (ctx, "swaff SML: could not read value identifier");
@@ -494,7 +508,7 @@ lower_application (ccw_sml_lower *ctx, ccw_node *block, TSNode node)
       TSNode operator_node = ts_node_named_child (node, 1);
       char *operator_text
           = node_is (operator_node, "vid_exp")
-                ? node_text (operator_node, ctx->source, ctx->source_len)
+                ? vid_exp_text (operator_node, ctx->source, ctx->source_len)
                 : NULL;
       const char *opcode
           = binary_opcode (operator_text != NULL ? operator_text : "");
@@ -518,7 +532,7 @@ lower_application (ccw_sml_lower *ctx, ccw_node *block, TSNode node)
       return NULL;
     }
   char *function_name
-      = node_text (function_node, ctx->source, ctx->source_len);
+      = vid_exp_text (function_node, ctx->source, ctx->source_len);
   if (function_name == NULL)
     {
       lower_fail (ctx, "swaff SML: could not read applied function");
@@ -541,7 +555,7 @@ lower_application (ccw_sml_lower *ctx, ccw_node *block, TSNode node)
       TSNode child = ts_node_named_child (node, i);
       if (!node_is (child, "vid_exp"))
         continue;
-      char *text = node_text (child, ctx->source, ctx->source_len);
+      char *text = vid_exp_text (child, ctx->source, ctx->source_len);
       bool is_infix = text != NULL && binary_opcode (text) != NULL;
       free (text);
       if (is_infix)

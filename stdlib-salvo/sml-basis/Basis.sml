@@ -3,6 +3,7 @@
 datatype 'a option = NONE | SOME of 'a
 exception Option
 exception Empty
+exception Subscript
 
 structure Option =
 struct
@@ -20,7 +21,20 @@ struct
   fun filter p xs = rev (foldl (fn (x,a) => if p x then x::a else a) [] xs)
   fun null [] = true | null _ = false
   fun hd (x::_) = x | hd [] = raise Empty
-  fun tl (_::xs) = xs | tl [] = raise Empty
+ fun tl (_::xs) = xs | tl [] = raise Empty
+  fun nth (x::_, 0) = x
+    | nth (_::xs, n) = if n > 0 then nth (xs, n - 1) else raise Subscript
+    | nth ([], _) = raise Subscript
+  fun take (_, 0) = []
+    | take (x::xs, n) = if n > 0 then x :: take (xs, n - 1) else raise Subscript
+    | take ([], _) = raise Subscript
+ fun drop (xs, 0) = xs
+   | drop (_::xs, n) = if n > 0 then drop (xs, n - 1) else raise Subscript
+   | drop ([], _) = raise Subscript
+  fun length [] = 0
+    | length (_::xs) = 1 + length xs
+  fun exists p [] = false
+    | exists p (x::xs) = p x orelse exists p xs
 end
 
 structure Array =
