@@ -25,7 +25,7 @@
 #include "../stdmodule/cephyr_stdmodule.h"
 
 #include "../../../ir/ccw_ir.h"
-#include "../../../sched/sched.h"
+#include "../../../sched/ccw_sched.h"
 #include "../../../swaff/ccw_swaff.h"
 #include "../../../third_party/ucpp/cpp.h"
 #include "../../../third_party/ucpp/tune.h"

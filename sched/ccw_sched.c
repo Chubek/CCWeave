@@ -1,5 +1,5 @@
 #include "kstring.h"
-#include "sched.h"
+#include "ccw_sched.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

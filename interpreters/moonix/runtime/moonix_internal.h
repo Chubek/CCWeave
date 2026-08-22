@@ -2,7 +2,7 @@
 #define MOONIX_INTERNAL_H
 
 #include "moonix.h"
-#include "sched.h"
+#include "ccw_sched.h"
 
 struct moonix_state
 {

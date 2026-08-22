@@ -33,9 +33,11 @@ target_include_directories(moonix PRIVATE
   ${CCWEAVE_THIRD_PARTY}/PikoRL/third_party/QaMRpp/plugins
   ${CCWEAVE_THIRD_PARTY}/PikoRL/third_party/TTyPack/include
   ${CCWEAVE_THIRD_PARTY}/PikoRL/third_party/QaMRpp/third_party/SerdeTk)
-target_compile_features(moonix PRIVATE cxx_std_17)
+target_compile_features(moonix PRIVATE cxx_std_20)
 set_target_properties(moonix PROPERTIES
-  CXX_STANDARD 17
+  CXX_STANDARD 20
   CXX_STANDARD_REQUIRED ON
   CXX_EXTENSIONS OFF)
+target_compile_definitions(moonix PRIVATE
+  _GNU_SOURCE)
 target_link_libraries(moonix PRIVATE moonix_lib)

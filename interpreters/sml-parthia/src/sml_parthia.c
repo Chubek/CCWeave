@@ -13,7 +13,7 @@
 #include "kbarena.h"
 #include "kstring.h"
 #include "parthia_rt.h"
-#include "sched.h"
+#include "ccw_sched.h"
 
 #include <errno.h>
 #include <stdbool.h>

@@ -1,5 +1,5 @@
 #include "ccw_test.h"
-#include "sched.h"
+#include "ccw_sched.h"
 
 #include <stdbool.h>
 #include <stdio.h>

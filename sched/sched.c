@@ -1,5 +1,5 @@
 #define _POSIX_C_SOURCE 200809L
-#include "sched.h"
+#include "ccw_sched.h"
 #include "khash.h"
 #include "kstring.h"
 #include "kvec.h"

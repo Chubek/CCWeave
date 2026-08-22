@@ -1,7 +1,7 @@
 #include "lauxlib.h"
 #include "lua.h"
 #include "lualib.h"
-#include "sched.h"
+#include "ccw_sched.h"
 #include <stdio.h>
 
 typedef struct

@@ -9,7 +9,7 @@
 #define CCW_SML_PARTHIA_H
 
 #include "ccw_swaff_parse.h"
-#include "sched.h"
+#include "ccw_sched.h"
 
 #include <stddef.h>
 
