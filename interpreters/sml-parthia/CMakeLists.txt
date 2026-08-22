@@ -21,9 +21,19 @@ if(CMAKE_DL_LIBS)
 endif()
 
 add_executable(sml-parthia
-  cli/main.c
-  cli/repl.c)
-target_link_libraries(sml-parthia PRIVATE sml_parthia ccw_linenoise)
+  cli/main.cpp
+  cli/repl.cpp)
+target_include_directories(sml-parthia PRIVATE
+  ${CCWEAVE_THIRD_PARTY}/PikoRL/third_party/QaMRpp/include
+  ${CCWEAVE_THIRD_PARTY}/PikoRL/third_party/QaMRpp/plugins
+  ${CCWEAVE_THIRD_PARTY}/PikoRL/third_party/TTyPack/include
+  ${CCWEAVE_THIRD_PARTY}/PikoRL/third_party/QaMRpp/third_party/SerdeTk)
+target_compile_features(sml-parthia PRIVATE cxx_std_17)
+set_target_properties(sml-parthia PROPERTIES
+  CXX_STANDARD 17
+  CXX_STANDARD_REQUIRED ON
+  CXX_EXTENSIONS OFF)
+target_link_libraries(sml-parthia PRIVATE sml_parthia)
 
 add_executable(test_sml_parthia
   tests/test_sml_parthia.c)

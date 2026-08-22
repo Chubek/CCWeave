@@ -1,0 +1,2 @@
+-- idl feature hook
+return {}

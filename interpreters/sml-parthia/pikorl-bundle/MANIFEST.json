@@ -1,0 +1,16 @@
+{
+  "entrypoint": "entrypoint.sh",
+  "features": [
+    { "name": "syntax",  "path": "syntax.lua",  "required": false },
+    { "name": "completions", "path": "completions.lua", "required": false },
+    { "name": "directives", "path": "directives.lua", "required": false },
+    { "name": "history", "path": "history.lua", "required": false },
+    { "name": "theme",   "path": "theme.lua",   "required": false },
+    { "name": "colors",  "path": "colors.lua",  "required": false },
+    { "name": "macros",  "path": "macros.lua",  "required": false },
+    { "name": "web",     "path": "web.lua",     "required": false },
+    { "name": "menu",    "path": "menu.lua",    "required": false },
+    { "name": "page",    "path": "page.lua",    "required": false },
+    { "name": "idl",     "path": "idl.lua",     "required": false }
+  ]
+}

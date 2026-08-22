@@ -1,0 +1,2 @@
+-- menu feature hook
+return {}

@@ -2,9 +2,9 @@
 #include "moonix.h"
 #include "repl.h"
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
 
 static void
 usage (FILE *stream)
@@ -40,7 +40,8 @@ report (moonix_state *state, moonix_status status)
 }
 
 static int
-dump_bytecode (moonix_state *state, const char *input, const char *output)
+dump_bytecode (moonix_state *state, const char *input,
+               const char *output)
 {
   FILE *file;
   char buffer[4096];
@@ -113,7 +114,8 @@ main (int argc, char **argv)
   moonix_options_init (&options);
   for (int i = 1; i < argc; ++i)
     {
-      if (strcmp (argv[i], "-v") == 0 || strcmp (argv[i], "--version") == 0)
+      if (strcmp (argv[i], "-v") == 0
+          || strcmp (argv[i], "--version") == 0)
         {
           printf ("Moonix %d.%d (Lua %s)\n", MOONIX_VERSION_MAJOR,
                   MOONIX_VERSION_MINOR, LUA_VERSION_RELEASE);
@@ -131,7 +133,8 @@ main (int argc, char **argv)
         {
           expression = argv[++i];
         }
-      else if (strcmp (argv[i], "--dump-bytecode") == 0 && i + 2 < argc)
+      else if (strcmp (argv[i], "--dump-bytecode") == 0
+               && i + 2 < argc)
         {
           dump_input = argv[++i];
           dump_output = argv[++i];
@@ -162,7 +165,9 @@ main (int argc, char **argv)
   if (dump_input != NULL)
     result = dump_bytecode (state, dump_input, dump_output);
   else if (expression != NULL)
-    result = report (state, moonix_dostring (state, expression, "=(command)"));
+    result
+        = report (state,
+                  moonix_dostring (state, expression, "=(command)"));
   else if (script != NULL)
     result = report (state, moonix_dofile (state, script));
   else

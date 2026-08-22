@@ -329,6 +329,12 @@ private:
     Syntax syntax_;
     bool use_color_ = true;
 
+public:
+    void set_syntax(const Syntax& s) {
+        syntax_ = s;
+    }
+
+private:
     static std::string current_prefix(const std::string& line, size_t cursor) {
         size_t start = cursor;
         while (start > 0) {

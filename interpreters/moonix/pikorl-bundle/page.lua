@@ -1,0 +1,2 @@
+-- page feature hook
+return {}

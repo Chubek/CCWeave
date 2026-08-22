@@ -1,47 +1,28 @@
 #include "repl.h"
 #include "sml_parthia.h"
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <string>
 
-static char *
-read_stream (FILE *stream, size_t *length)
+static std::string
+read_stream (FILE *stream)
 {
-  size_t used = 0;
-  size_t capacity = 4096;
-  char *buffer = (char *)malloc (capacity + 1u);
-  if (buffer == NULL)
-    return NULL;
+  std::string result;
+  char buffer[4096];
   for (;;)
     {
-      size_t got = fread (buffer + used, 1, capacity - used, stream);
-      used += got;
+      size_t got = fread (buffer, 1, sizeof (buffer), stream);
       if (got == 0)
         {
           if (ferror (stream))
-            {
-              free (buffer);
-              return NULL;
-            }
+            return "";
           break;
         }
-      if (used == capacity)
-        {
-          char *grown;
-          capacity *= 2u;
-          grown = (char *)realloc (buffer, capacity + 1u);
-          if (grown == NULL)
-            {
-              free (buffer);
-              return NULL;
-            }
-          buffer = grown;
-        }
+      result.append (buffer, got);
     }
-  buffer[used] = '\0';
-  *length = used;
-  return buffer;
+  return result;
 }
 
 static void
@@ -72,14 +53,14 @@ int
 main (int argc, char **argv)
 {
   FILE *input = stdin;
-  char *source;
-  size_t length;
+  std::string source;
   char *error = NULL;
   ccw_sml_parthia_runtime *runtime;
   char *result = NULL;
 
   if (argc == 2
-      && (strcmp (argv[1], "-h") == 0 || strcmp (argv[1], "--help") == 0))
+      && (strcmp (argv[1], "-h") == 0
+          || strcmp (argv[1], "--help") == 0))
     {
       print_help (stdout);
       return 0;
@@ -101,10 +82,10 @@ main (int argc, char **argv)
           return 1;
         }
     }
-  source = read_stream (input, &length);
+  source = read_stream (input);
   if (argc == 2)
     fclose (input);
-  if (source == NULL)
+  if (source.empty () && ferror (stdin))
     {
       fprintf (stderr, "sml-parthia: cannot read input\n");
       return 1;
@@ -112,20 +93,18 @@ main (int argc, char **argv)
   runtime = ccw_sml_parthia_runtime_new ();
   if (runtime == NULL)
     {
-      free (source);
       fprintf (stderr, "sml-parthia: cannot create runtime\n");
       return 1;
     }
-  if (!ccw_sml_parthia_run (runtime, source, length, &result, &error))
+  if (!ccw_sml_parthia_run (runtime, source.c_str (), source.size (),
+                            &result, &error))
     {
-      free (source);
       ccw_sml_parthia_runtime_free (runtime);
       fprintf (stderr, "sml-parthia: %s\n",
                error ? error : "execution failed");
       free (error);
       return 1;
     }
-  free (source);
   free (result);
   ccw_sml_parthia_runtime_free (runtime);
   free (error);
