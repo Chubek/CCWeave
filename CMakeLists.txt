@@ -19,7 +19,7 @@ option(CCWEAVE_ENABLE_BINARYEN "Build the vendored Binaryen linker backend" OFF)
 option(CCWEAVE_BUILD_TESTS "Build test suites" OFF)
 option(CCWEAVE_BUILD_DOCS "Build Doxygen documentation" ON)
 option(CCWEAVE_BUILD_EXAMPLES "Register the examples-salvo source corpus" OFF)
-option(CCWEAVE_BUILD_MKPROJMAP "Build MkProjmap program" OFF)
+option(CCWEAVE_BUILD_MKPROJMAP "Build MkProjmap tool" OFF)
 
 if(CCWEAVE_ENABLE_ASAN)
   add_compile_options(-fsanitize=address,undefined -fno-omit-frame-pointer -g)
