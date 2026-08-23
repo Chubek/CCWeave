@@ -15,7 +15,8 @@ int main(void)
 
     snprintf(script, sizeof(script), "%s/ccwld-basic.lua",
              CCWLD_FIXTURE_DIR);
-    CCW_CHECK(ccwld_run_lua(script, "x86_64-linux-gnu", &plan, &error),
+    CCW_CHECK(ccwld_run_lua(script, "x86_64-linux-gnu", NULL, NULL, 0, NULL,
+                            &plan, &error),
               "Lua frontend failed: %s", error.message);
     CCW_CHECK(plan != NULL, "Lua frontend returned no plan");
     if (plan != NULL) {
@@ -25,6 +26,8 @@ int main(void)
                   "Lua plan serialization was empty");
         CCW_CHECK(serialized != NULL && strstr(serialized, "main.o") != NULL,
                   "Lua input was not preserved in serialized plan");
+        CCW_CHECK(serialized != NULL && strstr(serialized, ".text") != NULL,
+                  "declared section missing from serialized plan");
     }
     free(serialized);
     ccwld_plan_free(plan);

@@ -79,6 +79,16 @@ ccwld_expr_align (ccwld_expr *a, uint64_t boundary)
   return e;
 }
 
+/* ALIGN with an expression boundary: ival == 0 marks "use ->b". */
+ccwld_expr *
+ccwld_expr_align_to (ccwld_expr *a, ccwld_expr *boundary)
+{
+  ccwld_expr *e = ccwld_expr_align (a, 0);
+  if (e)
+    e->b = boundary;
+  return e;
+}
+
 ccwld_expr *
 ccwld_expr_max (ccwld_expr *a, ccwld_expr *b)
 {
@@ -200,6 +210,17 @@ ccwld_expr_segment_start (const char *segment_name)
     return NULL;
   e->kind = CCWLD_EXPR_SEGMENT_START;
   e->name = segment_name ? strdup (segment_name) : NULL;
+  return e;
+}
+
+/* SEGMENT_START("name", default) — ld's two-argument form; the default
+ * is used when the segment is not declared. */
+ccwld_expr *
+ccwld_expr_segment_start2 (const char *segment_name, ccwld_expr *default_value)
+{
+  ccwld_expr *e = ccwld_expr_segment_start (segment_name);
+  if (e)
+    e->b = default_value;
   return e;
 }
 
@@ -376,20 +397,45 @@ eval_inner (const ccwld_expr *e, const struct ccwld_plan *plan, uint64_t dot,
     case CCWLD_EXPR_SYMBOL:
       {
         const ccwld_sym *sym = plan_find_symbol (plan, e->name);
-        if (!sym)
+        if (sym)
+          {
+            ok = eval_inner (sym->expr, plan, dot, out, error_message);
+            break;
+          }
+        /* Not a script-level symbol: consult the pipeline resolver for
+         * a symbol defined by an input object (installed before layout).
+         * A resolved plan symbol wins only once its value is known. */
+        if (sym && !sym->resolved)
           {
             if (error_message)
               {
                 char buf[256];
-                snprintf (buf, sizeof (buf), "undefined symbol '%s'", e->name);
+                snprintf (buf, sizeof (buf),
+                          "symbol '%s' value not available at this point",
+                          e->name);
                 *error_message = strdup (buf);
               }
             ok = 0;
+            break;
           }
-        else
+        if (plan && plan->resolve_sym)
           {
-            ok = eval_inner (sym->expr, plan, dot, out, error_message);
+            uint64_t v = 0;
+            if (plan->resolve_sym (plan, e->name, &v))
+              {
+                *out = v;
+                ok = 1;
+                break;
+              }
           }
+        if (error_message)
+          {
+            char buf[256];
+            snprintf (buf, sizeof (buf), "undefined symbol '%s'",
+                      e->name ? e->name : "");
+            *error_message = strdup (buf);
+          }
+        ok = 0;
         break;
       }
 
@@ -397,6 +443,12 @@ eval_inner (const ccwld_expr *e, const struct ccwld_plan *plan, uint64_t dot,
       {
         const ccwld_sym *sym = plan_find_symbol (plan, e->name);
         *out = sym ? 1 : 0;
+        if (!sym && plan && plan->resolve_sym)
+          {
+            uint64_t v = 0;
+            if (plan->resolve_sym (plan, e->name, &v))
+              *out = 1;
+          }
         ok = 1;
         break;
       }
@@ -518,35 +570,36 @@ eval_inner (const ccwld_expr *e, const struct ccwld_plan *plan, uint64_t dot,
 
     case CCWLD_EXPR_SEGMENT_START:
       {
-        /* §2.3: segment_start — lookup the named segment/phdr */
-        if (!plan || !e->name)
+        /* §2.3: segment_start — lookup the named segment/phdr, falling
+         * back to the declared default when absent (ld semantics). */
+        if (!plan)
           {
             ok = 0;
+            break;
           }
-        else
+        int found = 0;
+        for (size_t i = 0; i < plan->nphdrs; i++)
           {
-            int found = 0;
-            for (size_t i = 0; i < plan->nphdrs; i++)
+            if (plan->phdrs[i].name && e->name
+                && strcmp (plan->phdrs[i].name, e->name) == 0)
               {
-                if (plan->phdrs[i].name
-                    && strcmp (plan->phdrs[i].name, e->name) == 0)
-                  {
-                    *out = plan->phdrs[i].vaddr;
-                    found = 1;
-                    break;
-                  }
+                *out = plan->phdrs[i].vaddr;
+                found = 1;
+                break;
               }
-            if (!found)
+          }
+        if (!found && e->b)
+          ok = eval_inner (e->b, plan, dot, out, error_message);
+        else if (!found)
+          {
+            if (error_message)
               {
-                if (error_message)
-                  {
-                    char buf[256];
-                    snprintf (buf, sizeof (buf), "undefined segment '%s'",
-                              e->name);
-                    *error_message = strdup (buf);
-                  }
-                ok = 0;
+                char buf[256];
+                snprintf (buf, sizeof (buf), "undefined segment '%s'",
+                          e->name ? e->name : "");
+                *error_message = strdup (buf);
               }
+            ok = 0;
           }
         break;
       }
@@ -557,16 +610,24 @@ eval_inner (const ccwld_expr *e, const struct ccwld_plan *plan, uint64_t dot,
           ok = 0;
           break;
         }
-      /* align up: (a + boundary-1) & ~(boundary-1) */
-      if (e->ival == 0)
-        {
+      {
+        uint64_t boundary = e->ival;
+        if (boundary == 0 && e->b)
+          {
+            /* expression boundary (ccwld_expr_align_to) */
+            if (!eval_inner (e->b, plan, dot, &boundary, error_message))
+              {
+                ok = 0;
+                break;
+              }
+          }
+        /* align up: (a + boundary-1) & ~(boundary-1) */
+        if (boundary == 0)
           *out = a_val;
-        }
-      else
-        {
-          *out = (a_val + e->ival - 1) & ~(e->ival - 1);
-        }
-      ok = 1;
+        else
+          *out = (a_val + boundary - 1) & ~(boundary - 1);
+        ok = 1;
+      }
       break;
 
     case CCWLD_EXPR_UNARY:
@@ -659,6 +720,30 @@ eval_inner (const ccwld_expr *e, const struct ccwld_plan *plan, uint64_t dot,
           break;
         case CCWLD_OP_SHR:
           *out = a_val >> (b_val & 63);
+          break;
+        case CCWLD_OP_EQ:
+          *out = a_val == b_val;
+          break;
+        case CCWLD_OP_NE:
+          *out = a_val != b_val;
+          break;
+        case CCWLD_OP_LT:
+          *out = a_val < b_val;
+          break;
+        case CCWLD_OP_LE:
+          *out = a_val <= b_val;
+          break;
+        case CCWLD_OP_GT:
+          *out = a_val > b_val;
+          break;
+        case CCWLD_OP_GE:
+          *out = a_val >= b_val;
+          break;
+        case CCWLD_OP_LAND:
+          *out = a_val && b_val;
+          break;
+        case CCWLD_OP_LOR:
+          *out = a_val || b_val;
           break;
         default:
           if (error_message)
@@ -826,7 +911,26 @@ ccwld_expr_to_string (const ccwld_expr *e, char **out, size_t *len,
     case CCWLD_EXPR_ALIGN:
       APPEND_BUF (*out, *len, *cap, "align(");
       ccwld_expr_to_string (e->a, out, len, cap);
-      APPEND_BUF (*out, *len, *cap, ",%" PRIu64 ")", e->ival);
+      if (e->ival)
+        APPEND_BUF (*out, *len, *cap, ",%" PRIu64 ")", e->ival);
+      else
+        {
+          APPEND_BUF (*out, *len, *cap, ",");
+          ccwld_expr_to_string (e->b, out, len, cap);
+          APPEND_BUF (*out, *len, *cap, ")");
+        }
+      break;
+    case CCWLD_EXPR_SEGMENT_START:
+      if (e->b)
+        {
+          APPEND_BUF (*out, *len, *cap, "segment_start(%s,",
+                      e->name ? e->name : "");
+          ccwld_expr_to_string (e->b, out, len, cap);
+          APPEND_BUF (*out, *len, *cap, ")");
+        }
+      else
+        APPEND_BUF (*out, *len, *cap, "segment_start(%s)",
+                    e->name ? e->name : "");
       break;
     case CCWLD_EXPR_UNARY:
       APPEND_BUF (*out, *len, *cap, "(%c", (char)e->op);
@@ -857,11 +961,36 @@ ccwld_expr_to_string (const ccwld_expr *e, char **out, size_t *len,
       APPEND_BUF (*out, *len, *cap, ")");
       break;
     case CCWLD_EXPR_BINARY:
-      APPEND_BUF (*out, *len, *cap, "(");
-      ccwld_expr_to_string (e->a, out, len, cap);
-      APPEND_BUF (*out, *len, *cap, "%c", (char)e->op);
-      ccwld_expr_to_string (e->b, out, len, cap);
-      APPEND_BUF (*out, *len, *cap, ")");
+      {
+        const char *op = NULL;
+        switch (e->op)
+          {
+          case CCWLD_OP_ADD: op = "+"; break;
+          case CCWLD_OP_SUB: op = "-"; break;
+          case CCWLD_OP_MUL: op = "*"; break;
+          case CCWLD_OP_DIV: op = "/"; break;
+          case CCWLD_OP_MOD: op = "%"; break;
+          case CCWLD_OP_AND: op = "&"; break;
+          case CCWLD_OP_OR: op = "|"; break;
+          case CCWLD_OP_XOR: op = "^"; break;
+          case CCWLD_OP_SHL: op = "<<"; break;
+          case CCWLD_OP_SHR: op = ">>"; break;
+          case CCWLD_OP_EQ: op = "=="; break;
+          case CCWLD_OP_NE: op = "!="; break;
+          case CCWLD_OP_LT: op = "<"; break;
+          case CCWLD_OP_LE: op = "<="; break;
+          case CCWLD_OP_GT: op = ">"; break;
+          case CCWLD_OP_GE: op = ">="; break;
+          case CCWLD_OP_LAND: op = "&&"; break;
+          case CCWLD_OP_LOR: op = "||"; break;
+          default: op = "?"; break;
+          }
+        APPEND_BUF (*out, *len, *cap, "(");
+        ccwld_expr_to_string (e->a, out, len, cap);
+        APPEND_BUF (*out, *len, *cap, "%s", op);
+        ccwld_expr_to_string (e->b, out, len, cap);
+        APPEND_BUF (*out, *len, *cap, ")");
+      }
       break;
     default:
       APPEND_BUF (*out, *len, *cap, "?");

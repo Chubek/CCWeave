@@ -36,7 +36,8 @@ grow (void **p, size_t *cap, size_t n, size_t sz)
 static int
 valid_format (const char *f)
 {
-  return !f || !strcmp (f, "elf") || !strcmp (f, "pe") || !strcmp (f, "macho");
+  return !f || !strcmp (f, "elf") || !strcmp (f, "pe") || !strcmp (f, "macho")
+         || !strcmp (f, "wasm");
 }
 
 static int
@@ -63,6 +64,17 @@ is_sealed (const ccwld_plan *p, ccwld_error *e)
   return 0;
 }
 
+static int
+oom (ccwld_error *e)
+{
+  if (e)
+    {
+      e->code = CCWLD_EXIT_INTERNAL;
+      snprintf (e->message, sizeof (e->message), "out of memory");
+    }
+  return 0;
+}
+
 /* --- lifecycle --- */
 
 ccwld_plan *
@@ -74,6 +86,8 @@ ccwld_plan_new (const char *target)
   p->target = dupstr (target ? target : "unknown");
   p->sealed = false;
   p->reproducible = true;
+  p->options.reproducible = 1;
+  p->frontend = dupstr ("api");
   return p;
 }
 
@@ -84,6 +98,9 @@ ccwld_plan_free (ccwld_plan *p)
     return;
   free (p->target);
   free (p->serialized);
+  free (p->frontend);
+  free (p->options.cache_dir);
+  free (p->options.out_name);
 
   /* output */
   free ((void *)p->output.kind);
@@ -116,21 +133,45 @@ ccwld_plan_free (ccwld_plan *p)
       free (p->secs[i].name);
       free (p->secs[i].region);
       free (p->secs[i].at_region);
-      free (p->secs[i].selector);
-      free (p->secs[i].keep);
+      free (p->secs[i].phdr);
+      for (size_t j = 0; j < p->secs[i].nsels; j++)
+        {
+          free (p->secs[i].sels[j].file_glob);
+          for (size_t k = 0; k < p->secs[i].sels[j].nglobs; k++)
+            free (p->secs[i].sels[j].globs[k]);
+          free (p->secs[i].sels[j].globs);
+        }
+      free (p->secs[i].sels);
+      ccwld_expr_free (p->secs[i].vma_expr);
+      ccwld_expr_free (p->secs[i].at_expr);
       ccwld_expr_free (p->secs[i].fill);
     }
   free (p->secs);
 
-  /* symbols */
+  /* symbols / dotsteps / attrs */
   for (size_t i = 0; i < p->nsyms; i++)
     {
       free (p->syms[i].name);
       free (p->syms[i].visibility);
       free (p->syms[i].binding);
+      free (p->syms[i].site);
       ccwld_expr_free (p->syms[i].expr);
     }
   free (p->syms);
+  for (size_t i = 0; i < p->ndotsteps; i++)
+    {
+      ccwld_expr_free (p->dotsteps[i].expr);
+      free (p->dotsteps[i].site);
+    }
+  free (p->dotsteps);
+  for (size_t i = 0; i < p->nattrs; i++)
+    {
+      free (p->attrs[i].name);
+      free (p->attrs[i].visibility);
+      free (p->attrs[i].binding);
+      free (p->attrs[i].alias);
+    }
+  free (p->attrs);
 
   /* phdrs */
   for (size_t i = 0; i < p->nphdrs; i++)
@@ -148,6 +189,15 @@ ccwld_plan_free (ccwld_plan *p)
     }
   free (p->vers);
 
+  /* env */
+  for (size_t i = 0; i < p->nenv; i++)
+    {
+      free (p->env_keys[i]);
+      free (p->env_vals[i]);
+    }
+  free (p->env_keys);
+  free (p->env_vals);
+
   /* LTO */
   free (p->lto.pipeline);
   free (p->lto.cache_dir);
@@ -162,8 +212,13 @@ ccwld_plan_free (ccwld_plan *p)
   free (p->plugins);
 
   /* hooks */
+  for (size_t i = 0; i < p->nhooks; i++)
+    free (p->hooks[i].site);
   free (p->hooks);
 
+  /* frontend runtime (lccwld's Lua state, closed after the link) */
+  if (p->frontend_ctx && p->frontend_ctx_free)
+    p->frontend_ctx_free (p->frontend_ctx);
   free (p);
 }
 
@@ -178,7 +233,7 @@ ccwld_plan_output (ccwld_plan *p, const ccwld_output *o, ccwld_error *e)
     {
       if (e)
         {
-          e->code = 2;
+          e->code = CCWLD_EXIT_USAGE;
           snprintf (e->message, sizeof (e->message),
                     "invalid output kind or format");
         }
@@ -188,7 +243,7 @@ ccwld_plan_output (ccwld_plan *p, const ccwld_output *o, ccwld_error *e)
     {
       if (e)
         {
-          e->code = 2;
+          e->code = CCWLD_EXIT_USAGE;
           snprintf (e->message, sizeof (e->message),
                     "soname is only valid for ELF");
         }
@@ -219,25 +274,19 @@ ccwld_plan_input (ccwld_plan *p, const char *path, int as_needed, int startup,
     {
       if (e)
         {
-          e->code = 1;
+          e->code = CCWLD_EXIT_LINK;
           snprintf (e->message, sizeof (e->message), "invalid input path");
         }
       return 0;
     }
   if (!grow ((void **)&p->inputs, &p->cinputs, p->ninputs + 1,
              sizeof (*p->inputs)))
-    {
-      if (e)
-        {
-          e->code = 3;
-          snprintf (e->message, sizeof (e->message), "out of memory");
-        }
-      return 0;
-    }
+    return oom (e);
   p->inputs[p->ninputs].path = dupstr (path);
   p->inputs[p->ninputs].as_needed = as_needed;
   p->inputs[p->ninputs].startup = startup;
   p->inputs[p->ninputs].is_group = 0;
+  p->inputs[p->ninputs].group_start = 0;
   p->ninputs++;
   return 1;
 }
@@ -252,6 +301,8 @@ ccwld_plan_group (ccwld_plan *p, const char **paths, size_t n, ccwld_error *e)
       if (!ccwld_plan_input (p, paths[i], 0, 0, e))
         return 0;
       p->inputs[p->ninputs - 1].is_group = 1;
+      if (i == 0)
+        p->inputs[p->ninputs - 1].group_start = 1;
     }
   return 1;
 }
@@ -265,21 +316,14 @@ ccwld_plan_search_path (ccwld_plan *p, const char *path, ccwld_error *e)
     {
       if (e)
         {
-          e->code = 1;
+          e->code = CCWLD_EXIT_LINK;
           snprintf (e->message, sizeof (e->message), "invalid search path");
         }
       return 0;
     }
   if (!grow ((void **)&p->paths, &p->cpaths, p->npaths + 1,
              sizeof (*p->paths)))
-    {
-      if (e)
-        {
-          e->code = 3;
-          snprintf (e->message, sizeof (e->message), "out of memory");
-        }
-      return 0;
-    }
+    return oom (e);
   p->paths[p->npaths++] = dupstr (path);
   return 1;
 }
@@ -296,20 +340,13 @@ ccwld_plan_memory (ccwld_plan *p, const char *name, const char *attrs,
     {
       if (e)
         {
-          e->code = 1;
+          e->code = CCWLD_EXIT_LINK;
           snprintf (e->message, sizeof (e->message), "invalid memory region");
         }
       return 0;
     }
   if (!grow ((void **)&p->mems, &p->cmems, p->nmems + 1, sizeof (*p->mems)))
-    {
-      if (e)
-        {
-          e->code = 3;
-          snprintf (e->message, sizeof (e->message), "out of memory");
-        }
-      return 0;
-    }
+    return oom (e);
   p->mems[p->nmems].name = dupstr (name);
   p->mems[p->nmems].attrs = dupstr (attrs ? attrs : "");
   p->mems[p->nmems].origin = origin;
@@ -319,6 +356,48 @@ ccwld_plan_memory (ccwld_plan *p, const char *name, const char *attrs,
 }
 
 /* --- sections --- */
+
+static int
+section_split_selector (ccwld_sec *s, const char *list, int keep)
+{
+  /* Split a whitespace-separated glob list into one selector with
+   * file glob "*" (legacy string API of ccwld_plan_section[_full]). */
+  if (!list || !list[0])
+    return 1;
+  ccwld_sel *sels = realloc (s->sels, (s->nsels + 1) * sizeof (*sels));
+  if (!sels)
+    return 0;
+  s->sels = sels;
+  ccwld_sel *sel = &s->sels[s->nsels];
+  memset (sel, 0, sizeof (*sel));
+  sel->keep = keep;
+  sel->file_glob = dupstr ("*");
+
+  const char *p = list;
+  while (*p)
+    {
+      while (*p == ' ' || *p == '\t')
+        p++;
+      if (!*p)
+        break;
+      const char *st = p;
+      while (*p && *p != ' ' && *p != '\t')
+        p++;
+      char **g = realloc (sel->globs, (sel->nglobs + 1) * sizeof (*g));
+      if (!g)
+        return 0;
+      sel->globs = g;
+      size_t n = (size_t)(p - st);
+      char *dup = malloc (n + 1);
+      if (!dup)
+        return 0;
+      memcpy (dup, st, n);
+      dup[n] = 0;
+      sel->globs[sel->nglobs++] = dup;
+    }
+  s->nsels++;
+  return 1;
+}
 
 int
 ccwld_plan_section (ccwld_plan *p, const char *name, const char *region,
@@ -341,29 +420,251 @@ ccwld_plan_section_full (ccwld_plan *p, const char *name, const char *region,
     {
       if (e)
         {
-          e->code = 1;
+          e->code = CCWLD_EXIT_LINK;
           snprintf (e->message, sizeof (e->message), "invalid section name");
         }
       return 0;
     }
   if (!grow ((void **)&p->secs, &p->csecs, p->nsecs + 1, sizeof (*p->secs)))
-    {
-      if (e)
-        {
-          e->code = 3;
-          snprintf (e->message, sizeof (e->message), "out of memory");
-        }
-      return 0;
-    }
+    return oom (e);
   ccwld_sec *s = &p->secs[p->nsecs++];
   memset (s, 0, sizeof (*s));
   s->name = dupstr (name);
   s->region = dupstr (region);
   s->at_region = dupstr (at_region);
-  s->selector = dupstr (selector);
-  s->keep = dupstr (keep);
+  s->phdr = NULL;
   s->align = align ? align : 1;
+  s->subalign = 0;
   s->load = 1;
+  s->fill = fill;
+  if (!section_split_selector (s, selector, 0)
+      || !section_split_selector (s, keep, 1))
+    return oom (e);
+  return 1;
+}
+
+static ccwld_sec *
+last_section (ccwld_plan *p, const char *name)
+{
+  for (size_t i = p->nsecs; i > 0; i--)
+    if (p->secs[i - 1].name && strcmp (p->secs[i - 1].name, name) == 0)
+      return &p->secs[i - 1];
+  return NULL;
+}
+
+int
+ccwld_plan_selector (ccwld_plan *p, const char *secname,
+                     const char *file_glob, char *const *globs, size_t nglobs,
+                     int keep, ccwld_error *e)
+{
+  if (is_sealed (p, e))
+    return 0;
+  ccwld_sec *s = last_section (p, secname);
+  if (!s)
+    {
+      if (e)
+        {
+          e->code = CCWLD_EXIT_LINK;
+          snprintf (e->message, sizeof (e->message),
+                    "selector for unknown output section '%s'", secname);
+        }
+      return 0;
+    }
+  ccwld_sel *sels = realloc (s->sels, (s->nsels + 1) * sizeof (*sels));
+  if (!sels)
+    return oom (e);
+  s->sels = sels;
+  ccwld_sel *sel = &s->sels[s->nsels];
+  memset (sel, 0, sizeof (*sel));
+  sel->keep = keep;
+  sel->file_glob = dupstr (file_glob ? file_glob : "*");
+  if (nglobs)
+    {
+      sel->globs = calloc (nglobs, sizeof (*sel->globs));
+      if (!sel->globs)
+        return oom (e);
+      for (size_t i = 0; i < nglobs; i++)
+        {
+          sel->globs[i] = dupstr (globs[i]);
+          if (!sel->globs[i])
+            return oom (e);
+        }
+      sel->nglobs = nglobs;
+    }
+  s->nsels++;
+  return 1;
+}
+
+int
+ccwld_plan_section_set_vma (ccwld_plan *p, const char *secname,
+                            ccwld_expr *vma, ccwld_error *e)
+{
+  if (is_sealed (p, e))
+    return 0;
+  ccwld_sec *s = last_section (p, secname);
+  if (!s)
+    {
+      if (e)
+        {
+          e->code = CCWLD_EXIT_LINK;
+          snprintf (e->message, sizeof (e->message),
+                    "unknown output section '%s'", secname);
+        }
+      return 0;
+    }
+  ccwld_expr_free (s->vma_expr);
+  s->vma_expr = vma;
+  return 1;
+}
+
+int
+ccwld_plan_section_set_at (ccwld_plan *p, const char *secname,
+                           ccwld_expr *at, ccwld_error *e)
+{
+  if (is_sealed (p, e))
+    return 0;
+  ccwld_sec *s = last_section (p, secname);
+  if (!s)
+    {
+      if (e)
+        {
+          e->code = CCWLD_EXIT_LINK;
+          snprintf (e->message, sizeof (e->message),
+                    "unknown output section '%s'", secname);
+        }
+      return 0;
+    }
+  ccwld_expr_free (s->at_expr);
+  s->at_expr = at;
+  return 1;
+}
+
+int
+ccwld_plan_section_set_subalign (ccwld_plan *p, const char *secname,
+                                 uint64_t subalign, ccwld_error *e)
+{
+  if (is_sealed (p, e))
+    return 0;
+  ccwld_sec *s = last_section (p, secname);
+  if (!s)
+    {
+      if (e)
+        {
+          e->code = CCWLD_EXIT_LINK;
+          snprintf (e->message, sizeof (e->message),
+                    "unknown output section '%s'", secname);
+        }
+      return 0;
+    }
+  s->subalign = subalign;
+  return 1;
+}
+
+int
+ccwld_plan_section_set_phdr (ccwld_plan *p, const char *secname,
+                             const char *phdr, ccwld_error *e)
+{
+  if (is_sealed (p, e))
+    return 0;
+  ccwld_sec *s = last_section (p, secname);
+  if (!s)
+    {
+      if (e)
+        {
+          e->code = CCWLD_EXIT_LINK;
+          snprintf (e->message, sizeof (e->message),
+                    "unknown output section '%s'", secname);
+        }
+      return 0;
+    }
+  free (s->phdr);
+  s->phdr = dupstr (phdr);
+  return 1;
+}
+
+int
+ccwld_plan_section_set_load (ccwld_plan *p, const char *secname, int load,
+                             ccwld_error *e)
+{
+  if (is_sealed (p, e))
+    return 0;
+  ccwld_sec *s = last_section (p, secname);
+  if (!s)
+    {
+      if (e)
+        {
+          e->code = CCWLD_EXIT_LINK;
+          snprintf (e->message, sizeof (e->message),
+                    "unknown output section '%s'", secname);
+        }
+      return 0;
+    }
+  s->load = load;
+  return 1;
+}
+
+int
+ccwld_plan_section_set_region (ccwld_plan *p, const char *secname,
+                               const char *region, ccwld_error *e)
+{
+  if (is_sealed (p, e))
+    return 0;
+  ccwld_sec *s = last_section (p, secname);
+  if (!s)
+    {
+      if (e)
+        {
+          e->code = CCWLD_EXIT_LINK;
+          snprintf (e->message, sizeof (e->message),
+                    "unknown output section '%s'", secname);
+        }
+      return 0;
+    }
+  free (s->region);
+  s->region = dupstr (region);
+  return 1;
+}
+
+int
+ccwld_plan_section_set_at_region (ccwld_plan *p, const char *secname,
+                                  const char *at_region, ccwld_error *e)
+{
+  if (is_sealed (p, e))
+    return 0;
+  ccwld_sec *s = last_section (p, secname);
+  if (!s)
+    {
+      if (e)
+        {
+          e->code = CCWLD_EXIT_LINK;
+          snprintf (e->message, sizeof (e->message),
+                    "unknown output section '%s'", secname);
+        }
+      return 0;
+    }
+  free (s->at_region);
+  s->at_region = dupstr (at_region);
+  return 1;
+}
+
+int
+ccwld_plan_section_set_fill (ccwld_plan *p, const char *secname,
+                             ccwld_expr *fill, ccwld_error *e)
+{
+  if (is_sealed (p, e))
+    return 0;
+  ccwld_sec *s = last_section (p, secname);
+  if (!s)
+    {
+      if (e)
+        {
+          e->code = CCWLD_EXIT_LINK;
+          snprintf (e->message, sizeof (e->message),
+                    "unknown output section '%s'", secname);
+        }
+      return 0;
+    }
+  ccwld_expr_free (s->fill);
   s->fill = fill;
   return 1;
 }
@@ -383,35 +684,104 @@ ccwld_plan_symbol_full (ccwld_plan *p, const char *name, ccwld_expr *expr,
                         int provide, const char *visibility,
                         const char *binding, ccwld_error *e)
 {
+  int hidden = visibility && !strcmp (visibility, "hidden");
+  if (!ccwld_plan_symbol_at (p, name, expr, provide, hidden, -1, NULL, e))
+    return 0;
+  /* symbol_at filled defaults; apply the requested binding/visibility. */
+  ccwld_sym *s = &p->syms[p->nsyms - 1];
+  free (s->visibility);
+  free (s->binding);
+  s->visibility = dupstr (visibility ? visibility : "default");
+  s->binding = dupstr (binding ? binding : "global");
+  if (!s->visibility || !s->binding)
+    return oom (e);
+  return 1;
+}
+
+int
+ccwld_plan_symbol_at (ccwld_plan *p, const char *name, ccwld_expr *expr,
+                      int provide, int hidden, int sec_idx, const char *site,
+                      ccwld_error *e)
+{
   if (is_sealed (p, e))
     return 0;
   if (!name || !expr)
     {
       if (e)
         {
-          e->code = 1;
+          e->code = CCWLD_EXIT_LINK;
           snprintf (e->message, sizeof (e->message), "invalid symbol");
         }
       return 0;
     }
   if (!grow ((void **)&p->syms, &p->csyms, p->nsyms + 1, sizeof (*p->syms)))
-    {
-      if (e)
-        {
-          e->code = 3;
-          snprintf (e->message, sizeof (e->message), "out of memory");
-        }
-      return 0;
-    }
+    return oom (e);
   ccwld_sym *s = &p->syms[p->nsyms++];
   memset (s, 0, sizeof (*s));
   s->name = dupstr (name);
   s->expr = expr;
   s->provide = provide;
-  s->hidden = (visibility && !strcmp (visibility, "hidden")) ? 1 : 0;
-  s->visibility = dupstr (visibility ? visibility : "default");
-  s->binding = dupstr (binding ? binding : "global");
+  s->hidden = hidden;
+  s->visibility = dupstr (hidden ? "hidden" : "default");
+  s->binding = dupstr ("global");
+  s->sec_idx = sec_idx;
+  s->seq = p->stmt_seq++;
+  s->site = dupstr (site);
   s->resolved = 0;
+  return 1;
+}
+
+int
+ccwld_plan_dotstep (ccwld_plan *p, ccwld_expr *expr, int sec_idx,
+                    const char *site, ccwld_error *e)
+{
+  if (is_sealed (p, e))
+    return 0;
+  if (!expr)
+    {
+      if (e)
+        {
+          e->code = CCWLD_EXIT_LINK;
+          snprintf (e->message, sizeof (e->message), "invalid dotstep");
+        }
+      return 0;
+    }
+  if (!grow ((void **)&p->dotsteps, &p->cdotsteps, p->ndotsteps + 1,
+             sizeof (*p->dotsteps)))
+    return oom (e);
+  ccwld_dotstep *d = &p->dotsteps[p->ndotsteps++];
+  memset (d, 0, sizeof (*d));
+  d->expr = expr;
+  d->sec_idx = sec_idx;
+  d->seq = p->stmt_seq++;
+  d->site = dupstr (site);
+  return 1;
+}
+
+int
+ccwld_plan_attr (ccwld_plan *p, const char *name, const char *visibility,
+                 const char *binding, const char *alias, ccwld_error *e)
+{
+  if (is_sealed (p, e))
+    return 0;
+  if (!name)
+    {
+      if (e)
+        {
+          e->code = CCWLD_EXIT_LINK;
+          snprintf (e->message, sizeof (e->message), "invalid symbol attr");
+        }
+      return 0;
+    }
+  if (!grow ((void **)&p->attrs, &p->cattrs, p->nattrs + 1,
+             sizeof (*p->attrs)))
+    return oom (e);
+  ccwld_attr *a = &p->attrs[p->nattrs++];
+  memset (a, 0, sizeof (*a));
+  a->name = dupstr (name);
+  a->visibility = dupstr (visibility);
+  a->binding = dupstr (binding);
+  a->alias = dupstr (alias);
   return 1;
 }
 
@@ -427,21 +797,14 @@ ccwld_plan_phdr (ccwld_plan *p, const char *name, const char *type,
     {
       if (e)
         {
-          e->code = 1;
+          e->code = CCWLD_EXIT_LINK;
           snprintf (e->message, sizeof (e->message), "invalid phdr name");
         }
       return 0;
     }
   if (!grow ((void **)&p->phdrs, &p->cphdrs, p->nphdrs + 1,
              sizeof (*p->phdrs)))
-    {
-      if (e)
-        {
-          e->code = 3;
-          snprintf (e->message, sizeof (e->message), "out of memory");
-        }
-      return 0;
-    }
+    return oom (e);
   ccwld_phdr *ph = &p->phdrs[p->nphdrs++];
   memset (ph, 0, sizeof (*ph));
   ph->name = dupstr (name);
@@ -463,20 +826,13 @@ ccwld_plan_version (ccwld_plan *p, const char *symbol, const char *version,
     {
       if (e)
         {
-          e->code = 1;
+          e->code = CCWLD_EXIT_LINK;
           snprintf (e->message, sizeof (e->message), "invalid version node");
         }
       return 0;
     }
   if (!grow ((void **)&p->vers, &p->cvers, p->nvers + 1, sizeof (*p->vers)))
-    {
-      if (e)
-        {
-          e->code = 3;
-          snprintf (e->message, sizeof (e->message), "out of memory");
-        }
-      return 0;
-    }
+    return oom (e);
   p->vers[p->nvers].symbol = dupstr (symbol);
   p->vers[p->nvers].version = dupstr (version);
   p->vers[p->nvers].is_default = is_default;
@@ -513,21 +869,14 @@ ccwld_plan_plugin (ccwld_plan *p, const char *path, const char *options,
     {
       if (e)
         {
-          e->code = 1;
+          e->code = CCWLD_EXIT_LINK;
           snprintf (e->message, sizeof (e->message), "invalid plugin path");
         }
       return 0;
     }
   if (!grow ((void **)&p->plugins, &p->cplugins, p->nplugins + 1,
              sizeof (*p->plugins)))
-    {
-      if (e)
-        {
-          e->code = 3;
-          snprintf (e->message, sizeof (e->message), "out of memory");
-        }
-      return 0;
-    }
+    return oom (e);
   p->plugins[p->nplugins].path = dupstr (path);
   p->plugins[p->nplugins].name = NULL;
   p->plugins[p->nplugins].options = dupstr (options);
@@ -548,26 +897,95 @@ ccwld_plan_hook (ccwld_plan *p, ccwld_phase phase, ccwld_hook_fn fn,
     {
       if (e)
         {
-          e->code = 1;
+          e->code = CCWLD_EXIT_LINK;
           snprintf (e->message, sizeof (e->message), "invalid hook function");
         }
       return 0;
     }
   if (!grow ((void **)&p->hooks, &p->chooks, p->nhooks + 1,
              sizeof (*p->hooks)))
-    {
-      if (e)
-        {
-          e->code = 3;
-          snprintf (e->message, sizeof (e->message), "out of memory");
-        }
-      return 0;
-    }
+    return oom (e);
   p->hooks[p->nhooks].phase = phase;
   p->hooks[p->nhooks].fn = fn;
   p->hooks[p->nhooks].user = user;
+  p->hooks[p->nhooks].site = NULL;
+  p->hooks[p->nhooks].is_lua = 0;
   p->nhooks++;
   return 1;
+}
+
+/* --- env / gensym --- */
+
+int
+ccwld_plan_env (ccwld_plan *p, const char *key, const char *val, int defsym,
+                ccwld_error *e)
+{
+  if (is_sealed (p, e))
+    return 0;
+  if (!key || !val)
+    {
+      if (e)
+        {
+          e->code = CCWLD_EXIT_LINK;
+          snprintf (e->message, sizeof (e->message), "invalid env binding");
+        }
+      return 0;
+    }
+  /* -D keys are unique; a repeat rebinds in place (deterministic). */
+  for (size_t i = 0; i < p->nenv; i++)
+    if (strcmp (p->env_keys[i], key) == 0)
+      {
+        free (p->env_vals[i]);
+        p->env_vals[i] = dupstr (val);
+        return 1;
+      }
+  if (!grow ((void **)&p->env_keys, &p->cenv, p->nenv + 1, sizeof (char *)))
+    return oom (e);
+  {
+    char **nv = realloc (p->env_vals, p->cenv * sizeof (char *));
+    if (!nv)
+      return oom (e);
+    p->env_vals = nv;
+  }
+  p->env_keys[p->nenv] = dupstr (key);
+  p->env_vals[p->nenv] = dupstr (val);
+  p->nenv++;
+  return 1;
+}
+
+const char *
+ccwld_plan_env_get (const ccwld_plan *p, const char *key)
+{
+  if (!p || !key)
+    return NULL;
+  for (size_t i = 0; i < p->nenv; i++)
+    if (strcmp (p->env_keys[i], key) == 0)
+      return p->env_vals[i];
+  return NULL;
+}
+
+size_t
+ccwld_plan_gensym (ccwld_plan *p, const char *prefix, char *buf,
+                   size_t buflen)
+{
+  if (!p || !buf || buflen == 0)
+    return 0;
+  const char *pre = prefix ? prefix : "g";
+  size_t n = (size_t)snprintf (buf, buflen, ".Lccwld_%s_%u", pre,
+                               (unsigned)p->gensym + 1);
+  if (n >= buflen)
+    return 0;
+  p->gensym++;
+  return n;
+}
+
+void
+ccwld_plan_set_frontend (ccwld_plan *p, const char *frontend)
+{
+  if (!p)
+    return;
+  free (p->frontend);
+  p->frontend = dupstr (frontend ? frontend : "api");
 }
 
 /* --- serialization helpers --- */
@@ -583,7 +1001,7 @@ ccwld_plan_hook (ccwld_plan *p, ccwld_phase phase, ccwld_hook_fn fn,
         {                                                                     \
           size_t _nc = (cap) ? (cap) * 2 : 4096;                              \
           while (_nc < (len) + (size_t)_z + 1)                                \
-            _nc *= 2;                                                         \
+            _nc *= 2;                                                          \
           char *_ns = realloc (s, _nc);                                       \
           if (!_ns)                                                           \
             break;                                                            \
@@ -634,7 +1052,21 @@ json_escape (char **s, size_t *len, size_t *cap, const char *str)
   APPEND (*s, *len, *cap, "\"");
 }
 
-/* --- serialization --- */
+/* Append an expression in a JSON string literal position. */
+static void
+json_expr (char **s, size_t *len, size_t *cap, const ccwld_expr *x)
+{
+  /* Canonical form is the expr-to-string form; escape happens to be a
+   * no-op for the characters it emits, but route through json_escape
+   * for safety. */
+  char *tmp = NULL;
+  size_t tl = 0, tc = 0;
+  ccwld_expr_to_string (x, &tmp, &tl, &tc);
+  json_escape (s, len, cap, tmp ? tmp : "");
+  free (tmp);
+}
+
+/* --- serialization (canonical, deterministic; provenance excluded) --- */
 
 int
 ccwld_plan_serialize (const ccwld_plan *p, char **out, size_t *out_len,
@@ -644,7 +1076,7 @@ ccwld_plan_serialize (const ccwld_plan *p, char **out, size_t *out_len,
     {
       if (e)
         {
-          e->code = 1;
+          e->code = CCWLD_EXIT_LINK;
           snprintf (e->message, sizeof (e->message),
                     "invalid serialization request");
         }
@@ -678,7 +1110,7 @@ ccwld_plan_serialize (const ccwld_plan *p, char **out, size_t *out_len,
     }
   APPEND (s, len, cap, "}");
 
-  /* inputs */
+  /* inputs (ordered) */
   APPEND (s, len, cap, ",\"inputs\":[");
   for (size_t i = 0; i < p->ninputs; i++)
     {
@@ -690,13 +1122,25 @@ ccwld_plan_serialize (const ccwld_plan *p, char **out, size_t *out_len,
               p->inputs[i].as_needed ? "true" : "false");
       APPEND (s, len, cap, ",\"startup\":%s",
               p->inputs[i].startup ? "true" : "false");
-      APPEND (s, len, cap, ",\"is_group\":%s",
-              p->inputs[i].is_group ? "true" : "false");
+      if (p->inputs[i].is_group)
+        APPEND (s, len, cap, ",\"is_group\":true");
+      if (p->inputs[i].group_start)
+        APPEND (s, len, cap, ",\"group_start\":true");
       APPEND (s, len, cap, "}");
     }
   APPEND (s, len, cap, "]");
 
-  /* memory */
+  /* search paths (ordered) */
+  APPEND (s, len, cap, ",\"search_paths\":[");
+  for (size_t i = 0; i < p->npaths; i++)
+    {
+      if (i)
+        APPEND (s, len, cap, ",");
+      json_escape (&s, &len, &cap, p->paths[i]);
+    }
+  APPEND (s, len, cap, "]");
+
+  /* memory (ordered) */
   APPEND (s, len, cap, ",\"memory\":[");
   for (size_t i = 0; i < p->nmems; i++)
     {
@@ -712,64 +1156,112 @@ ccwld_plan_serialize (const ccwld_plan *p, char **out, size_t *out_len,
     }
   APPEND (s, len, cap, "]");
 
-  /* sections */
+  /* sections (ordered, with structured input selectors) */
   APPEND (s, len, cap, ",\"sections\":[");
   for (size_t i = 0; i < p->nsecs; i++)
     {
+      const ccwld_sec *sec = &p->secs[i];
       if (i)
         APPEND (s, len, cap, ",");
       APPEND (s, len, cap, "{\"name\":");
-      json_escape (&s, &len, &cap, p->secs[i].name);
-      if (p->secs[i].region)
+      json_escape (&s, &len, &cap, sec->name);
+      if (sec->region)
         {
           APPEND (s, len, cap, ",\"region\":");
-          json_escape (&s, &len, &cap, p->secs[i].region);
+          json_escape (&s, &len, &cap, sec->region);
         }
-      APPEND (s, len, cap, ",\"align\":%" PRIu64, p->secs[i].align);
-      if (p->secs[i].selector)
-        {
-          APPEND (s, len, cap, ",\"selector\":");
-          json_escape (&s, &len, &cap, p->secs[i].selector);
-        }
-      if (p->secs[i].keep)
-        {
-          APPEND (s, len, cap, ",\"keep\":");
-          json_escape (&s, &len, &cap, p->secs[i].keep);
-        }
-      if (p->secs[i].at_region)
+      if (sec->at_region)
         {
           APPEND (s, len, cap, ",\"at_region\":");
-          json_escape (&s, &len, &cap, p->secs[i].at_region);
+          json_escape (&s, &len, &cap, sec->at_region);
         }
-      APPEND (s, len, cap, ",\"load\":%s", p->secs[i].load ? "true" : "false");
-      APPEND (s, len, cap, "}");
+      if (sec->phdr)
+        {
+          APPEND (s, len, cap, ",\"phdr\":");
+          json_escape (&s, &len, &cap, sec->phdr);
+        }
+      APPEND (s, len, cap, ",\"align\":%" PRIu64, sec->align);
+      if (sec->subalign)
+        APPEND (s, len, cap, ",\"subalign\":%" PRIu64, sec->subalign);
+      if (sec->vma_expr)
+        {
+          APPEND (s, len, cap, ",\"vma\":\"");
+          ccwld_expr_to_string (sec->vma_expr, &s, &len, &cap);
+          APPEND (s, len, cap, "\"");
+        }
+      if (sec->at_expr)
+        {
+          APPEND (s, len, cap, ",\"at\":\"");
+          ccwld_expr_to_string (sec->at_expr, &s, &len, &cap);
+          APPEND (s, len, cap, "\"");
+        }
+      if (sec->fill)
+        {
+          APPEND (s, len, cap, ",\"fill\":\"");
+          ccwld_expr_to_string (sec->fill, &s, &len, &cap);
+          APPEND (s, len, cap, "\"");
+        }
+      APPEND (s, len, cap, ",\"load\":%s", sec->load ? "true" : "false");
+      APPEND (s, len, cap, ",\"input\":[");
+      for (size_t j = 0; j < sec->nsels; j++)
+        {
+          const ccwld_sel *sel = &sec->sels[j];
+          if (j)
+            APPEND (s, len, cap, ",");
+          APPEND (s, len, cap, "{\"file\":");
+          json_escape (&s, &len, &cap,
+                       sel->file_glob ? sel->file_glob : "*");
+          APPEND (s, len, cap, ",\"keep\":%s", sel->keep ? "true" : "false");
+          APPEND (s, len, cap, ",\"secs\":[");
+          for (size_t k = 0; k < sel->nglobs; k++)
+            {
+              if (k)
+                APPEND (s, len, cap, ",");
+              json_escape (&s, &len, &cap, sel->globs[k]);
+            }
+          APPEND (s, len, cap, "]}");
+        }
+      APPEND (s, len, cap, "]}");
     }
   APPEND (s, len, cap, "]");
 
-  /* symbols */
+  /* symbols (ordered; inline section assignments carry sec_idx) */
   APPEND (s, len, cap, ",\"symbols\":[");
   for (size_t i = 0; i < p->nsyms; i++)
     {
+      const ccwld_sym *sy = &p->syms[i];
       if (i)
         APPEND (s, len, cap, ",");
       APPEND (s, len, cap, "{\"name\":");
-      json_escape (&s, &len, &cap, p->syms[i].name);
-      APPEND (s, len, cap, ",\"provide\":%s",
-              p->syms[i].provide ? "true" : "false");
-      APPEND (s, len, cap, ",\"hidden\":%s",
-              p->syms[i].hidden ? "true" : "false");
+      json_escape (&s, &len, &cap, sy->name);
+      APPEND (s, len, cap, ",\"provide\":%s", sy->provide ? "true" : "false");
+      APPEND (s, len, cap, ",\"hidden\":%s", sy->hidden ? "true" : "false");
       APPEND (s, len, cap, ",\"visibility\":");
-      json_escape (&s, &len, &cap, p->syms[i].visibility);
+      json_escape (&s, &len, &cap, sy->visibility);
       APPEND (s, len, cap, ",\"binding\":");
-      json_escape (&s, &len, &cap, p->syms[i].binding);
-      APPEND (s, len, cap, ",\"expr\":\"");
-      ccwld_expr_to_string (p->syms[i].expr, &s, &len, &cap);
-      APPEND (s, len, cap, "\"");
+      json_escape (&s, &len, &cap, sy->binding);
+      if (sy->sec_idx >= 0)
+        APPEND (s, len, cap, ",\"sec\":%d", sy->sec_idx);
+      APPEND (s, len, cap, ",\"expr\":");
+      json_expr (&s, &len, &cap, sy->expr);
       APPEND (s, len, cap, "}");
     }
   APPEND (s, len, cap, "]");
 
-  /* phdrs */
+  /* dot assignments (ordered) */
+  APPEND (s, len, cap, ",\"dots\":[");
+  for (size_t i = 0; i < p->ndotsteps; i++)
+    {
+      const ccwld_dotstep *d = &p->dotsteps[i];
+      if (i)
+        APPEND (s, len, cap, ",");
+      APPEND (s, len, cap, "{\"sec\":%d,\"expr\":", d->sec_idx);
+      json_expr (&s, &len, &cap, d->expr);
+      APPEND (s, len, cap, "}");
+    }
+  APPEND (s, len, cap, "]");
+
+  /* phdrs (ordered) */
   APPEND (s, len, cap, ",\"phdrs\":[");
   for (size_t i = 0; i < p->nphdrs; i++)
     {
@@ -785,7 +1277,7 @@ ccwld_plan_serialize (const ccwld_plan *p, char **out, size_t *out_len,
     }
   APPEND (s, len, cap, "]");
 
-  /* version */
+  /* version (ordered) */
   APPEND (s, len, cap, ",\"version\":[");
   for (size_t i = 0; i < p->nvers; i++)
     {
@@ -801,7 +1293,7 @@ ccwld_plan_serialize (const ccwld_plan *p, char **out, size_t *out_len,
     }
   APPEND (s, len, cap, "]");
 
-  /* LTO */
+  /* LTO (configuration only, D-0041) */
   if (p->lto.enabled)
     {
       APPEND (s, len, cap, ",\"lto\":{\"pipeline\":");
@@ -815,7 +1307,7 @@ ccwld_plan_serialize (const ccwld_plan *p, char **out, size_t *out_len,
       APPEND (s, len, cap, "}");
     }
 
-  /* plugins */
+  /* plugins (registration only, D-0042) */
   APPEND (s, len, cap, ",\"plugins\":[");
   for (size_t i = 0; i < p->nplugins; i++)
     {
@@ -832,15 +1324,44 @@ ccwld_plan_serialize (const ccwld_plan *p, char **out, size_t *out_len,
     }
   APPEND (s, len, cap, "]");
 
+  /* visibility/binding overrides and aliases (lccwld §4.7) */
+  APPEND (s, len, cap, ",\"attrs\":[");
+  for (size_t i = 0; i < p->nattrs; i++)
+    {
+      if (i)
+        APPEND (s, len, cap, ",");
+      APPEND (s, len, cap, "{\"name\":");
+      json_escape (&s, &len, &cap, p->attrs[i].name);
+      if (p->attrs[i].visibility)
+        {
+          APPEND (s, len, cap, ",\"visibility\":");
+          json_escape (&s, &len, &cap, p->attrs[i].visibility);
+        }
+      if (p->attrs[i].binding)
+        {
+          APPEND (s, len, cap, ",\"binding\":");
+          json_escape (&s, &len, &cap, p->attrs[i].binding);
+        }
+      if (p->attrs[i].alias)
+        {
+          APPEND (s, len, cap, ",\"alias\":");
+          json_escape (&s, &len, &cap, p->attrs[i].alias);
+        }
+      APPEND (s, len, cap, "}");
+    }
+  APPEND (s, len, cap, "]");
+
   APPEND (s, len, cap, "}");
 
+  if (!s)
+    return oom (e);
   *out = s;
   if (out_len)
     *out_len = len;
   return 1;
 }
 
-/* --- seal --- */
+/* --- seal (freezes + validates the plan) --- */
 
 int
 ccwld_plan_seal (ccwld_plan *p, ccwld_error *e)
@@ -849,7 +1370,7 @@ ccwld_plan_seal (ccwld_plan *p, ccwld_error *e)
     {
       if (e)
         {
-          e->code = 1;
+          e->code = CCWLD_EXIT_LINK;
           snprintf (e->message, sizeof (e->message), "invalid plan");
         }
       return 0;
@@ -858,7 +1379,7 @@ ccwld_plan_seal (ccwld_plan *p, ccwld_error *e)
     {
       if (e)
         {
-          e->code = 1;
+          e->code = CCWLD_EXIT_LINK;
           snprintf (e->message, sizeof (e->message), "plan already sealed");
         }
       return 0;
@@ -867,11 +1388,95 @@ ccwld_plan_seal (ccwld_plan *p, ccwld_error *e)
     {
       if (e)
         {
-          e->code = 2;
+          e->code = CCWLD_EXIT_USAGE;
           snprintf (e->message, sizeof (e->message),
                     "output declaration is required");
         }
       return 0;
+    }
+
+  /* Format discipline (§6: format-inappropriate plan nodes are rejected
+   * before emission; PE has no phdrs, version nodes are ELF/DSO only). */
+  const char *fmt = p->output.format ? p->output.format : "elf";
+  if (p->nphdrs > 0 && !strcmp (fmt, "pe"))
+    {
+      if (e)
+        {
+          e->code = CCWLD_EXIT_USAGE;
+          snprintf (e->message, sizeof (e->message),
+                    "phdrs are not valid for PE output");
+        }
+      return 0;
+    }
+  if (p->nvers > 0 && strcmp (fmt, "elf"))
+    {
+      if (e)
+        {
+          e->code = CCWLD_EXIT_USAGE;
+          snprintf (e->message, sizeof (e->message),
+                    "version nodes are only valid for ELF output");
+        }
+      return 0;
+    }
+
+  /* Region / phdr references must resolve (plan-node diagnostics). */
+  for (size_t i = 0; i < p->nsecs; i++)
+    {
+      const ccwld_sec *s = &p->secs[i];
+      if (s->region)
+        {
+          int found = 0;
+          for (size_t j = 0; j < p->nmems; j++)
+            if (p->mems[j].name && !strcmp (p->mems[j].name, s->region))
+              found = 1;
+          if (!found)
+            {
+              if (e)
+                {
+                  e->code = CCWLD_EXIT_USAGE;
+                  snprintf (e->message, sizeof (e->message),
+                            "section '%s' references unknown region '%s'",
+                            s->name, s->region);
+                }
+              return 0;
+            }
+        }
+      if (s->at_region)
+        {
+          int found = 0;
+          for (size_t j = 0; j < p->nmems; j++)
+            if (p->mems[j].name && !strcmp (p->mems[j].name, s->at_region))
+              found = 1;
+          if (!found)
+            {
+              if (e)
+                {
+                  e->code = CCWLD_EXIT_USAGE;
+                  snprintf (e->message, sizeof (e->message),
+                            "section '%s' references unknown at_region '%s'",
+                            s->name, s->at_region);
+                }
+              return 0;
+            }
+        }
+      if (s->phdr)
+        {
+          int found = 0;
+          for (size_t j = 0; j < p->nphdrs; j++)
+            if (p->phdrs[j].name && !strcmp (p->phdrs[j].name, s->phdr))
+              found = 1;
+          if (!found)
+            {
+              if (e)
+                {
+                  e->code = CCWLD_EXIT_USAGE;
+                  snprintf (e->message, sizeof (e->message),
+                            "section '%s' references unknown phdr '%s'",
+                            s->name, s->phdr);
+                }
+              return 0;
+            }
+        }
     }
 
   /* Serialize and cache the canonical form */
@@ -909,7 +1514,7 @@ ccwld_plan_hash (const ccwld_plan *p, char out[65])
       s = tmp;
     }
 
-  /* FNV-1a based 256-bit hash (simplified to 64 hex chars) */
+  /* FNV-1a based 256-bit hash (four lanes; 64 hex chars) */
   uint64_t h1 = 14695981039346656037ULL;
   uint64_t h2 = 1099511628211ULL;
   uint64_t h3 = 0x9e3779b97f4a7c15ULL;

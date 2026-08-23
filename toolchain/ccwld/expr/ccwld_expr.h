@@ -29,11 +29,21 @@ extern "C"
     char message[512];
   } ccwld_error;
 
+  /* Exit-code mapping (CCWld §9), consumed by both frontends. */
+  enum
+  {
+    CCWLD_EXIT_OK = 0,         /* link succeeded                       */
+    CCWLD_EXIT_LINK = 1,       /* unresolved/unplaced/relocation       */
+    CCWLD_EXIT_USAGE = 2,      /* usage / configuration error          */
+    CCWLD_EXIT_ABI = 3,        /* plugin / LTO ABI error               */
+    CCWLD_EXIT_INTERNAL = 4    /* internal error                       */
+  };
+
   /* --- output descriptor (§2.1) --- */
   typedef struct
   {
     char *kind;   /* "exe" | "dso" | "reloc" | "pie" */
-    char *format; /* "elf" | "pe" | "macho"           */
+    char *format; /* "elf" | "pe" | "macho" | "wasm" */
     char *entry;  /* entry symbol name                */
     char *soname; /* DSO soname (ELF only)            */
     char *osabi;  /* format-specific OS/ABI           */
@@ -48,16 +58,30 @@ extern "C"
     uint64_t length; /* region size                     */
   } ccwld_mem;
 
+  /* --- input-section selector (§2.1, lccwld §4.4) ---
+   * Ordered: `keep` selectors mark their matches as GC roots. */
+  typedef struct
+  {
+    char *file_glob;  /* glob over the input file path ("*") */
+    char **globs;     /* globs over input section names      */
+    size_t nglobs;
+    int keep;         /* KEEP semantics (GC root)            */
+  } ccwld_sel;
+
   /* --- output section (§2.1) --- */
   typedef struct
   {
     char *name;              /* output section name             */
     char *region;            /* memory region name              */
     char *at_region;         /* LMA region (or NULL)            */
-    char *selector;          /* input section selector (match)  */
-    char *keep;              /* KEEP selector (or NULL)         */
+    char *phdr;              /* bound phdr/segment name         */
+    ccwld_sel *sels;         /* ordered input selectors         */
+    size_t nsels;
     uint64_t align;          /* alignment requirement           */
-    int load;                /* loadable flag                   */
+    uint64_t subalign;       /* input member alignment (0 = per-member) */
+    struct ccwld_expr *vma_expr; /* explicit start-address expression */
+    struct ccwld_expr *at_expr;  /* AT(load-address) expression (§2.3) */
+    int load;                /* loadable flag (NOLOAD clears)   */
     struct ccwld_expr *fill; /* fill expression (or NULL)    */
     /* --- layout output (set during layout phase) --- */
     uint64_t vma;  /* virtual address after layout    */
@@ -74,10 +98,31 @@ extern "C"
     int hidden;              /* hidden visibility              */
     char *visibility;        /* "default"|"hidden"|"protected"|"internal" */
     char *binding;           /* "global"|"local"|"weak"         */
+    int sec_idx;             /* section context (-1 = top level) */
+    unsigned seq;            /* statement order within SECTIONS */
+    char *site;              /* provenance: definition site     */
     /* --- resolved value (set during layout) --- */
     uint64_t resolved_value;
     int resolved;
   } ccwld_sym;
+
+  /* --- location-counter assignment (`. = expr`) --- */
+  typedef struct
+  {
+    struct ccwld_expr *expr;
+    int sec_idx; /* section context (-1 = top level) */
+    unsigned seq;
+    char *site;
+  } ccwld_dotstep;
+
+  /* --- visibility/binding override (lccwld §4.7) --- */
+  typedef struct
+  {
+    char *name;       /* target symbol name                    */
+    char *visibility; /* or NULL                               */
+    char *binding;    /* or NULL                               */
+    char *alias;      /* alias target (new = old) or NULL      */
+  } ccwld_attr;
 
   /* --- program header / segment (§2.1) --- */
   typedef struct
@@ -99,6 +144,7 @@ extern "C"
     int as_needed; /* --as-needed flag                     */
     int startup;   /* forced-first in output order         */
     int is_group;  /* archive group with repeated scan     */
+    int group_start; /* first member of a group            */
   } ccwld_input;
 
   /* --- version node (§2.1) --- */
@@ -137,9 +183,11 @@ extern "C"
     ccwld_phase phase;
     ccwld_hook_fn fn;
     void *user;
+    char *site;   /* provenance of the registration  */
+    int is_lua;   /* registered from the Lua frontend */
   } ccwld_hook;
 
-  /* --- link handle (passed to phase hooks) --- */
+  /* --- link handle (passed to phase hooks and plugins) --- */
   typedef struct ccwld_link
   {
     struct ccwld_plan *plan;
@@ -147,6 +195,26 @@ extern "C"
     /* --- introspection --- */
     void *phase_state; /* phase-specific opaque state */
   } ccwld_link;
+
+  /* Optional resolver for input-object symbols, installed by the phase
+   * pipeline before layout so deferred expressions can reference
+   * symbols defined by inputs (linker's S).  Returns 1 and sets *value
+   * when the symbol has a known value. */
+  typedef int (*ccwld_sym_resolver) (const struct ccwld_plan *p,
+                                     const char *name, uint64_t *value);
+
+  /* --- pipeline options (CLI/driver level, not script-level) --- */
+  typedef struct
+  {
+    int gc_sections;        /* --gc-sections                     */
+    int as_needed_default;  /* --as-needed applied to all inputs */
+    int print_plan;         /* --print-plan                      */
+    int no_cache;           /* --no-cache                        */
+    int reproducible;       /* --no-reproducible clears          */
+    int unsafe_lua;         /* --unsafe-lua: marks note false    */
+    char *cache_dir;        /* --cache-dir (NULL disables)       */
+    char *out_name;         /* OUTPUT() name from ld-script      */
+  } ccwld_plan_opts;
 
   /* --- the plan IR (§2.1) --- */
   typedef struct ccwld_plan
@@ -176,10 +244,17 @@ extern "C"
     size_t nsecs;
     size_t csecs;
 
-    /* --- symbols --- */
+    /* --- symbols / dot assignments / attr overrides --- */
     ccwld_sym *syms;
     size_t nsyms;
     size_t csyms;
+    ccwld_dotstep *dotsteps;
+    size_t ndotsteps;
+    size_t cdotsteps;
+    unsigned stmt_seq; /* statement order counter            */
+    ccwld_attr *attrs;
+    size_t nattrs;
+    size_t cattrs;
 
     /* --- program headers --- */
     ccwld_phdr *phdrs;
@@ -191,6 +266,12 @@ extern "C"
     size_t nvers;
     size_t cvers;
 
+    /* --- -D / --defsym environment (lccwld §3) --- */
+    char **env_keys;
+    char **env_vals;
+    size_t nenv;
+    size_t cenv;
+
     /* --- LTO / plugins / hooks --- */
     ccwld_lto_cfg lto;
     ccwld_plugin *plugins;
@@ -200,12 +281,21 @@ extern "C"
     size_t nhooks;
     size_t chooks;
 
+    /* --- pipeline options --- */
+    ccwld_plan_opts options;
+
+    /* --- runtime (not serialized, not parity-relevant) --- */
+    ccwld_sym_resolver resolve_sym; /* installed by pipeline     */
+    void *state;                    /* opaque ccwld_state        */
+    char *frontend;                 /* "ldscript"|"lua"|"api"    */
+    unsigned gensym;                /* counter regime (lccwld §6)*/
+    /* lccwld runtime (Lua state + hook refs), closed with the plan */
+    void *frontend_ctx;
+    void (*frontend_ctx_free) (void *);
+
     /* --- serialized canonical form --- */
     char *serialized;
     size_t serialized_len;
-
-    /* --- gensym counter --- */
-    unsigned gensym;
 
     /* --- reproducibility flag --- */
     bool reproducible;
@@ -236,7 +326,8 @@ extern "C"
     CCWLD_EXPR_SEGMENT_START = 17,  /* start of named segment        */
   } ccwld_expr_kind;
 
-  /* Binary / unary operator tags. */
+  /* Binary / unary operator tags.  Comparison and logical operators
+   * use letter tags to avoid colliding with the arithmetic characters. */
   typedef enum
   {
     CCWLD_OP_ADD = '+',
@@ -252,22 +343,33 @@ extern "C"
     CCWLD_OP_NEG = '~',
     CCWLD_OP_NOT = '!',
     CCWLD_OP_ABS = 'A',
+    CCWLD_OP_EQ = 'e', /* == */
+    CCWLD_OP_NE = 'n', /* != */
+    CCWLD_OP_LT = 'l', /* <  */
+    CCWLD_OP_LE = 'L', /* <= */
+    CCWLD_OP_GT = 'g', /* >  */
+    CCWLD_OP_GE = 'G', /* >= */
+    CCWLD_OP_LAND = 'a', /* && */
+    CCWLD_OP_LOR = 'o'   /* || */
   } ccwld_op_tag;
 
   typedef struct ccwld_expr
   {
     ccwld_expr_kind kind;
     ccwld_op_tag op;      /* for BINARY / UNARY nodes          */
-    uint64_t ival;        /* for INT literal                   */
+    uint64_t ival;        /* for INT literal / ALIGN boundary  */
     char *name;           /* for SYMBOL / REGION / SECTION refs */
     struct ccwld_expr *a; /* left child  (or operand for UNARY/ALIGN) */
-    struct ccwld_expr *b; /* right child (or boundary for ALIGN)     */
+    struct ccwld_expr *b; /* right child (ALIGN: expr boundary when ival==0;
+                           * SEGMENT_START: default expr)             */
     struct ccwld_expr *c; /* third child (for COND: test-a-then-b-else-c) */
     /* --- internal: cycle-detection mark --- */
     int visited;
   } ccwld_expr;
 
-  /* Constructors. */
+  /* Constructors.  Unless documented otherwise the constructor takes
+   * ownership of nothing — arguments are copied or borrowed per the
+   * existing regime (names copied, child nodes owned). */
   ccwld_expr *ccwld_expr_int (uint64_t value);
   ccwld_expr *ccwld_expr_symbol (const char *name);
   ccwld_expr *ccwld_expr_dot (void);
@@ -275,6 +377,7 @@ extern "C"
                                  ccwld_expr *b);
   ccwld_expr *ccwld_expr_unary (ccwld_op_tag op, ccwld_expr *a);
   ccwld_expr *ccwld_expr_align (ccwld_expr *a, uint64_t boundary);
+  ccwld_expr *ccwld_expr_align_to (ccwld_expr *a, ccwld_expr *boundary);
   ccwld_expr *ccwld_expr_max (ccwld_expr *a, ccwld_expr *b);
   ccwld_expr *ccwld_expr_min (ccwld_expr *a, ccwld_expr *b);
   ccwld_expr *ccwld_expr_cond (ccwld_expr *test, ccwld_expr *then_e,
@@ -287,6 +390,8 @@ extern "C"
   ccwld_expr *ccwld_expr_loadaddr (const char *section_name);
   ccwld_expr *ccwld_expr_sizeof_headers (void);
   ccwld_expr *ccwld_expr_segment_start (const char *segment_name);
+  ccwld_expr *ccwld_expr_segment_start2 (const char *segment_name,
+                                         ccwld_expr *default_value);
 
   /* Deep copy. */
   ccwld_expr *ccwld_expr_clone (const ccwld_expr *e);

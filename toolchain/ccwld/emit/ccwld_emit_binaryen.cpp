@@ -1,4 +1,4 @@
-#include "ccwld.h"
+#include "../ccwld.h"
 
 #include <cstdio>
 #include <cstdlib>

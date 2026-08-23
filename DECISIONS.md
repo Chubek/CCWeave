@@ -634,3 +634,65 @@ The build is now configured with `CCWEAVE_ENABLE_LIEF=ON` so that
 executables. Without LIEF, the stub returned a hard error; with LIEF enabled,
 the basic single-object link path produces a valid (though minimal) ELF binary
 that Cephyr can use as its default linker backend.
+
+## 2026-08-23 — CCWld fully implemented: one plan IR, two frontends, real pipeline
+
+The CCWld linker (`toolchain/ccwld`, specs `.agents/CCWLD.md` + `.agents/LCCWLD.md`) is
+complete. Recording the decisions that shaped the implementation, in the spec's numbering:
+
+- **D-0039**: Both frontends lower to one immutable, serializable link-plan IR; the mpc
+  frontend builds deferred expression nodes (no eager evaluation) so the two surfaces are
+  provably parity-checkable (`tests/parity` string-compares the canonical serializations).
+  IR seals after all frontends/includes; post-seal mutation only via phase hooks within
+  phase scope.
+- **D-0040**: The phase pipeline (load▸resolve▸[lto]▸gc▸layout▸relocate▸emit) is fixed and
+  not user-reorderable; hooks and plugins attach at phases under phase-scoped mutability and
+  never reorder phases.
+- **D-0041**: LTO is a native backend behind `ccwld-lto.h`; the Lua/ld-script surfaces only
+  configure it. ABI-versioned; non-deterministic backends must run `jobs=1` for
+  reproducible builds or the output is marked non-reproducible.
+- **D-0042**: Plugins are native, ABI-versioned (`ccwld-plugin.h`), phase-scoped, and
+  CCWld-scheduled; options pass as JSON from both frontends; plugin/hook conflicts get a
+  deterministic order (plugins first) plus a mandatory warning — CCWld is the conflict
+  authority.
+- **D-0043**: No-passthrough at the link stage — CCWld never blindly copies unrecognized
+  input constructs into the output; an unplaced alloc section is explicitly placed, GC'd, or
+  fatal.
+
+Implementation decisions beyond the spec text:
+
+- **lccwld binds with the raw Lua C API** (vendored Lua 5.5), not sol2 — sol2's Lua 5.5
+  support is unverifiable in-tree. Consequences: expression objects are userdata with
+  metamethods that *clone* child trees (no shared ownership), and the sandbox nils out
+  `io`/`os`/`package`/`require`/`load`/`loadfile`/`dofile`/`debug`, replacing `os`
+  with a frozen table whose `getenv` answers only `CCWLD_*` keys (`math.random` removed).
+- **The Lua state outlives phase 0**: hooks run during the link, so the runtime hangs off
+  `plan->frontend_ctx`/`frontend_ctx_free` and closes with the plan.
+- **lccwld statement sink**: `ccwld.assign`/`provide` return handles; `ccwld.out{}`
+  consumes handles appearing in its spec array into that section's context, `ccwld.sections{}`
+  consumes array-level handles at the top level, and unconsumed handles flush at seal with
+  top-level scope. This preserves ld-style section-scoped semantics through Lua's
+  table-constructor evaluation order.
+- **Emission is a pure-C ELF64 writer** (always available, `emit/ccwld_emit_elf.c`),
+  superseding the 2026-08-20 text-fallback plan: LIEF (`emit/ccwld_emit_lief.cpp`) and
+  Binaryen remain optional under `CCWEAVE_ENABLE_LIEF`/`CCWEAVE_ENABLE_BINARYEN`.
+  The stub `abi.c` LTO backend is removed — the pipeline dlopens real backends (D-0041),
+  and the in-tree reference backend is `tests/lto/lto_ref.c`.
+- **Driver-level declarations flow through the frontends pre-seal**: positional inputs,
+  `-L`/`-l`, `-e`, `--plugin`/`--plugin-opt`, and `--lto-*` are passed as a
+  `ccwld_driver_defs` struct into `ccwld_run_lua`/`ccwld_run_ldscript` and applied before
+  the script body (command-line `-e` wins over the script's ENTRY, GNU-style). Driver-only
+  flags (`--gc-sections`, `--print-plan`, cache options) set `plan->options` post-seal —
+  they are outside the serialized declarative plan and join the cache key separately.
+- **ld-script `AT(<expr>)` lowers to a dedicated `at_expr`** on the section (distinct from
+  `AT>` region form); `SUBALIGN`, `ORIGIN`, and `LENGTH` accept constants only in the mpc
+  frontend (lccwld passes numbers for the same fields — parity preserved).
+- **Default sections are synthesized at link time** when a plan has none
+  (`.text`/`.rodata`/`.data`/`.bss` with conventional selectors), so script-less
+  command-line links (`ccwld a.o -o a.out`) work without a script.
+- **`.ccw.lto` is the LTO-module marker section**; its payload is the line-oriented
+  `CCWIR1` text IR consumed by the reference backend, which lowers each module to a native
+  ET_REL through the emit callback and re-enters the pipeline before gc.
+- **Reference plugin and LTO backends live under `tests/`** and build as MODULEs against
+  the shipped ABI headers; test executables export their symbols (`ENABLE_EXPORTS` +
+  `-rdynamic`) so dlopened modules resolve `ccwld_link_*`/`ccwld_lto_*` from the host.
