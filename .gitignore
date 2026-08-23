@@ -1,3 +1,6 @@
+# Models directory
+.models
+
 # Manifests directory
 manifests/
 
