@@ -595,6 +595,21 @@ ccw_parse_line (const char *line, ccw_stmt_t *stmt, ccw_arch_t arch,
       return 1;
     }
 
+  /* Instruction: mnemonic [operands]. The Tree-sitter assembly grammar
+   * reads this layer when the build has it (ccw_parse_ts.c); the
+   * hand-rolled reader below stays the fallback and the authority for
+   * everything the grammar does not model exactly. */
+  {
+    ccw_stmt_t ts_stmt;
+    memset (&ts_stmt, 0, sizeof (ts_stmt));
+    if (ccw_parse_insn_ts (p, &ts_stmt, arch) > 0)
+      {
+        free (buf);
+        *stmt = ts_stmt;
+        return 1;
+      }
+  }
+
   /* Instruction: mnemonic [operands] */
   stmt->kind = CCW_STMT_INSN;
   char *mnemonic = p;

@@ -15,6 +15,7 @@ dynalo       1.0.3 (vendored snapshot)                  third_party/dynalo
 dyncall      vendored snapshot (C call VM)               third_party/dyncall
 #
 tree-sitter   0.27.0 (language ABI 15)                  third_party/tree-sitter
+tree-sitter-asm 0.1.0 (generated language ABI 14)      third_party/tree-sitter-asm
 tree-sitter-c 0.24.1 (generated language ABI 14)        swaff/grammars/tree-sitter-c
 tree-sitter-sml            0.25.0 (language ABI 15)     swaff/grammars/tree-sitter-sml
 tree-sitter-ocaml          0.25.0 (language ABI 15)     swaff/grammars/tree-sitter-ocaml

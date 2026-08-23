@@ -28,6 +28,7 @@ target_link_libraries(ccw_sema PUBLIC ccw_klib)
 # --- ccwas parse library (assembly parser) ---
 add_library(ccw_parse STATIC
   parse/ccw_parse.c
+  parse/ccw_parse_ts.c
 )
 list(APPEND CCWAS_POSIX_TARGETS ccw_parse)
 target_include_directories(ccw_parse PUBLIC
@@ -38,6 +39,14 @@ target_include_directories(ccw_parse PUBLIC
 )
 target_link_libraries(ccw_parse PUBLIC ccw_sema ccw_encode)
 target_link_libraries(ccw_parse PUBLIC ccw_klib)
+
+# The vendored Tree-sitter assembly grammar reads the instruction layer
+# (parse/ccw_parse_ts.c); without it the hand-rolled reader in
+# ccw_parse.c is used exclusively.
+if(CCWEAVE_ENABLE_TREESITTER)
+  target_compile_definitions(ccw_parse PRIVATE CCWEAVE_WITH_TREESITTER=1)
+  target_link_libraries(ccw_parse PRIVATE ccw_tree_sitter ccw_tree_sitter_asm)
+endif()
 
 # --- ccwas encode library (per-target encoders) ---
 add_library(ccw_encode STATIC

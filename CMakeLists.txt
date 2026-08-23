@@ -213,6 +213,22 @@ if(CCWEAVE_ENABLE_TREESITTER)
     POSITION_INDEPENDENT_CODE ON)
   ccw_vendored_target(ccw_tree_sitter_c)
 
+  # --- vendored Tree-sitter assembly grammar (ccwas reader) ----------
+  # Same vendored-source rule as the Swaff grammars above, but consumed
+  # by the ccwas parse pass (toolchain/ccwas) rather than a Swaff
+  # adapter. It is a generic assembly grammar and is never the ccwas
+  # dialect authority; see DECISIONS.md 2026-08-23.
+  add_library(ccw_tree_sitter_asm STATIC
+    ${CCWEAVE_THIRD_PARTY}/tree-sitter-asm/src/parser.c)
+  target_include_directories(ccw_tree_sitter_asm
+    PUBLIC ${CCWEAVE_THIRD_PARTY}/tree-sitter-asm/bindings/c
+    PRIVATE ${CCWEAVE_THIRD_PARTY}/tree-sitter-asm/src)
+  set_target_properties(ccw_tree_sitter_asm PROPERTIES
+    C_STANDARD 11
+    C_STANDARD_REQUIRED ON
+    POSITION_INDEPENDENT_CODE ON)
+  ccw_vendored_target(ccw_tree_sitter_asm)
+
   # --- vendored Tree-sitter Lua grammar -------------------------------
   add_library(ccw_tree_sitter_lua STATIC
     ${CCWEAVE_SWAFF_GRAMMARS}/tree-sitter-lua/src/parser.c

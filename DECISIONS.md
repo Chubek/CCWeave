@@ -1,5 +1,40 @@
 # Decisions
 
+## 2026-08-23 — CCWAS reads instructions through the vendored Tree-sitter assembly grammar
+
+`third_party/tree-sitter-asm` (RubixDev, pinned in
+`third_party/VERSIONS.lock` as generated language ABI 14) is built from its
+checked-in generated sources as `ccw_tree_sitter_asm`, under the same
+vendored-grammar rule as the Swaff grammars: direct compilation of
+`src/parser.c`, no `add_subdirectory`, no regeneration, no fetching at build
+time. Inside ccwas the grammar is the primary reader for instruction
+statements only. When the build has Tree-sitter enabled, `ccw_parse_line`
+first offers the instruction line to `ccw_parse_insn_ts`
+(`parse/ccw_parse_ts.c`), which maps a clean parse — mnemonic word, integer
+immediates, register/label identifiers, bracket memory operands — onto the
+same `ccw_stmt_t` the hand-rolled reader produces.
+
+The grammar is deliberately not a dialect authority. Labels, directives,
+macros, line structure, and ISA validation stay in the hand-rolled pass,
+which also remains the unconditional reader when a form does not map
+exactly: index/scale memory operands, float literals, string operands,
+size-prefixed Intel operands (`dword ptr [...]`), the grammar's
+parenthesized/`*rel[...]` pointer forms, and its non-ccwas literal spellings
+(`#`/`$` prefixes, `_` digit separators) all decline to the hand-rolled
+reader rather than produce an approximate statement. The reason is the
+dialect mismatch: the grammar's `meta` rule cannot lex ccwas's
+width-explicit `.2byte/.4byte/.8byte` directives, it treats `#` as a comment
+character where ccwas deliberately does not, and it would accept the GNU
+directive aliases ccwas rejects. Accept/reject authority stays with ISA
+validation and the directive pass; the grammar only widens the instruction
+syntax that reaches them (for example comma-free space-separated operands
+and the `[reg, disp]` bracket form, which the hand-rolled splitter mangles).
+Builds with `CCWEAVE_ENABLE_TREESITTER=OFF` compile the same call as a stub
+that always declines, so the hand-rolled reader is the only code path. The
+existing encode goldens now exercise the Tree-sitter reader on every
+instruction statement, so both configurations are held to byte-identical
+objects.
+
 ## 2026-08-21 — Kliche helpers are the Swaff lowering boundary
 
 The common Kliche construction helpers introduced with the stereotype
