@@ -1,5 +1,37 @@
 # Decisions
 
+## 2026-08-24 — GPU-accelerated compilation kernels backed by hipSYCL
+
+Seven new R7RS Scheme kernels were added under `kernels/gpu-*.scm` that
+declare GPU-accelerated compilation capabilities.  Each kernel is a
+conformant `(define-library (ccweave kernel ...))` module exporting
+`kernel-info`, `kernel-capabilities`, and `kernel-apply` (§2.2).
+
+The kernels and their capabilities:
+
+- `gpu-parallel-parse.scm` — `parse.gpu-parallel`: batches lex/parse/tokenize
+  instructions for parallel GPU dispatch.
+- `gpu-pattern-match.scm` — `lower.gpu-pattern-match`: GPU decision-tree
+  construction for pattern-match compilation (>8 arms → binary, ≤8 → linear).
+- `gpu-dataflow.scm` — `analysis.gpu-dataflow` (and sub-capabilities
+  `analysis.gpu-reaching-defs`, `analysis.gpu-liveness`,
+  `analysis.gpu-def-use`): GPU-parallel fixed-point dataflow iteration.
+- `gpu-batch-inline.scm` — `opt.gpu-batch-inline`: GPU-computed heuristic
+  scores for call-site inlining decisions.
+- `gpu-const-fold.scm` — `opt.gpu-const-fold`: GPU-parallel identification
+  of foldable constant expressions.
+- `gpu-regalloc.scm` — `opt.gpu-regalloc`: GPU-accelerated interference-graph
+  colouring for register allocation.
+- `gpu-codegen.scm` — `lower.gpu-codegen`: GPU-parallel dispatch of code
+  generation across functions.
+
+A hipSYCL C++ backend (`glue/ccw_hipsycl_backend.{hpp,cpp}`) implements the
+GPU operations via the SYCL 1.2.1 runtime.  It registers `gpu-has?`,
+`gpu-device-count`, and `gpu-parse-batch` as host extension accessors;
+kernels feature-test them with `(glue-has? …)` before use.  The backend
+gracefully falls back to sequential execution when no SYCL device is
+available.  The build is gated behind `CCWEAVE_ENABLE_HIPSYCL=ON`.
+
 ## 2026-08-23 — CCWAS reads instructions through the vendored Tree-sitter assembly grammar
 
 `third_party/tree-sitter-asm` (RubixDev, pinned in

@@ -53,6 +53,11 @@ target_link_libraries(test_simd_kernels PRIVATE ccw_host_glue ccw_executor_s7)
 target_compile_definitions(test_simd_kernels PRIVATE
   CCW_KERNEL_DIR="${CMAKE_SOURCE_DIR}/kernels")
 
+ccw_add_test(test_gpu_kernels test_gpu_kernels.c)
+target_link_libraries(test_gpu_kernels PRIVATE ccw_host_glue ccw_executor_s7)
+target_compile_definitions(test_gpu_kernels PRIVATE
+  CCW_KERNEL_DIR="${CMAKE_SOURCE_DIR}/kernels")
+
 ccw_add_test(test_oeuph test_oeuph.c)
 target_link_libraries(test_oeuph PRIVATE ccw_oeuph)
 target_compile_definitions(test_oeuph PRIVATE
