@@ -337,6 +337,7 @@ add_subdirectory(interpreters/moonix)
 add_subdirectory(interpreters/sml-parthia)
 add_subdirectory(docs)
 add_subdirectory(tools/ccw-manifest)
+add_subdirectory(tools/ccw-mkprojmap)
 
 enable_testing()
 # stage 10: standard libraries for the supported compilers/interpreters
