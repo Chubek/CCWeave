@@ -304,7 +304,7 @@ emit_elf (ref_lto *r, buf *o, const char *jobs_name)
 
   /* ELF header */
   size_t ehsize = 64, shentsize = 64;
-  if (!bu8 (o, "\177ELF", 4))
+  if (!bput (o, "\177ELF", 4))
     goto oom;
   if (!bu8 (o, 2) || !bu8 (o, 1) || !bu8 (o, 1)) /* 64-bit, LSB, SysV */
     goto oom;
