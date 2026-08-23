@@ -19,6 +19,7 @@ option(CCWEAVE_ENABLE_BINARYEN "Build the vendored Binaryen linker backend" OFF)
 option(CCWEAVE_BUILD_TESTS "Build test suites" OFF)
 option(CCWEAVE_BUILD_DOCS "Build Doxygen documentation" ON)
 option(CCWEAVE_BUILD_EXAMPLES "Register the examples-salvo source corpus" OFF)
+option(CCWEAVE_BUILD_MKPROJMAP "Build MkProjmap program" OFF)
 
 if(CCWEAVE_ENABLE_ASAN)
   add_compile_options(-fsanitize=address,undefined -fno-omit-frame-pointer -g)
@@ -337,7 +338,10 @@ add_subdirectory(interpreters/moonix)
 add_subdirectory(interpreters/sml-parthia)
 add_subdirectory(docs)
 add_subdirectory(tools/ccw-manifest)
-add_subdirectory(tools/ccw-mkprojmap)
+
+if (CCWEAVE_BUILD_MKPROJMAP)
+  add_subdirectory(tools/ccw-mkprojmap)
+endif()
 
 enable_testing()
 # stage 10: standard libraries for the supported compilers/interpreters
