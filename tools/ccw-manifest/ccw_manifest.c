@@ -1,5 +1,6 @@
 /* ccw-manifest — generates manifests/Kernel.yaml,
- * manifests/Capabilities.yaml, and manifests/CephyrProfile.schema.json.
+ * manifests/Capabilities.yaml, manifests/CephyrProfile.schema.json,
+ * and manifests/Stdrewrite.yaml.
  *
  * Kernel source is the single source of truth: this tool loads each
  * kernel through the executor and calls kernel-capabilities. --check
@@ -17,6 +18,7 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <errno.h>
+#include <ctype.h>
 
 #define CCW_MANIFEST_GENERATOR "ccw-manifest/0.1"
 
@@ -191,6 +193,228 @@ free_entries (kernel_entry *entries, int count)
       for (int j = 0; j < entries[i].cap_count; j++)
         free (entries[i].caps[j]);
       free (entries[i].caps);
+    }
+  free (entries);
+}
+
+/* ---------- ruleset discovery ---------- */
+
+typedef struct
+{
+  char *path;            /* repo-relative, e.g. rewrite-salvo/arith/identity */
+  char *name;            /* ruleset name, e.g. arith.identity */
+  char *description;     /* from leading ;;; comment lines */
+  int rules;             /* number of (rule ...) forms */
+  bool side_conditions;  /* true if any rule has :side-condition */
+} ruleset_entry;
+
+static int
+compare_rulesets (const void *a, const void *b)
+{
+  return strcmp (((const ruleset_entry *)a)->path,
+                 ((const ruleset_entry *)b)->path);
+}
+
+/* Parse a rules.scm file to extract name, description, rule count,
+ * and side-condition presence. */
+static int
+parse_ruleset (const char *full_path, ruleset_entry *re)
+{
+  FILE *fp = fopen (full_path, "rb");
+  if (fp == NULL)
+    return -1;
+
+  char line[2048];
+  kstring_t desc = { 0, 0, NULL };
+  bool in_header = true;
+  bool found_name = false;
+  int rule_count = 0;
+  bool has_side = false;
+
+  while (fgets (line, sizeof (line), fp) != NULL)
+    {
+      /* Collect ;;; comment lines as description */
+      if (in_header && strncmp (line, ";;;", 3) == 0)
+        {
+          const char *text = line + 3;
+          while (*text == ' ' || *text == '\t')
+            text++;
+          /* Skip the file-name annotation line (contains rewrite-salvo/ or similar) */
+          if (strstr (text, "rewrite-salvo/") == NULL
+              && strstr (text, "stdrewrite/") == NULL)
+            {
+              if (desc.s != NULL)
+                kputs (" ", &desc);
+              /* Trim trailing newline */
+              size_t tlen = strlen (text);
+              while (tlen > 0
+                     && (text[tlen - 1] == '\n' || text[tlen - 1] == '\r'))
+                tlen--;
+              kputsn (text, (int)tlen, &desc);
+            }
+        }
+      else if (strncmp (line, ";;;", 3) != 0)
+        {
+          in_header = false;
+        }
+
+      /* Detect (ruleset <name>) */
+      if (!found_name)
+        {
+          const char *rs = strstr (line, "(ruleset ");
+          if (rs != NULL)
+            {
+              rs += strlen ("(ruleset ");
+              while (*rs == ' ' || *rs == '\t')
+                rs++;
+              const char *end = strchr (rs, ')');
+              if (end != NULL)
+                {
+                  size_t nlen = (size_t)(end - rs);
+                  while (nlen > 0
+                         && (rs[nlen - 1] == ' ' || rs[nlen - 1] == '\t'))
+                    nlen--;
+                  kstring_t name = { 0, 0, NULL };
+                  kputsn (rs, (int)nlen, &name);
+                  re->name = ks_release (&name);
+                  found_name = true;
+                }
+            }
+        }
+
+      /* Count (rule ...) forms */
+      {
+        const char *p = line;
+        while ((p = strstr (p, "(rule ")) != NULL)
+          {
+            rule_count++;
+            p++;
+          }
+      }
+
+      /* Check for side conditions */
+      if (!has_side && strstr (line, ":side-condition") != NULL)
+        has_side = true;
+    }
+
+  fclose (fp);
+
+  re->description = desc.s ? ks_release (&desc) : dup_str ("");
+  re->rules = rule_count;
+  re->side_conditions = has_side;
+
+  if (!found_name && re->name == NULL)
+    re->name = dup_str ("");
+
+  return 0;
+}
+
+/* Walk rewrite-salvo/ tree collecting directories that contain rules.scm. */
+static int
+collect_rulesets (const char *root, const char *salvo_dir,
+                  ruleset_entry **out, int *out_count)
+{
+  char base[2048];
+  snprintf (base, sizeof (base), "%s/%s", root, salvo_dir);
+
+  kvec_t (ruleset_entry) entries_vec = { 0, 0, NULL };
+  int count = 0;
+
+  kvec_t (char *) dirs = { 0, 0, NULL };
+  kv_push (char *, dirs, dup_str (base));
+  if (dirs.a == NULL)
+    return -1;
+
+  while (kv_size (dirs) > 0)
+    {
+      char *cur = kv_pop (dirs);
+      DIR *d = opendir (cur);
+      if (d == NULL)
+        {
+          free (cur);
+          continue;
+        }
+
+      struct dirent *de;
+      while ((de = readdir (d)) != NULL)
+        {
+          if (strcmp (de->d_name, ".") == 0
+              || strcmp (de->d_name, "..") == 0)
+            continue;
+
+          char full[2048];
+          snprintf (full, sizeof (full), "%s/%s", cur, de->d_name);
+
+          struct stat st;
+          if (stat (full, &st) != 0)
+            continue;
+
+          if (S_ISDIR (st.st_mode))
+            {
+              kv_push (char *, dirs, dup_str (full));
+              if (dirs.a == NULL)
+                {
+                  closedir (d);
+                  free (cur);
+                  goto cleanup;
+                }
+            }
+          else if (strcmp (de->d_name, "rules.scm") == 0
+                   && S_ISREG (st.st_mode))
+            {
+              const char *rel = cur + strlen (base);
+              if (*rel == '/')
+                rel++;
+
+              kv_pushp (ruleset_entry, entries_vec);
+              if (entries_vec.a == NULL)
+                {
+                  closedir (d);
+                  free (cur);
+                  goto cleanup;
+                }
+              memset (&entries_vec.a[count], 0,
+                      sizeof (entries_vec.a[count]));
+              entries_vec.a[count].path = dup_str (rel);
+              if (parse_ruleset (full, &entries_vec.a[count]) != 0)
+                fprintf (stderr,
+                         "ccw-manifest: could not parse %s\n", full);
+              count++;
+            }
+        }
+      closedir (d);
+      free (cur);
+    }
+
+  kv_destroy (dirs);
+  qsort (entries_vec.a, (size_t)count, sizeof (*entries_vec.a),
+         compare_rulesets);
+  *out = entries_vec.a;
+  *out_count = count;
+  return 0;
+
+cleanup:
+  for (size_t i = 0; i < kv_size (dirs); i++)
+    free (dirs.a[i]);
+  kv_destroy (dirs);
+  for (int i = 0; i < count; i++)
+    {
+      free (entries_vec.a[i].path);
+      free (entries_vec.a[i].name);
+      free (entries_vec.a[i].description);
+    }
+  free (entries_vec.a);
+  return -1;
+}
+
+static void
+free_rulesets (ruleset_entry *entries, int count)
+{
+  for (int i = 0; i < count; i++)
+    {
+      free (entries[i].path);
+      free (entries[i].name);
+      free (entries[i].description);
     }
   free (entries);
 }
@@ -490,6 +714,45 @@ render_cephyr_profile_schema (void)
   return dup_str (schema);
 }
 
+/* ---------- Stdrewrite YAML ---------- */
+
+static char *
+render_stdrewrite_yaml (const ruleset_entry *entries, int count)
+{
+  sb s = { { 0, 0, NULL } };
+  emit_header (&s,
+               "Source of truth: the rule declarations in each listed "
+               "ruleset directory.");
+  int total = 0;
+  for (int i = 0; i < count; i++)
+    total += entries[i].rules;
+  sb_add (&s, "rule_format: 1\n");
+  sb_add (&s, "total_rules: %d\n", total);
+  sb_add (&s, "rulesets:\n");
+  for (int i = 0; i < count; i++)
+    {
+      sb_add (&s, "  - path: %s/\n", entries[i].path);
+      sb_add (&s, "    name: %s\n",
+              entries[i].name ? entries[i].name : "");
+      sb_add (&s, "    description: %s\n",
+              entries[i].description ? entries[i].description : "");
+      sb_add (&s, "    semantics: equivalence\n");
+      sb_add (&s, "    side_conditions: %s\n",
+              entries[i].side_conditions ? "true" : "false");
+      sb_add (&s, "    rules: %d\n", entries[i].rules);
+      sb_add (&s, "    profiles: [core]\n");
+    }
+  /* If no rulesets were found, emit an empty manifest so the file
+   * still exists and --check doesn't treat it as missing. */
+  if (count == 0)
+    {
+      sb_add (&s, "rule_format: 1\n");
+      sb_add (&s, "total_rules: 0\n");
+      sb_add (&s, "rulesets: []\n");
+    }
+  return s.text.s ? ks_release (&s.text) : dup_str ("");
+}
+
 /* ---------- file helpers ---------- */
 
 static char *
@@ -606,6 +869,7 @@ main (int argc, char **argv)
   const char *root = ".";
   const char *kernel_dir = "kernels";
   const char *manifest_dir = "manifests";
+  const char *salvo_dir = "rewrite-salvo";
 
   for (int i = 1; i < argc; i++)
     {
@@ -617,10 +881,13 @@ main (int argc, char **argv)
         kernel_dir = argv[++i];
       else if (strcmp (argv[i], "--manifests") == 0 && i + 1 < argc)
         manifest_dir = argv[++i];
+      else if (strcmp (argv[i], "--rewrite-salvo") == 0 && i + 1 < argc)
+        salvo_dir = argv[++i];
       else
         {
           fprintf (stderr, "usage: ccw-manifest [--check] [--root DIR] "
-                           "[--kernels DIR] [--manifests DIR]\n");
+                           "[--kernels DIR] [--manifests DIR] "
+                           "[--rewrite-salvo DIR]\n");
           return 2;
         }
     }
@@ -656,15 +923,27 @@ main (int argc, char **argv)
       return rc;
     }
 
+  /* Collect rewrite-salvo rulesets (independent of the executor). */
+  ruleset_entry *rulesets = NULL;
+  int ruleset_count = 0;
+  if (collect_rulesets (root, salvo_dir, &rulesets, &ruleset_count) != 0)
+    {
+      free_entries (entries, count);
+      return 2;
+    }
+
   char *kernel_yaml = render_kernel_yaml (entries, count);
   char *caps_yaml = render_capabilities_yaml (entries, count);
   char *cephyr_schema = render_cephyr_profile_schema ();
+  char *stdrewrite_yaml = render_stdrewrite_yaml (rulesets, ruleset_count);
 
-  char kpath[2048], cpath[2048], spath[2048];
+  char kpath[2048], cpath[2048], spath[2048], rpath[2048];
   snprintf (kpath, sizeof (kpath), "%s/%s/Kernel.yaml", root, manifest_dir);
   snprintf (cpath, sizeof (cpath), "%s/%s/Capabilities.yaml", root,
             manifest_dir);
   snprintf (spath, sizeof (spath), "%s/%s/CephyrProfile.schema.json", root,
+            manifest_dir);
+  snprintf (rpath, sizeof (rpath), "%s/%s/Stdrewrite.yaml", root,
             manifest_dir);
 
   if (check)
@@ -672,33 +951,40 @@ main (int argc, char **argv)
       char *k_on_disk = read_file (kpath);
       char *c_on_disk = read_file (cpath);
       char *s_on_disk = read_file (spath);
+      char *r_on_disk = read_file (rpath);
       rc = report_diff (kpath, kernel_yaml, k_on_disk);
       rc |= report_diff (cpath, caps_yaml, c_on_disk);
       rc |= report_diff (spath, cephyr_schema, s_on_disk);
+      rc |= report_diff (rpath, stdrewrite_yaml, r_on_disk);
       free (k_on_disk);
       free (c_on_disk);
       free (s_on_disk);
+      free (r_on_disk);
       if (rc == 0)
         printf ("ccw-manifest: manifests are up to date\n");
     }
   else
     {
       if (!write_file (kpath, kernel_yaml) || !write_file (cpath, caps_yaml)
-          || !write_file (spath, cephyr_schema))
+          || !write_file (spath, cephyr_schema)
+          || !write_file (rpath, stdrewrite_yaml))
         {
           fprintf (stderr, "ccw-manifest: could not write manifests\n");
           rc = 2;
         }
       else
         {
-          printf ("ccw-manifest: wrote %s, %s, and %s (%d kernels)\n", kpath,
-                  cpath, spath, count);
+          printf ("ccw-manifest: wrote %s, %s, %s, and %s "
+                  "(%d kernels, %d rulesets)\n",
+                  kpath, cpath, spath, rpath, count, ruleset_count);
         }
     }
 
   free (kernel_yaml);
   free (caps_yaml);
   free (cephyr_schema);
+  free (stdrewrite_yaml);
   free_entries (entries, count);
+  free_rulesets (rulesets, ruleset_count);
   return rc;
 }
