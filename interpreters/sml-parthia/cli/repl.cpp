@@ -217,7 +217,7 @@ handle_directive (const std::string &line,
                    name);
           return 1;
         }
-      if (!ccw_sml_parthia_load_native (runtime, path))
+      if (!ccw_sml_parthia_load_extension (runtime, path))
         {
           fprintf (stderr, "sml-parthia: cannot load %s\n", path);
           free (path);
