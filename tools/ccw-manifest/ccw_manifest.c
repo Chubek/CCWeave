@@ -15,6 +15,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
+#include <errno.h>
 
 #define CCW_MANIFEST_GENERATOR "ccw-manifest/0.1"
 
@@ -515,6 +517,20 @@ read_file (const char *path)
 static bool
 write_file (const char *path, const char *text)
 {
+  /* Ensure the parent directory exists before writing (§4.2). */
+  const char *last_slash = strrchr (path, '/');
+  if (last_slash != NULL)
+    {
+      size_t dirlen = (size_t)(last_slash - path);
+      char dir[2048];
+      if (dirlen >= sizeof (dir))
+        return false;
+      memcpy (dir, path, dirlen);
+      dir[dirlen] = '\0';
+      if (mkdir (dir, 0755) != 0 && errno != EEXIST)
+        return false;
+    }
+
   FILE *fp = fopen (path, "wb");
   if (fp == NULL)
     return false;
