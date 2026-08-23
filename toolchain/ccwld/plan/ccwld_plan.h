@@ -12,6 +12,24 @@
 
 #include "../expr/ccwld_expr.h"
 
+/* --- driver-level declarations (§2.1, pre-seal) ------------------
+ * Command-line inputs/search paths/plugins/LTO configuration the
+ * driver passes into the frontend of record.  Applied before the
+ * script body runs, except `entry` which (GNU-style) overrides the
+ * script's ENTRY/OUTPUT entry after it runs.  All lists are
+ * NULL-terminated; the struct itself may be NULL. */
+typedef struct ccwld_driver_defs_s
+{
+  const char *const *inputs;       /* positional input paths        */
+  const char *const *search_paths; /* -L directories                */
+  const char *entry;               /* -e entry symbol               */
+  const char *const *plugins;      /* --plugin shared-object paths  */
+  const char *plugin_opts_json;    /* merged --plugin-opt options   */
+  const char *lto_pipeline;        /* --lto-pipeline backend path   */
+  unsigned lto_jobs;               /* --lto-jobs (0 = 1)            */
+  const char *lto_cache_dir;       /* --lto-cache-dir               */
+} ccwld_driver_defs;
+
 #ifdef __cplusplus
 extern "C"
 {

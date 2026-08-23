@@ -1305,7 +1305,7 @@ lower_item (mpc_ast_t *n, lower_ctx *ctx)
               paths[npaths++] = leaf_text (q);
             }
           if (npaths
-              && !ccwld_plan_group (ctx->p, (char **)paths, npaths, ctx->e))
+              && !ccwld_plan_group (ctx->p, (const char **)paths, npaths, ctx->e))
             {
               ctx->failed = 1;
               return 0;

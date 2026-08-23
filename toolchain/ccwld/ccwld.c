@@ -728,9 +728,10 @@ ccwld_link_files (const char *target, const char *output,
   plan_out.kind = strdup (options && options->kind ? options->kind : "exe");
   plan_out.format
       = strdup (options && options->format ? options->format : "elf");
-  plan_out.entry = strdup (options ? options->entry : NULL);
-  plan_out.soname = strdup (options ? options->soname : NULL);
-  plan_out.osabi = strdup (options ? options->osabi : NULL);
+  plan_out.entry = (options && options->entry) ? strdup (options->entry) : NULL;
+  plan_out.soname
+      = (options && options->soname) ? strdup (options->soname) : NULL;
+  plan_out.osabi = (options && options->osabi) ? strdup (options->osabi) : NULL;
 
   if (!ccwld_plan_output (p, &plan_out, e))
     goto done;

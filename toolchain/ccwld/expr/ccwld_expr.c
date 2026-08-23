@@ -905,8 +905,16 @@ ccwld_expr_to_string (const ccwld_expr *e, char **out, size_t *len,
       APPEND_BUF (*out, *len, *cap, "sizeof_headers");
       break;
     case CCWLD_EXPR_SEGMENT_START:
-      APPEND_BUF (*out, *len, *cap, "segment_start(%s)",
-                  e->name ? e->name : "");
+      if (e->b)
+        {
+          APPEND_BUF (*out, *len, *cap, "segment_start(%s,",
+                      e->name ? e->name : "");
+          ccwld_expr_to_string (e->b, out, len, cap);
+          APPEND_BUF (*out, *len, *cap, ")");
+        }
+      else
+        APPEND_BUF (*out, *len, *cap, "segment_start(%s)",
+                    e->name ? e->name : "");
       break;
     case CCWLD_EXPR_ALIGN:
       APPEND_BUF (*out, *len, *cap, "align(");
@@ -919,18 +927,6 @@ ccwld_expr_to_string (const ccwld_expr *e, char **out, size_t *len,
           ccwld_expr_to_string (e->b, out, len, cap);
           APPEND_BUF (*out, *len, *cap, ")");
         }
-      break;
-    case CCWLD_EXPR_SEGMENT_START:
-      if (e->b)
-        {
-          APPEND_BUF (*out, *len, *cap, "segment_start(%s,",
-                      e->name ? e->name : "");
-          ccwld_expr_to_string (e->b, out, len, cap);
-          APPEND_BUF (*out, *len, *cap, ")");
-        }
-      else
-        APPEND_BUF (*out, *len, *cap, "segment_start(%s)",
-                    e->name ? e->name : "");
       break;
     case CCWLD_EXPR_UNARY:
       APPEND_BUF (*out, *len, *cap, "(%c", (char)e->op);

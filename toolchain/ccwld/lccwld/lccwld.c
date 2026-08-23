@@ -997,7 +997,7 @@ l_align (lua_State *L)
   return 1;
 }
 
-static int
+static const char *
 name_arg (lua_State *L, int idx)
 {
   return luaL_checkstring (L, idx);
