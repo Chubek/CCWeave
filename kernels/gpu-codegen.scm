@@ -75,4 +75,4 @@
         (analysis-put! 'lower.gpu-codegen 0 'status 'gpu-codegen-ready)
         (analysis-put! 'lower.gpu-codegen 0 'target-arch arch)
         (analysis-put! 'lower.gpu-codegen 0 'backend 'hipSYCL))
-      ir)))
+      ir))
