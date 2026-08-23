@@ -696,3 +696,47 @@ Implementation decisions beyond the spec text:
 - **Reference plugin and LTO backends live under `tests/`** and build as MODULEs against
   the shipped ABI headers; test executables export their symbols (`ENABLE_EXPORTS` +
   `-rdynamic`) so dlopened modules resolve `ccwld_link_*`/`ccwld_lto_*` from the host.
+
+## 2026-08-24 — ccwld_driver_defs moved to plan header to fix include ordering
+
+The `ccwld_driver_defs` struct was originally defined in `ccwld.h` after
+`#include "plan/ccwld_plan.h"`, but `ccwld_plan.h` references the type in its
+frontend entry-point declarations and `ccwld_plan.c` includes `ccwld_plan.h`
+directly (not through `ccwld.h`). The struct definition was moved to
+`ccwld_plan.h` before the function declarations and removed from `ccwld.h`.
+The struct tag is `ccwld_driver_defs_s` to allow forward-declaration if
+needed later. Since `ccwld.h` includes `ccwld_plan.h`, all consumers see the
+definition through the same include path.
+
+## 2026-08-24 — strdup(NULL) guarded in ccwld_link_files
+
+The `ccwld_output_simple` convenience struct has optional fields (`entry`,
+`soname`, `osabi`) that may be NULL when the caller passes no options. The
+original code called `strdup(options ? options->entry : NULL)` which is UB
+under glibc's `__attribute__((nonnull))` declaration. The fix checks for
+non-NULL before calling `strdup`, leaving the field NULL when the source is
+NULL — consistent with the struct's optional-field semantics.
+
+## 2026-08-24 — Merged duplicate CCWLD_EXPR_SEGMENT_START case in ccwld_expr_to_string
+
+The `ccwld_expr_to_string` function had two `case CCWLD_EXPR_SEGMENT_START`
+labels: one handling only the 1-argument form and a later unreachable one
+handling both 1-arg and 2-arg forms. The two were merged into a single case
+that tests `e->b` for the 2-argument path. The second label was also
+erroneously falling through to `CCWLD_EXPR_UNARY` due to a prior incomplete
+merge — the spurious fallthrough label was removed.
+
+## 2026-08-24 — Fixed const-correctness cast in lower_item for ccwld_plan_group
+
+`lower_item` in `ccwld_ldscript.c` declares `const char *paths[128]` and
+casts it to `(char **)` when calling `ccwld_plan_group`, which expects
+`const char **`. The cast was corrected to `(const char **)`.
+
+## 2026-08-24 — name_arg return type fixed in lccwld
+
+The `name_arg` helper in `lccwld/lccwld.c` was declared `static int` but
+returned `luaL_checkstring` which yields `const char *`. This caused
+`-Wint-conversion` errors at every call site that passed the result to
+functions expecting `const char *` (e.g. `ccwld_expr_addr`,
+`ccwld_expr_loadaddr`, `ccwld_expr_sizeof`, `ccwld_expr_region_origin`,
+`ccwld_expr_region_length`). The return type was changed to `const char *`.
