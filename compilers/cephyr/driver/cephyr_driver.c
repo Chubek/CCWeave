@@ -1227,17 +1227,206 @@ emit_target_assembly (const ccw_ir *ir, const char *triple)
                         }
                     }
                   else if (strcmp (opcode, "phi") == 0)
-                    {
-                      /* phi dest, val1, block1, val2, block2, ...
-                       * In a simple codegen, pick the first value. */
-                      if (dest && nops >= 1 && ops[0])
-                        APPEND_FMT ("  mov %s, %s\n", dest, ops[0]);
-                    }
-                  else
-                    {
-                      /* Unknown opcode: emit as comment */
-                      APPEND_FMT ("  # unknown opcode: %s\n", opcode);
-                    }
+                     {
+                       /* phi dest, val1, block1, val2, block2, ...
+                        * In a simple codegen, pick the first value. */
+                       if (dest && nops >= 1 && ops[0])
+                         APPEND_FMT ("  mov %s, %s\n", dest, ops[0]);
+                     }
+                    /* ---------- Kliche imperative opcodes (§6.1) ---------- */
+                    else if (strcmp (opcode, "iconst") == 0)
+                      {
+                        if (dest && nops >= 1 && op_is_const[0])
+                          APPEND_FMT ("  mov %s, %ld\n", dest,
+                                      (long)op_vals[0]);
+                      }
+                    else if (strcmp (opcode, "local.alloc") == 0)
+                      {
+                        if (dest)
+                          {
+                            APPEND_FMT ("  sub rsp, 8\n");
+                            APPEND_FMT ("  mov %s, rsp\n", dest);
+                          }
+                      }
+                    else if (strcmp (opcode, "local.store") == 0)
+                      {
+                        if (nops >= 2 && ops[0] && ops[1])
+                          {
+                            APPEND_FMT ("  mov rax, [%s]\n", ops[0]);
+                            APPEND_FMT ("  mov rbx, [%s]\n", ops[1]);
+                            APPEND_FMT ("  mov [rax], rbx\n");
+                          }
+                      }
+                    else if (strcmp (opcode, "local.load") == 0)
+                      {
+                        if (dest && nops >= 1 && ops[0])
+                          {
+                            APPEND_FMT ("  mov rax, [%s]\n", ops[0]);
+                            APPEND_FMT ("  mov rax, [rax]\n");
+                            APPEND_FMT ("  mov [%s], rax\n", dest);
+                          }
+                      }
+                    else if (strcmp (opcode, "br") == 0)
+                      {
+                        if (nops >= 1 && ops[0])
+                          APPEND_FMT ("  jmp .L%s\n", ops[0]);
+                      }
+                    else if (strcmp (opcode, "br.cond") == 0)
+                      {
+                        if (nops >= 3 && ops[0] && ops[1] && ops[2])
+                          {
+                            APPEND_FMT ("  mov rax, [%s]\n", ops[0]);
+                            APPEND_FMT ("  test rax, rax\n");
+                            APPEND_FMT ("  jnz .L%s\n", ops[1]);
+                            APPEND_FMT ("  jmp .L%s\n", ops[2]);
+                          }
+                      }
+                    else if (strcmp (opcode, "array.alloc") == 0)
+                      {
+                        if (dest && nops >= 2 && op_is_const[0])
+                          {
+                            int64_t total = op_vals[0] * 8;
+                            APPEND_FMT ("  sub rsp, %ld\n", (long)total);
+                            APPEND_FMT ("  mov %s, rsp\n", dest);
+                          }
+                      }
+                    else if (strcmp (opcode, "array.load") == 0)
+                      {
+                        if (dest && nops >= 2 && ops[0] && ops[1])
+                          {
+                            APPEND_FMT ("  mov rax, [%s]\n", ops[0]);
+                            APPEND_FMT ("  mov rbx, [%s]\n", ops[1]);
+                            APPEND_FMT ("  shl rbx, 3\n");
+                            APPEND_FMT ("  mov rax, [rax + rbx]\n");
+                            APPEND_FMT ("  mov [%s], rax\n", dest);
+                          }
+                      }
+                    else if (strcmp (opcode, "array.store") == 0)
+                      {
+                        if (nops >= 3 && ops[0] && ops[1] && ops[2])
+                          {
+                            APPEND_FMT ("  mov rax, [%s]\n", ops[0]);
+                            APPEND_FMT ("  mov rbx, [%s]\n", ops[1]);
+                            APPEND_FMT ("  shl rbx, 3\n");
+                            APPEND_FMT ("  mov rcx, [%s]\n", ops[2]);
+                            APPEND_FMT ("  mov [rax + rbx], rcx\n");
+                          }
+                      }
+                    else if (strcmp (opcode, "logic.and") == 0)
+                      {
+                        if (dest && nops >= 2 && ops[0] && ops[1])
+                          {
+                            APPEND_FMT ("  mov rax, [%s]\n", ops[0]);
+                            APPEND_FMT ("  test rax, rax\n");
+                            APPEND_FMT ("  setnz al\n");
+                            APPEND_FMT ("  mov rbx, [%s]\n", ops[1]);
+                            APPEND_FMT ("  test rbx, rbx\n");
+                            APPEND_FMT ("  setnz bl\n");
+                            APPEND_FMT ("  and al, bl\n");
+                            APPEND_FMT ("  movzx rax, al\n");
+                            APPEND_FMT ("  mov [%s], rax\n", dest);
+                          }
+                      }
+                    else if (strcmp (opcode, "logic.or") == 0)
+                      {
+                        if (dest && nops >= 2 && ops[0] && ops[1])
+                          {
+                            APPEND_FMT ("  mov rax, [%s]\n", ops[0]);
+                            APPEND_FMT ("  test rax, rax\n");
+                            APPEND_FMT ("  setnz al\n");
+                            APPEND_FMT ("  mov rbx, [%s]\n", ops[1]);
+                            APPEND_FMT ("  test rbx, rbx\n");
+                            APPEND_FMT ("  setnz bl\n");
+                            APPEND_FMT ("  or al, bl\n");
+                            APPEND_FMT ("  movzx rax, al\n");
+                            APPEND_FMT ("  mov [%s], rax\n", dest);
+                          }
+                      }
+                    else if (strcmp (opcode, "opaque.expr") == 0)
+                      {
+                        /* skip — opaque expression placeholder */
+                      }
+                    /* ---------- arithmetic/comparison missing opcodes ---------- */
+                    else if (strcmp (opcode, "idiv") == 0)
+                      {
+                        if (dest && nops >= 2 && ops[0] && ops[1])
+                          {
+                            APPEND_FMT ("  mov eax, dword [%s]\n", ops[0]);
+                            APPEND_FMT ("  cdq\n");
+                            if (op_is_const[1])
+                              {
+                                int64_t v = op_vals[1];
+                                APPEND_FMT ("  mov ecx, %ld\n", (long)v);
+                                APPEND_FMT ("  idiv ecx\n");
+                              }
+                            else
+                              APPEND_FMT ("  idiv dword [%s]\n", ops[1]);
+                            APPEND_FMT ("  mov dword [%s], eax\n", dest);
+                          }
+                      }
+                    else if (strcmp (opcode, "irem") == 0)
+                      {
+                        if (dest && nops >= 2 && ops[0] && ops[1])
+                          {
+                            APPEND_FMT ("  mov eax, dword [%s]\n", ops[0]);
+                            APPEND_FMT ("  cdq\n");
+                            if (op_is_const[1])
+                              {
+                                int64_t v = op_vals[1];
+                                APPEND_FMT ("  mov ecx, %ld\n", (long)v);
+                                APPEND_FMT ("  idiv ecx\n");
+                              }
+                            else
+                              APPEND_FMT ("  idiv dword [%s]\n", ops[1]);
+                            APPEND_FMT ("  mov dword [%s], edx\n", dest);
+                          }
+                      }
+                    else if (strcmp (opcode, "inot") == 0)
+                      {
+                        if (dest && nops >= 1 && ops[0])
+                          {
+                            APPEND_FMT ("  mov rax, [%s]\n", ops[0]);
+                            APPEND_FMT ("  not rax\n");
+                            APPEND_FMT ("  mov [%s], rax\n", dest);
+                          }
+                      }
+                    else if (strcmp (opcode, "lshr") == 0)
+                      {
+                        if (dest && nops >= 2 && ops[0] && ops[1])
+                          {
+                            APPEND_FMT ("  mov rax, [%s]\n", ops[0]);
+                            APPEND_FMT ("  mov rcx, [%s]\n", ops[1]);
+                            APPEND_FMT ("  shr rax, cl\n");
+                            APPEND_FMT ("  mov [%s], rax\n", dest);
+                          }
+                      }
+                    /* ---------- type casts ---------- */
+                    else if (strcmp (opcode, "id") == 0)
+                      {
+                        if (dest && nops >= 1 && ops[0])
+                          APPEND_FMT ("  mov rax, [%s]\n"
+                                      "  mov [%s], rax\n",
+                                      ops[0], dest);
+                      }
+                    else if (strcmp (opcode, "sext") == 0)
+                      {
+                        if (dest && nops >= 1 && ops[0])
+                          APPEND_FMT ("  movsx rax, dword [%s]\n"
+                                      "  mov [%s], rax\n",
+                                      ops[0], dest);
+                      }
+                    else if (strcmp (opcode, "trunc") == 0)
+                      {
+                        if (dest && nops >= 1 && ops[0])
+                          APPEND_FMT ("  mov eax, dword [%s]\n"
+                                      "  mov dword [%s], eax\n",
+                                      ops[0], dest);
+                      }
+                    else
+                      {
+                        /* Unknown opcode: emit as comment */
+                        APPEND_FMT ("  # unknown opcode: %s\n", opcode);
+                      }
                 }
             }
           APPEND_FMT (".size %s, .-%s\n", name, name);
