@@ -1,12 +1,13 @@
 ;;; kernels/codegen-x86-64.scm
 ;;; CCWeave Kernel: x86-64 instruction selection.
+;;; Sources: .agents/ISA-Bundle/amd64.isa (§9 codegen).
 
 (define-library (ccweave kernel codegen-x86-64)
   (import (scheme base) (ccweave glue))
   (export kernel-info kernel-capabilities kernel-apply)
   (begin
     (define (kernel-info)
-      '((name . codegen-x86-64) (version . "0.2.0")
+      '((name . codegen-x86-64) (version . "0.3.0")
         (description . "Selects a scalar x86-64 instruction subset covering arithmetic, compares, memory, and control flow.")))
     (define (kernel-capabilities) '(codegen.x86-64))
 
@@ -14,6 +15,8 @@
     ;; x86-64 mnemonics one opcode at a time. Same-arity, same-operand-order
     ;; renaming only -- register/immediate legalization is isel-legalize's
     ;; job (§9), and physical allocation is regalloc's.
+    ;; Extended with FP, width-specific, extension, and conversion ops
+    ;; from .agents/ISA-Bundle/amd64.isa.
     (define op-table
       '((imov       . x86-64.mov)
         (iadd       . x86-64.add)
@@ -35,8 +38,76 @@
         (icmp.le    . x86-64.cmp.le)
         (icmp.gt    . x86-64.cmp.gt)
         (icmp.ge    . x86-64.cmp.ge)
+        ;; FP arithmetic
+        (fadd       . x86-64.addss)
+        (fadd.d     . x86-64.addsd)
+        (fsub       . x86-64.subss)
+        (fsub.d     . x86-64.subsd)
+        (fmul       . x86-64.mulss)
+        (fmul.d     . x86-64.mulsd)
+        (fdiv       . x86-64.divss)
+        (fdiv.d     . x86-64.divsd)
+        (fneg       . x86-64.xorps.neg)
+        ;; FP compares
+        (fcmp.ord   . x86-64.ucomiss)
+        (fcmp.ord.d . x86-64.ucomisd)
+        (fcmp.uno   . x86-64.ucomiss.uno)
+        (fcmp.uno.d . x86-64.ucomisd.uno)
+        ;; Width-specific loads
+        (loadb      . x86-64.loadb)
+        (loadh      . x86-64.loadh)
+        (loadw      . x86-64.loadw)
         (load       . x86-64.load)
+        (loadsb     . x86-64.loadsb)
+        (loadub     . x86-64.loadub)
+        (loadsh     . x86-64.loadsh)
+        (loaduh     . x86-64.loaduh)
+        (loadsw     . x86-64.loadsw)
+        (loaduw     . x86-64.loaduw)
+        ;; Width-specific stores
+        (storeb     . x86-64.storeb)
+        (storeh     . x86-64.storeh)
+        (storew     . x86-64.storew)
         (store      . x86-64.store)
+        (storel     . x86-64.storel)
+        (stores     . x86-64.storess)
+        (stored     . x86-64.stored)
+        ;; Integer extension/truncation
+        (extsb      . x86-64.movsb)
+        (extub      . x86-64.movzb)
+        (extsh      . x86-64.movsw)
+        (extuh      . x86-64.movzw)
+        (extsw      . x86-64.movslq)
+        (extuw      . x86-64.movl.zero)
+        ;; FP conversion
+        (exts       . x86-64.cvtss2sd)
+        (truncd     . x86-64.cvtsd2ss)
+        (stosi      . x86-64.cvttss2si)
+        (stosi.l    . x86-64.cvttss2si.l)
+        (dtosi      . x86-64.cvttsd2si)
+        (dtosi.l    . x86-64.cvttsd2si.l)
+        (swtof      . x86-64.cvtsi2ss)
+        (sltof      . x86-64.cvtsi2sd)
+        (cast.fp.i  . x86-64.movd.to.gpr)
+        (cast.i.fp  . x86-64.movd.to.xmm)
+        ;; Misc
+        (swap       . x86-64.xchg)
+        (addr       . x86-64.lea)
+        (sign.ext   . x86-64.cqto)
+        (copy.sign  . x86-64.cltd)
+        (udiv       . x86-64.div)
+        (uidiv      . x86-64.idiv)
+        ;; Compare flag extraction
+        (flagfeq    . x86-64.sete)
+        (flagfne    . x86-64.setne)
+        (flagflt    . x86-64.setl)
+        (flagfle    . x86-64.setle)
+        (flagfgt    . x86-64.setg)
+        (flagfge    . x86-64.setge)
+        (flagfa     . x86-64.seta)
+        (flagfae    . x86-64.setae)
+        (flagfb     . x86-64.setb)
+        (flagfbe    . x86-64.setbe)
         (jmp        . x86-64.jmp)
         (br         . x86-64.br)
         (ret        . x86-64.ret)

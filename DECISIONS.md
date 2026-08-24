@@ -985,3 +985,106 @@ pass that enforces the §5.2/§5.3 structural invariants:
 The Glue layer now uses "bridges" to hook vendored libraries used by kernels, into the Executor layer.
 
 
+
+## 2026-08-24 — Strengthened codegen and register allocation kernels from ISA-Bundle
+
+The `.agents/ISA-Bundle/` directory defines three target ISAs — amd64, arm64,
+and rv64 — each with register classes, aliases, flag registers, encoding
+formats, and concrete operations. The existing codegen kernels were limited to
+scalar-integer opcode renaming and lacked FP, width-specific load/store,
+extension/truncation, and conversion operations. The register allocators were
+simplistic: they assigned virtual slots/colors without awareness of physical
+register counts, calling conventions, or spill logic.
+
+### Strengthened codegen kernels (all bumped to v0.3.0)
+
+**`kernels/codegen-x86-64.scm`** — added op-table entries from `amd64.isa`:
+- FP arithmetic: `fadd`/`fadd.d`, `fsub`/`fsub.d`, `fmul`/`fmul.d`,
+  `fdiv`/`fdiv.d`, `fneg`
+- FP compares: `fcmp.ord`/`fcmp.ord.d`, `fcmp.uno`/`fcmp.uno.d`
+- Width-specific loads: `loadb`/`loadh`/`loadw`/`load`, plus signed/unsigned
+  variants (`loadsb`/`loadub`/`loadsh`/`loaduh`/`loadsw`/`loaduw`)
+- Width-specific stores: `storeb`/`storeh`/`storew`/`store`/`storel`,
+  plus `stores`/`stored`
+- Integer extension: `extsb`/`extub`/`extsh`/`extuh`/`extsw`/`extuw`
+- FP conversion: `exts`/`truncd`/`stosi`/`stosi.l`/`dtosi`/`dtosi.l`/
+  `swtof`/`sltof`/`cast.fp.i`/`cast.i.fp`
+- Misc: `swap`/`addr`/`sign.ext`/`copy.sign`/`udiv`/`uidiv`
+- Compare flag extraction: `flagfeq`/`flagfne`/`flagflt`/`flagfle`/
+  `flagfgt`/`flagfge`/`flagfa`/`flagfae`/`flagfb`/`flagfbe`
+
+**`kernels/codegen-aarch64.scm`** — added from `arm64.isa`:
+- FP arithmetic: `fadd`/`fadd.d`, `fsub`/`fsub.d`, `fmul`/`fmul.d`,
+  `fdiv`/`fdiv.d`, `fneg`
+- FP compare: `fcmp.ord`/`fcmp.ord.d`
+- Width-specific loads: `loadb`/`loadh`/`loadw`/`load`, plus signed/unsigned
+  variants
+- Width-specific stores: `storeb`/`storeh`/`storew`/`store`/`storel`/
+  `stores`/`stored`
+- Integer extension: `extsb`/`extub`/`extsh`/`extuh`/`extsw`/`extuw`
+- FP conversion: `exts`/`truncd`/`stosi`/`stoui`/`dtosi`/`dtoui`/
+  `swtof`/`uwtof`/`sltof`/`ultof`/`cast.fp.i`/`cast.i.fp`
+- Misc: `swap`/`udiv`/`uidiv`/`copy`
+- Compare flag extraction: `flagfeq`/`flagfne`/`flagflt`/`flagfle`/
+  `flagfgt`/`flagfge`/`flagflo`/`flagfls`/`flagfhi`/`flagfhs`
+
+**`kernels/codegen-riscv64.scm`** — added from `rv64.isa`:
+- FP arithmetic: `fadd`/`fadd.d`, `fsub`/`fsub.d`, `fmul`/`fmul.d`,
+  `fdiv`/`fdiv.d`, `fneg`
+- FP compare: `fcmp.eq`/`fcmp.eq.d`/`fcmp.lt`/`fcmp.lt.d`/
+  `fcmp.le`/`fcmp.le.d`
+- Width-specific loads/stores: `loadb`/`loadh`/`loadw`/`load`/
+  `loadub`/`loaduh`/`loaduw`/`storeb`/`storeh`/`storew`/`store`
+- Integer extension: `extsb`/`extub`/`extsh`/`extuh`/`extsw`/`extuw`
+- FP conversion: `exts`/`truncd`/`stosi`/`stosi.l`/`stoui`/`stoui.l`/
+  `dtosi`/`dtosi.l`/`dtoui`/`dtoui.l`/`swtof`/`uwtof`/`sltof`/`ultof`/
+  `cast.fp.i`/`cast.i.fp`
+- Misc: `swap`/`udiv`/`uidiv`/`urem`/`copy`
+- Compare zero: `reqz`/`rnez`
+
+**`kernels/codegen-wasm32.scm`** — added FP arithmetic, compares,
+width-specific loads/stores, extension, and conversion ops.
+
+### New register info kernels
+
+Three new kernels publish per-ISA register class metadata derived from the
+ISA-Bundle register classes, aliases, and standard calling conventions:
+
+- **`kernels/codegen-reg-info-x86-64.scm`** (capability `codegen.reg-info.x86-64`)
+  — 16 GPRs (RAX-R15, RBP, RSP), 16 FPRs (XMM0-XMM15), with caller/callee-saved
+  classification per System V AMD64 ABI. Reserved: RBP, RSP. Publishes
+  `stack-pointer`, `frame-pointer`, `link-register`, and per-register name→index
+  mappings.
+- **`kernels/codegen-reg-info-aarch64.scm`** (capability `codegen.reg-info.aarch64`)
+  — 32 GPRs (X0-X30, SP), 31 FPRs (V0-V30), AAPCS64 calling convention.
+  Reserved: X30(LR), SP. Link register is X30.
+- **`kernels/codegen-reg-info-riscv64.scm`** (capability `codegen.reg-info.riscv64`)
+  — 30 GPRs (T0-T6, A0-A7, S1-S11, SP, GP, TP, RA), 32 FPRs
+  (FT0-FT11, FA0-FA7, FS0-FS11). RISC-V calling convention. Reserved:
+  SP, GP, TP, RA.
+
+### New spill and frame kernels
+
+- **`kernels/regalloc-spill.scm`** (capability `codegen.regalloc-spill`) —
+  Reads `allocator-slot` from `codegen.regalloc-linear` and
+  `allocatable-gpr-count` from `codegen.reg-info.*` to determine which virtual
+  registers exceed physical limits. Inserts spill-store after definitions and
+  rewrites subsequent uses to reload from the spill slot.
+- **`kernels/codegen-frame.scm`** (capability `codegen.frame`) —
+  Target-parameterized frame layout. Accepts `target` and `frame-size` in
+  the options alist. Computes stack slot count from `regalloc-linear` metadata,
+  16-byte-aligns the frame, and inserts prologue (push FP, mov FP←SP, sub SP,
+  save LR) and epilogue (restore LR, mov SP←FP, pop FP) instructions.
+  Supports `x86-64`, `aarch64`, and `riscv64` targets.
+
+### Interpretation
+
+The ISA-Bundle opcodes use a different naming convention than the kernel
+op-table (e.g., `add` vs. `iadd` for integer add, `add` vs. `fadd` for
+FP add). The kernel op-table maps the generic Weave IR opcodes to
+ISA-specific target opcodes, preserving the existing convention that
+codegen kernels are pure opcode renamers. Legalization (e.g., splitting
+width-specific ops, constraining immediates) remains the job of
+`isel-legalize` and downstream kernels. Register info kernels publish
+facts through `analysis-put!` rather than modifying IR, consistent with
+the analysis-vs.-transform separation in the existing kernel design.
