@@ -117,6 +117,66 @@ static void check_nontrivial_lowering(ccw_profile profile, const char *label)
     ccw_ir_module_destroy(ir);
 }
 
+static void check_array_expressions(void)
+{
+    const char *source =
+        "int arrays(void) {\n"
+        "  int a[2][2] = {{1, 2}, {3, 4}};\n"
+        "  a[1][0] = a[0][1] + 5;\n"
+        "  return a[1][0];\n"
+        "}\n";
+    ccw_swaff_report report;
+    char *error = NULL;
+    ccw_ir *ir = ccw_swaff_lower(
+        ccw_swaff_frontend_c(), source, strlen(source), "arrays",
+        CCW_PROFILE_TILLY, CCW_SWAFF_REJECT_ON_ERROR, &report, &error);
+    CCW_CHECK(ir != NULL, "array expressions failed: %s",
+              error ? error : "(no message)");
+    free(error);
+    if (!ir) return;
+    ccw_node fn = ccw_ir_function_ref(ir, 0);
+    CCW_CHECK(function_has_opcode(ir, fn, "array.alloc"),
+              "array declaration was not lowered");
+    CCW_CHECK(function_has_opcode(ir, fn, "array.load"),
+              "array read was not lowered");
+    CCW_CHECK(function_has_opcode(ir, fn, "array.store"),
+              "array write was not lowered");
+    CCW_CHECK(report.unsupported_nodes == 0,
+              "array expressions left %d unsupported nodes",
+              report.unsupported_nodes);
+    ccw_ir_module_destroy(ir);
+}
+
+static void check_control_statements(void)
+{
+    const char *source =
+        "int control(int n) {\n"
+        "  int i = 0;\n"
+        "  for (i = 0; i < n; i++) { if (i == 2) continue; }\n"
+        "  while (i < n + 2) { i++; if (i > n) break; }\n"
+        "  do { i--; } while (i > n);\n"
+        "  switch (i) { case 0: i = 1; break; default: i = 2; }\n"
+        "  label: i = i + 1;\n"
+        "  return i;\n"
+        "}\n";
+    ccw_swaff_report report;
+    char *error = NULL;
+    ccw_ir *ir = ccw_swaff_lower(
+        ccw_swaff_frontend_c(), source, strlen(source), "control",
+        CCW_PROFILE_TILLY, CCW_SWAFF_REJECT_ON_ERROR, &report, &error);
+    CCW_CHECK(ir != NULL, "control statements failed: %s",
+              error ? error : "(no message)");
+    free(error);
+    if (!ir) return;
+    ccw_node fn = ccw_ir_function_ref(ir, 0);
+    CCW_CHECK(function_has_opcode(ir, fn, "br.cond"),
+              "control statements did not lower conditional branches");
+    CCW_CHECK(report.unsupported_nodes == 0,
+              "control statements left %d unsupported nodes",
+              report.unsupported_nodes);
+    ccw_ir_module_destroy(ir);
+}
+
 int main(void)
 {
     CCW_CHECK(ccw_swaff_available(),
@@ -125,6 +185,8 @@ int main(void)
 
     check_nontrivial_lowering(CCW_PROFILE_TILLY, "c-tilly");
     check_nontrivial_lowering(CCW_PROFILE_ON1X, "c-on1x");
+    check_array_expressions();
+    check_control_statements();
 
     const char *bad = "int broken(int x { return x + ; }\n";
     ccw_swaff_report report;

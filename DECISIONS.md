@@ -1,5 +1,28 @@
 # Decisions
 
+## 2026-08-24 — Cephyr embeds ucpp through its text-emission contract
+
+The in-process Cephyr preprocessor binds both `lexer_state.output` and
+ucpp's process-global `emit_output` to the same memory stream, then calls
+`check_cpp_errors()` before reading the stream.  This follows ucpp's
+standalone driver contract and prevents an empty preprocessed translation
+unit from reaching Swaff.  The previous empty-IR failure surfaced
+misleading linker diagnostics (`main` missing and an unplaced section);
+preprocessing failures must instead be diagnosed before parsing.
+
+## 2026-08-24 — Swaff C lowers structured control flow through Kliche
+
+The C adapter now lowers C control-flow statements into imperative Kliche
+constructs: `for`, `while`, and `do` loops; `break` and `continue`; and
+`switch`/`case` dispatch with labeled statements.  Loop context is tracked
+in the adapter so break/continue targets remain explicit block edges.
+Increment/decrement and comma expressions are lowered as part of loop
+initializers and updates.  Array declarations, initializer lists, indexed
+loads, and indexed stores use Kliche array operations.  This keeps
+Tree-sitter-specific handling confined to Swaff while preserving canonical
+core-IR construction and makes unsupported-statement diagnostics indicate
+remaining expression/runtime gaps rather than basic C control flow.
+
 ## 2026-08-24 — GPU-accelerated compilation kernels backed by hipSYCL
 
 Seven new R7RS Scheme kernels were added under `kernels/gpu-*.scm` that

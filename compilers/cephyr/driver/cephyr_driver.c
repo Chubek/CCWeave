@@ -181,6 +181,7 @@ cpp_run_ucpp (const char *source_text, size_t source_len,
   FILE *tmpf;
   char *out_buf = NULL;
   size_t out_len = 0;
+  FILE *saved_emit_output;
 
   memset (&result, 0, sizeof (result));
 
@@ -245,6 +246,13 @@ cpp_run_ucpp (const char *source_text, size_t source_len,
       wipeout ();
       return result;
     }
+  /*
+   * ucpp's text emitter uses the process-global `emit_output` stream rather
+   * than lexer_state.output (see third_party/ucpp/cpp.c).  Keep both streams
+   * in sync so the in-process preprocessor actually returns its output.
+   */
+  saved_emit_output = emit_output;
+  emit_output = mem_output;
 
   /* Feed source and run */
   tmpf = tmpfile ();
@@ -269,7 +277,14 @@ cpp_run_ucpp (const char *source_text, size_t source_len,
     while ((r = cpp (&ls)) < CPPERR_EOF)
       (void)r;
   }
+  /*
+   * The standalone ucpp driver calls check_cpp_errors() after the final
+   * cpp() call; that step flushes the buffered text output.  The embedded
+   * path must do the same before reading the memory stream.
+   */
+  check_cpp_errors (&ls);
   fclose (mem_output);
+  emit_output = saved_emit_output;
   free_lexer_state (&ls);
   wipeout ();
 

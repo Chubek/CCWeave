@@ -55,6 +55,8 @@ set_error (char **error_message, const char *msg)
 
 #define CCW_C_MAX_NAMES 128
 #define CCW_C_MAX_ARGS 32
+#define CCW_C_MAX_DIMS 8
+#define CCW_C_MAX_LOOPS 32
 
 typedef struct
 {
@@ -70,6 +72,12 @@ typedef struct
   unsigned temp_index;
   unsigned block_index;
   char *locals[CCW_C_MAX_NAMES];
+  int local_is_array[CCW_C_MAX_NAMES];
+  int local_dims[CCW_C_MAX_NAMES][CCW_C_MAX_DIMS];
+  int local_ndims[CCW_C_MAX_NAMES];
+  char *break_blocks[CCW_C_MAX_LOOPS];
+  char *continue_blocks[CCW_C_MAX_LOOPS];
+  int loop_depth;
   int local_count;
 } ccw_c_lower;
 
@@ -263,12 +271,44 @@ add_local (ccw_c_lower *ctx, const char *name)
   return true;
 }
 
+static int
+local_index (const ccw_c_lower *ctx, const char *name)
+{
+  for (int i = 0; i < ctx->local_count; i++)
+    if (strcmp (ctx->locals[i], name) == 0)
+      return i;
+  return -1;
+}
+
 static void
 clear_locals (ccw_c_lower *ctx)
 {
   for (int i = 0; i < ctx->local_count; i++)
     free (ctx->locals[i]);
   ctx->local_count = 0;
+}
+
+static void
+push_loop (ccw_c_lower *ctx, const char *break_name, const char *continue_name)
+{
+  if (ctx->loop_depth >= CCW_C_MAX_LOOPS)
+    {
+      lower_fail (ctx, "swaff C: loop nesting limit exceeded");
+      return;
+    }
+  ctx->break_blocks[ctx->loop_depth] = ccw_strdup (break_name);
+  ctx->continue_blocks[ctx->loop_depth] = ccw_strdup (continue_name);
+  ctx->loop_depth++;
+}
+
+static void
+pop_loop (ccw_c_lower *ctx)
+{
+  if (ctx->loop_depth == 0)
+    return;
+  free (ctx->break_blocks[ctx->loop_depth - 1]);
+  free (ctx->continue_blocks[ctx->loop_depth - 1]);
+  ctx->loop_depth--;
 }
 
 static char *
@@ -313,7 +353,8 @@ lower_identifier (ccw_c_lower *ctx, ccw_node block, TSNode expr)
       lower_fail (ctx, "swaff C: could not read identifier");
       return NULL;
     }
-  if (!is_local (ctx, name))
+  int li = local_index (ctx, name);
+  if (li < 0 || ctx->local_is_array[li])
     return name; /* function parameter */
 
   char *temp = new_temp (ctx);
@@ -327,6 +368,153 @@ lower_identifier (ccw_c_lower *ctx, ccw_node block, TSNode expr)
     }
   free (name);
   return temp;
+}
+
+static int
+array_shape (TSNode node, const char *source, size_t source_len,
+             int *dims, int *ndims, TSNode *id)
+{
+  if (ts_node_is_null (node))
+    return 0;
+  if (node_is (node, "identifier"))
+    {
+      *id = node;
+      return 1;
+    }
+  if (node_is (node, "array_declarator"))
+    {
+      TSNode size = field (node, "size");
+      char *text = node_text (size, source, source_len);
+      if (*ndims < CCW_C_MAX_DIMS && text)
+        dims[(*ndims)++] = atoi (text);
+      free (text);
+      return array_shape (field (node, "declarator"), source, source_len,
+                          dims, ndims, id);
+    }
+  return array_shape (field (node, "declarator"), source, source_len,
+                      dims, ndims, id);
+}
+
+static int
+array_total (const int *dims, int ndims)
+{
+  int total = 1;
+  for (int i = 0; i < ndims; i++)
+    total *= dims[i] > 0 ? dims[i] : 1;
+  return total;
+}
+
+static char *
+lower_subscript (ccw_c_lower *ctx, ccw_node block, TSNode expr)
+{
+  TSNode base = field (expr, "argument");
+  TSNode index = field (expr, "index");
+  TSNode indices[CCW_C_MAX_DIMS];
+  int n = 0;
+  while (node_is (base, "subscript_expression") && n < CCW_C_MAX_DIMS)
+    {
+      indices[n++] = field (base, "index");
+      base = field (base, "argument");
+    }
+  if (!node_is (base, "identifier"))
+    {
+      lower_fail (ctx, "swaff C: array base must be an identifier");
+      return NULL;
+    }
+  indices[n++] = index;
+  char *name = node_text (base, ctx->source, ctx->source_len);
+  int li = name ? local_index (ctx, name) : -1;
+  if (li < 0 || !ctx->local_is_array[li])
+    {
+      free (name);
+      lower_fail (ctx, "swaff C: subscripted object is not an array");
+      return NULL;
+    }
+  char *linear = NULL;
+  for (int i = n - 1; i >= 0; i--)
+    {
+      char *part = lower_expression (ctx, block, indices[i]);
+      if (!part)
+        {
+          free (linear);
+          free (name);
+          return NULL;
+        }
+      if (!linear)
+        linear = part;
+      else
+        {
+          char *mul = new_temp (ctx);
+          char *sum = new_temp (ctx);
+          int dim = (i < ctx->local_ndims[li]) ? ctx->local_dims[li][i] : 1;
+          char *dreg = new_temp (ctx);
+          ccw_kliche_int_const (ctx->ir, block, dreg, dim);
+          ccw_kliche_binop (ctx->ir, block, "imul", mul, linear, dreg,
+                            CCW_TY_I64);
+          ccw_kliche_binop (ctx->ir, block, "iadd", sum, part, mul,
+                            CCW_TY_I64);
+          free (part);
+          free (linear);
+          free (dreg);
+          linear = sum;
+        }
+    }
+  char *dest = new_temp (ctx);
+  if (!dest || !ccw_kliche_array_load (ctx->ir, block, dest, name, linear,
+                                       CCW_TY_I64))
+    {
+      free (dest);
+      dest = NULL;
+      lower_fail (ctx, "swaff C: could not lower array load");
+    }
+  free (name);
+  free (linear);
+  return dest;
+}
+
+static int
+lower_subscript_index (ccw_c_lower *ctx, ccw_node block, TSNode expr,
+                       char **array_name, char **index_reg)
+{
+  TSNode base = field (expr, "argument");
+  TSNode indices[CCW_C_MAX_DIMS];
+  int n = 0;
+  while (node_is (base, "subscript_expression") && n < CCW_C_MAX_DIMS)
+    {
+      indices[n++] = field (base, "index");
+      base = field (base, "argument");
+    }
+  indices[n++] = field (expr, "index");
+  if (!node_is (base, "identifier"))
+    return 0;
+  *array_name = node_text (base, ctx->source, ctx->source_len);
+  int li = *array_name ? local_index (ctx, *array_name) : -1;
+  if (li < 0 || !ctx->local_is_array[li])
+    return 0;
+  char *linear = NULL;
+  for (int i = n - 1; i >= 0; i--)
+    {
+      char *part = lower_expression (ctx, block, indices[i]);
+      if (!part)
+        return 0;
+      if (!linear)
+        linear = part;
+      else
+        {
+          char *mul = new_temp (ctx), *sum = new_temp (ctx);
+          char *dreg = new_temp (ctx);
+          int dim = i < ctx->local_ndims[li] ? ctx->local_dims[li][i] : 1;
+          ccw_kliche_int_const (ctx->ir, block, dreg, dim);
+          ccw_kliche_binop (ctx->ir, block, "imul", mul, linear, dreg,
+                            CCW_TY_I64);
+          ccw_kliche_binop (ctx->ir, block, "iadd", sum, part, mul,
+                            CCW_TY_I64);
+          free (part); free (linear); free (dreg);
+          linear = sum;
+        }
+    }
+  *index_reg = linear;
+  return 1;
 }
 
 static char *
@@ -541,6 +729,19 @@ lower_assignment (ccw_c_lower *ctx, ccw_node block, TSNode expr)
   TSNode left = field (expr, "left");
   TSNode right = field (expr, "right");
   TSNode op = field (expr, "operator");
+  if (node_is (left, "subscript_expression"))
+    {
+      char *array_name = NULL, *index = NULL;
+      char *value = lower_expression (ctx, block, right);
+      if (!value || !lower_subscript_index (ctx, block, left, &array_name,
+                                             &index)
+          || !ccw_kliche_array_store (ctx->ir, block, array_name, index,
+                                       value, CCW_TY_I64))
+        lower_fail (ctx, "swaff C: could not lower array assignment");
+      free (array_name);
+      free (index);
+      return value;
+    }
   if (!node_is (left, "identifier"))
     {
       lower_fail (ctx, "swaff C: only local-variable assignment is supported");
@@ -623,6 +824,50 @@ lower_expression (ccw_c_lower *ctx, ccw_node block, TSNode expr)
     return lower_unary (ctx, block, expr);
   if (strcmp (type, "assignment_expression") == 0)
     return lower_assignment (ctx, block, expr);
+  if (strcmp (type, "update_expression") == 0)
+    {
+      TSNode arg = field (expr, "argument");
+      TSNode op = field (expr, "operator");
+      char *name = node_text (arg, ctx->source, ctx->source_len);
+      char *op_text = node_text (op, ctx->source, ctx->source_len);
+      if (!name || !op_text || !is_local (ctx, name))
+        {
+          free (name); free (op_text);
+          lower_fail (ctx, "swaff C: update target is not a local");
+          return NULL;
+        }
+      char *cur = lower_identifier (ctx, block, arg);
+      char *one = new_temp (ctx);
+      char *next = new_temp (ctx);
+      if (!cur || !one || !next
+          || !ccw_kliche_int_const (ctx->ir, block, one, 1)
+          || !ccw_kliche_binop (ctx->ir, block,
+                                (strstr (op_text, "--") != NULL) ? "isub"
+                                                                   : "iadd",
+                                next, cur, one, CCW_TY_I64)
+          || !ccw_kliche_local_store (ctx->ir, block, name, next))
+        lower_fail (ctx, "swaff C: could not lower update expression");
+      free (name); free (op_text); free (cur); free (one);
+      return next;
+    }
+  if (strcmp (type, "comma_expression") == 0)
+    {
+      char *last = NULL;
+      uint32_t n = ts_node_named_child_count (expr);
+      for (uint32_t i = 0; i < n; i++)
+        {
+          free (last);
+          last = lower_expression (ctx, block, ts_node_named_child (expr, i));
+        }
+      return last;
+    }
+  if (strcmp (type, "subscript_expression") == 0)
+    return lower_subscript (ctx, block, expr);
+  if (strcmp (type, "initializer_list") == 0)
+    {
+      TSNode first = first_named_child (expr);
+      return ts_node_is_null (first) ? NULL : lower_expression (ctx, block, first);
+    }
   if (strcmp (type, "call_expression") == 0)
     return lower_call (ctx, block, expr);
   if (strcmp (type, "parenthesized_expression") == 0
@@ -630,7 +875,14 @@ lower_expression (ccw_c_lower *ctx, ccw_node block, TSNode expr)
     return lower_expression (ctx, block, first_named_child (expr));
 
   ctx->report->unsupported_nodes++;
-  lower_fail (ctx, "swaff C: unsupported expression");
+  {
+    char *text = node_text (expr, ctx->source, ctx->source_len);
+    char message[256];
+    snprintf (message, sizeof (message), "swaff C: unsupported expression '%s'%s%s",
+              type ? type : "?", text ? ": " : "", text ? text : "");
+    lower_fail (ctx, message);
+    free (text);
+  }
   return NULL;
 }
 
@@ -647,8 +899,21 @@ lower_declarator (ccw_c_lower *ctx, ccw_node block, TSNode declarator,
     }
   TSNode id = declarator_identifier (bare);
   char *name = node_text (id, ctx->source, ctx->source_len);
+  int dims[CCW_C_MAX_DIMS] = { 0 }, ndims = 0;
+  TSNode array_id = null_node ();
+  int is_array = array_shape (bare, ctx->source, ctx->source_len, dims,
+                              &ndims, &array_id) && ndims > 0;
+  if (is_array)
+    {
+      free (name);
+      name = node_text (array_id, ctx->source, ctx->source_len);
+    }
   if (name == NULL || !add_local (ctx, name)
-      || ccw_kliche_local_alloc (ctx->ir, block, name, type) == 0)
+      || (is_array
+          ? ccw_kliche_array_alloc (ctx->ir, block, name,
+                                    array_total (dims, ndims), type)
+          : ccw_kliche_local_alloc (ctx->ir, block, name, type))
+            == 0)
     {
       free (name);
       if (!ctx->failed)
@@ -656,14 +921,59 @@ lower_declarator (ccw_c_lower *ctx, ccw_node block, TSNode declarator,
       return;
     }
   ctx->report->declarations_lowered++;
+  int li = local_index (ctx, name);
+  if (li >= 0 && is_array)
+    {
+      ctx->local_is_array[li] = 1;
+      ctx->local_ndims[li] = ndims;
+      for (int i = 0; i < ndims; i++)
+        ctx->local_dims[li][i] = dims[i];
+    }
   if (!ts_node_is_null (value))
     {
-      char *initial = lower_expression (ctx, block, value);
-      if (initial != NULL)
+      if (is_array && node_is (value, "initializer_list"))
         {
-          if (ccw_kliche_local_store (ctx->ir, block, name, initial) == 0)
-            lower_fail (ctx, "swaff C: could not lower local initializer");
-          free (initial);
+          uint32_t n = ts_node_named_child_count (value);
+          for (uint32_t i = 0; i < n; i++)
+            {
+              TSNode elem = ts_node_named_child (value, i);
+              if (node_is (elem, "initializer_list"))
+                {
+                  uint32_t m = ts_node_named_child_count (elem);
+                  for (uint32_t j = 0; j < m; j++)
+                    {
+                      char *v = lower_expression (
+                          ctx, block, ts_node_named_child (elem, j));
+                      char *idx = new_temp (ctx);
+                      ccw_kliche_int_const (ctx->ir, block, idx,
+                                             (int64_t)(i * dims[1] + j));
+                      if (v)
+                        ccw_kliche_array_store (ctx->ir, block, name, idx, v,
+                                                type);
+                      free (v); free (idx);
+                    }
+                }
+              else
+                {
+                  char *v = lower_expression (ctx, block, elem);
+                  char *idx = new_temp (ctx);
+                  ccw_kliche_int_const (ctx->ir, block, idx, (int64_t)i);
+                  if (v)
+                    ccw_kliche_array_store (ctx->ir, block, name, idx, v,
+                                            type);
+                  free (v); free (idx);
+                }
+            }
+        }
+      else
+        {
+          char *initial = lower_expression (ctx, block, value);
+          if (initial != NULL)
+            {
+              if (ccw_kliche_local_store (ctx->ir, block, name, initial) == 0)
+                lower_fail (ctx, "swaff C: could not lower local initializer");
+              free (initial);
+            }
         }
     }
   free (name);
@@ -753,6 +1063,165 @@ lower_if (ccw_c_lower *ctx, ccw_node *block, TSNode statement)
 }
 
 static void
+lower_while (ccw_c_lower *ctx, ccw_node *block, TSNode statement,
+             bool do_first)
+{
+  char *head = new_block_name (ctx, "loop.head");
+  char *body = new_block_name (ctx, "loop.body");
+  char *exit = new_block_name (ctx, "loop.exit");
+  if (!head || !body || !exit)
+    {
+      free (head); free (body); free (exit);
+      lower_fail (ctx, "swaff C: could not construct loop blocks");
+      return;
+    }
+  ccw_node head_blk = ccw_ir_block_add (ctx->ir, ctx->fn, head);
+  ccw_node body_blk = ccw_ir_block_add (ctx->ir, ctx->fn, body);
+  ccw_node exit_blk = ccw_ir_block_add (ctx->ir, ctx->fn, exit);
+  if (!head_blk || !body_blk || !exit_blk
+      || !ccw_kliche_jump (ctx->ir, *block, do_first ? body : head))
+    {
+      lower_fail (ctx, "swaff C: could not emit loop entry");
+      goto done;
+    }
+  push_loop (ctx, exit, head);
+  if (do_first)
+    {
+      lower_statement (ctx, &body_blk, field (statement, "body"));
+      if (!ctx->failed && !block_terminated (ctx->ir, body_blk))
+        ccw_kliche_jump (ctx->ir, body_blk, head);
+    }
+  TSNode cond = field (statement, "condition");
+  if (!do_first)
+    {
+      char *c = lower_expression (ctx, head_blk, first_named_child (cond));
+      if (c)
+        ccw_kliche_branch_if (ctx->ir, head_blk, c, body, exit);
+      free (c);
+      lower_statement (ctx, &body_blk, field (statement, "body"));
+      if (!ctx->failed && !block_terminated (ctx->ir, body_blk))
+        ccw_kliche_jump (ctx->ir, body_blk, head);
+    }
+  else
+    {
+      char *c = lower_expression (ctx, head_blk, first_named_child (cond));
+      if (c)
+        ccw_kliche_branch_if (ctx->ir, head_blk, c, body, exit);
+      free (c);
+    }
+  *block = exit_blk;
+done:
+  pop_loop (ctx);
+  free (head); free (body); free (exit);
+}
+
+static void
+lower_for (ccw_c_lower *ctx, ccw_node *block, TSNode statement)
+{
+  TSNode init = field (statement, "initializer");
+  TSNode cond = field (statement, "condition");
+  TSNode update = field (statement, "update");
+  if (!ts_node_is_null (init))
+    {
+      if (node_is (init, "declaration"))
+        lower_declaration (ctx, *block, init);
+      else
+        {
+          char *v = lower_expression (ctx, *block, init);
+          free (v);
+        }
+    }
+  char *head = new_block_name (ctx, "for.head");
+  char *body = new_block_name (ctx, "for.body");
+  char *step = new_block_name (ctx, "for.step");
+  char *exit = new_block_name (ctx, "for.exit");
+  ccw_node hb = ccw_ir_block_add (ctx->ir, ctx->fn, head);
+  ccw_node bb = ccw_ir_block_add (ctx->ir, ctx->fn, body);
+  ccw_node sb = ccw_ir_block_add (ctx->ir, ctx->fn, step);
+  ccw_node eb = ccw_ir_block_add (ctx->ir, ctx->fn, exit);
+  if (!head || !body || !step || !exit || !hb || !bb || !sb || !eb
+      || !ccw_kliche_jump (ctx->ir, *block, head))
+    {
+      lower_fail (ctx, "swaff C: could not construct for loop");
+      goto done;
+    }
+  push_loop (ctx, exit, step);
+  if (!ts_node_is_null (cond))
+    {
+      char *c = lower_expression (ctx, hb, cond);
+      if (c) ccw_kliche_branch_if (ctx->ir, hb, c, body, exit);
+      free (c);
+    }
+  else
+    ccw_kliche_jump (ctx->ir, hb, body);
+  lower_statement (ctx, &bb, field (statement, "body"));
+  if (!ctx->failed && !block_terminated (ctx->ir, bb))
+    ccw_kliche_jump (ctx->ir, bb, step);
+  if (!ts_node_is_null (update))
+    {
+      char *v = lower_expression (ctx, sb, update);
+      free (v);
+    }
+  if (!ctx->failed && !block_terminated (ctx->ir, sb))
+    ccw_kliche_jump (ctx->ir, sb, head);
+  *block = eb;
+done:
+  pop_loop (ctx);
+  free (head); free (body); free (step); free (exit);
+}
+
+static void
+lower_switch (ccw_c_lower *ctx, ccw_node *block, TSNode statement)
+{
+  TSNode cond_node = field (statement, "condition");
+  TSNode body = field (statement, "body");
+  char *value = lower_expression (ctx, *block, first_named_child (cond_node));
+  if (!value)
+    return;
+  char *exit = new_block_name (ctx, "switch.exit");
+  ccw_node exit_blk = ccw_ir_block_add (ctx->ir, ctx->fn, exit);
+  push_loop (ctx, exit, exit);
+  uint32_t n = ts_node_named_child_count (body);
+  ccw_node cursor = *block;
+  for (uint32_t i = 0; i < n; i++)
+    {
+      TSNode item = ts_node_named_child (body, i);
+      if (!node_is (item, "case_statement"))
+        continue;
+      TSNode val_node = field (item, "value");
+      char *case_val = ts_node_is_null (val_node)
+                           ? NULL
+                           : lower_expression (ctx, cursor, val_node);
+      char *case_name = new_block_name (ctx, "switch.case");
+      char *next_name = new_block_name (ctx, "switch.next");
+      ccw_node case_blk = ccw_ir_block_add (ctx->ir, ctx->fn, case_name);
+      ccw_node next_blk = ccw_ir_block_add (ctx->ir, ctx->fn, next_name);
+      if (case_val)
+        {
+          char *cmp = new_temp (ctx);
+          ccw_kliche_cmp (ctx->ir, cursor, "icmp.eq", cmp, value, case_val,
+                          CCW_TY_I64);
+          ccw_kliche_branch_if (ctx->ir, cursor, cmp, case_name, next_name);
+          free (cmp);
+        }
+      else
+        ccw_kliche_jump (ctx->ir, cursor, case_name);
+      uint32_t m = ts_node_named_child_count (item);
+      for (uint32_t j = 0; j < m; j++)
+        lower_statement (ctx, &case_blk, ts_node_named_child (item, j));
+      if (!ctx->failed && !block_terminated (ctx->ir, case_blk))
+        ccw_kliche_jump (ctx->ir, case_blk, exit);
+      cursor = next_blk;
+      free (case_val); free (case_name); free (next_name);
+    }
+  if (!ctx->failed && !block_terminated (ctx->ir, cursor))
+    ccw_kliche_jump (ctx->ir, cursor, exit);
+  *block = exit_blk;
+  pop_loop (ctx);
+  free (value); free (exit);
+}
+
+static void
 lower_compound (ccw_c_lower *ctx, ccw_node *block, TSNode compound)
 {
   uint32_t n = ts_node_named_child_count (compound);
@@ -787,6 +1256,40 @@ lower_statement (ccw_c_lower *ctx, ccw_node *block, TSNode statement)
     {
       lower_if (ctx, block, statement);
     }
+  else if (strcmp (type, "for_statement") == 0)
+    {
+      lower_for (ctx, block, statement);
+    }
+  else if (strcmp (type, "while_statement") == 0)
+    {
+      lower_while (ctx, block, statement, false);
+    }
+  else if (strcmp (type, "do_statement") == 0)
+    {
+      lower_while (ctx, block, statement, true);
+    }
+  else if (strcmp (type, "break_statement") == 0)
+    {
+      if (ctx->loop_depth == 0
+          || !ccw_kliche_jump (ctx->ir, *block,
+                               ctx->break_blocks[ctx->loop_depth - 1]))
+        lower_fail (ctx, "swaff C: break outside loop");
+    }
+  else if (strcmp (type, "continue_statement") == 0)
+    {
+      if (ctx->loop_depth == 0
+          || !ccw_kliche_jump (ctx->ir, *block,
+                               ctx->continue_blocks[ctx->loop_depth - 1]))
+        lower_fail (ctx, "swaff C: continue outside loop");
+    }
+  else if (strcmp (type, "switch_statement") == 0)
+    {
+      lower_switch (ctx, block, statement);
+    }
+  else if (strcmp (type, "labeled_statement") == 0)
+    {
+      lower_statement (ctx, block, field (statement, "body"));
+    }
   else if (strcmp (type, "expression_statement") == 0)
     {
       char *unused = lower_expression (ctx, *block, statement);
@@ -795,7 +1298,12 @@ lower_statement (ccw_c_lower *ctx, ccw_node *block, TSNode statement)
   else
     {
       ctx->report->unsupported_nodes++;
-      lower_fail (ctx, "swaff C: unsupported statement");
+      char *text = node_text (statement, ctx->source, ctx->source_len);
+      char message[256];
+      snprintf (message, sizeof (message), "swaff C: unsupported statement '%s'%s%s",
+                type ? type : "?", text ? ": " : "", text ? text : "");
+      lower_fail (ctx, message);
+      free (text);
     }
   ctx->report->statements_lowered++;
 }
