@@ -1,0 +1,3 @@
+usr/lib/*/*.la
+# We don't install libcord
+usr/lib/*/libcord.*

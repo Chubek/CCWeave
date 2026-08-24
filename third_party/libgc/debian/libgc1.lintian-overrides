@@ -1,0 +1,3 @@
+# These C++ libraries are not intended to be linked against libc
+library-not-linked-against-libc [usr/lib/*/libgccpp*]
+library-not-linked-against-libc [usr/lib/*/libgctba.*]

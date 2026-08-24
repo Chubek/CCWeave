@@ -1,0 +1,6 @@
+Version: 5
+Source: https://api.github.com/repos/bdwgc/bdwgc/git/matching-refs/tags/v
+Matching-Pattern: https://api.github.com/repos/[^/]+/[^/]+/git/refs/tags/@ANY_VERSION@
+Download-Url-Mangle: s%(api.github.com/repos/[^/]+/[^/]+)/git/refs/%$1/tarball/refs/%g
+Filename-Mangle: s%.*/@ANY_VERSION@%gc-$1.tar.gz%
+Searchmode: plain
