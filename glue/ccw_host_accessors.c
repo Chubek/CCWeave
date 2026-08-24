@@ -105,8 +105,9 @@ ACC_SIG (acc_glue_has)
       = { "glue-has?",          "ir-profile",           "ir-function-count",
           "ir-function-ref",    "function-name",        "function-block-count",
           "function-block-ref", "block-instr-count",    "block-instr-ref",
-          "instr-opcode",       "instr-operand-count",  "instr-operand",
-          "operand-const?",     "const-int-value",      "instr-build",
+          "instr-opcode",       "instr-terminator?",    "instr-operand-count",
+          "instr-operand",      "operand-const?",       "const-int-value",
+          "instr-build",
           "instr-replace!",     "instr-insert-before!", "instr-delete!",
           "const-int-build",    "syscall-build",        "io-read-build",
           "io-write-build",     "io-close-build",       "io-open-build",
@@ -349,6 +350,16 @@ ACC_SIG (acc_operand_const)
   if (nargs != 1 || !arg_node (&args[0], &n))
     return acc_fail (error_message, "expects one operand node");
   *result = ccw_bool (ccw_ir_operand_is_const (ir, n));
+  return CCW_OK;
+}
+
+ACC_SIG (acc_instr_terminator)
+{
+  (void)host_ctx;
+  ccw_node ins = 0;
+  if (nargs != 1 || !arg_node (&args[0], &ins))
+    return acc_fail (error_message, "expects one instruction node");
+  *result = ccw_bool (ccw_ir_instr_is_terminator (ir, ins));
   return CCW_OK;
 }
 
@@ -751,7 +762,7 @@ ccw_host_register_core_accessors (ccw_executor *ex)
     { "block-delete!", 1, 1, acc_block_delete },
     { "block-merge!", 2, 2, acc_block_merge },
     { "instr-opcode", 1, 1, acc_instr_opcode },
-    { "instr-terminator?", 1, 1, acc_instr_is_terminator },
+    { "instr-terminator?", 1, 1, acc_instr_terminator },
     { "instr-operand-count", 1, 1, acc_instr_operand_count },
     { "instr-operand", 2, 2, acc_instr_operand },
     { "operand-const?", 1, 1, acc_operand_const },

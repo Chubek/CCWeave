@@ -2098,7 +2098,7 @@ ccw_swaff_parse_sml (const char *source, size_t source_len,
   (void)report;
   if (error_message != NULL)
     *error_message
-        = strdup ("swaff SML parse: built without vendored Tree-sitter");
+        = sml_strdup("swaff SML parse: built without vendored Tree-sitter");
   return NULL;
 }
 

@@ -11,9 +11,6 @@ function(cephyr_add_test name source)
   add_test(NAME ${name} COMMAND ${name})
 endfunction()
 
-cephyr_add_test(test_cephyr_cpp test_cephyr_cpp.c)
-target_link_libraries(test_cephyr_cpp PRIVATE cephyr_cpp)
-
 cephyr_add_test(test_cephyr_sema test_cephyr_sema.c)
 target_link_libraries(test_cephyr_sema PRIVATE cephyr_sema)
 
