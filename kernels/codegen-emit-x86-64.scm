@@ -39,12 +39,10 @@
                                (or (lookup known (operand-name operand)) 0))))
                         (else (ins (+ ii 1) known))))))))))
 
-    (define (emit-function fn)
-      (let ((name (function-name fn))
-            (value (number->string (ret-value fn))))
-        (string-append ".global " name "\n" name ":\n"
-                       "  mov eax, " value "\n"
-                       "  ret\n")))
+    ;; The host-side target serializer owns the instruction-level x86-64
+    ;; spelling until the kernel emitter grows the complete target printer.
+    ;; Do not publish a lossy return-value-only artifact: an absent artifact
+    ;; makes the host walk the canonical IR instead.
 
     (define (kernel-apply capability ir options)
       (unless (eq? capability 'codegen.emit-x86-64)
@@ -53,18 +51,4 @@
         (error "codegen-emit-x86-64: options must be an alist" options))
       (unless (glue-has? 'analysis-put!)
         (error "codegen-emit-x86-64: analysis accessor unavailable"))
-      (let loop ((i 0)
-                 (text (string-append
-                        ".text\n.global _start\n_start:\n"
-                        "  xor ebp, ebp\n  and rsp, -16\n"
-                        "  call main\n  mov edi, eax\n"
-                        "  mov eax, 60\n  syscall\n")))
-        (if (>= i (ir-function-count))
-            (begin
-              (if (> (ir-function-count) 0)
-                  (analysis-put! 'codegen.emit-x86-64
-                                 (ir-function-ref 0) 'assembly text))
-              ir)
-            (loop (+ i 1)
-                  (string-append text
-                                 (emit-function (ir-function-ref i)))))))))
+      ir)))

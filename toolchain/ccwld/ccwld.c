@@ -581,7 +581,10 @@ synthesize_defaults (ccwld_plan *p, ccwld_error *e)
     int load;
   } defs[] = {
     { ".text", ".text .text.*", 16, 1 },
-    { ".rodata", ".rodata .rodata.* .srodata .srodata.*", 8, 1 },
+    { ".rodata",
+      ".rodata .rodata.* .srodata .srodata.* .note .note.* .eh_frame "
+      ".eh_frame.*",
+      8, 1 },
     { ".data", ".data .data.* .sdata .sdata.*", 8, 1 },
     { ".bss", ".bss .bss.* .sbss .sbss.* COMMON", 8, 0 },
   };

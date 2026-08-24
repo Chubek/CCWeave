@@ -229,6 +229,18 @@ phdr_type (const char *type)
   return PT_LOAD;
 }
 
+static uint64_t
+largest_congruent_alignment (uint64_t offset, uint64_t vaddr,
+                             uint64_t requested)
+{
+  uint64_t align = requested;
+  if (align == 0 || (align & (align - 1)) != 0)
+    align = 1;
+  while (align > 1 && ((offset ^ vaddr) & (align - 1)) != 0)
+    align >>= 1;
+  return align;
+}
+
 /* --- the ELF64 writer --- */
 
 static int
@@ -603,13 +615,25 @@ emit_elf64 (ccwld_state *st, const char *path, ccwld_error *e)
           ph.p_flags = pflags;
           if (any)
             {
-              ph.p_offset = first_off;
-              ph.p_vaddr = minv;
-              ph.p_paddr = minv;
-              ph.p_filesz = maxe_file > minv ? maxe_file - minv : 0;
-              ph.p_memsz = maxe - minv;
+              if (i == 0 && phdr_type (p->nphdrs ? p->phdrs[i].type
+                                                   : "LOAD")
+                              == PT_LOAD)
+                {
+                  ph.p_offset = 0;
+                  ph.p_vaddr = minv - first_off;
+                }
+              else
+                {
+                  ph.p_offset = first_off;
+                  ph.p_vaddr = minv;
+                }
+              ph.p_paddr = ph.p_vaddr;
+              ph.p_filesz = maxe_file > ph.p_vaddr ? maxe_file - ph.p_vaddr
+                                                   : 0;
+              ph.p_memsz = maxe > ph.p_vaddr ? maxe - ph.p_vaddr : 0;
             }
-          ph.p_align = p->nphdrs ? p->phdrs[i].align : 0x1000;
+          ph.p_align = largest_congruent_alignment (
+              ph.p_offset, ph.p_vaddr, p->nphdrs ? p->phdrs[i].align : 0x1000);
 
           unsigned char *pp = img + sizeof (W_Ehdr)
                               + i * sizeof (W_Phdr);

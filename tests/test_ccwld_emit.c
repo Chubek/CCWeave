@@ -156,6 +156,21 @@ int main(void)
                 CCW_CHECK(n >= 4 && whole[0] == 0x7f && whole[1] == 'E' &&
                           whole[2] == 'L' && whole[3] == 'F',
                           "emitted object is not ELF");
+                if (n >= 120) {
+                    uint64_t p_offset = 0, p_vaddr = 0, p_align = 0;
+                    for (int b = 0; b < 8; b++) {
+                        p_offset |= (uint64_t)(unsigned char)whole[64 + 8 + b]
+                                    << (8 * b);
+                        p_vaddr |= (uint64_t)(unsigned char)whole[64 + 16 + b]
+                                   << (8 * b);
+                        p_align |= (uint64_t)(unsigned char)whole[64 + 48 + b]
+                                   << (8 * b);
+                    }
+                    CCW_CHECK(p_align != 0 && (p_align & (p_align - 1)) == 0,
+                              "PT_LOAD alignment is not a power of two");
+                    CCW_CHECK((p_offset % p_align) == (p_vaddr % p_align),
+                              "PT_LOAD offset/vaddr congruence violated");
+                }
                 /* the producer note (§8) rides in a real SHT_NOTE
                  * section whose name lands in the section-header
                  * string table near the end of the file */

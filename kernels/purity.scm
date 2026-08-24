@@ -8,12 +8,19 @@
     (define (pure-opcode? opcode)
       (memq opcode '(imov iadd isub imul shl icmp.eq icmp.ne icmp.lt icmp.le icmp.gt icmp.ge)))
 
+    (define (unknown-call? opcode)
+      ;; Calls without a visible effect annotation are conservatively
+      ;; impure.  In particular, an unused-result libc call may perform I/O
+      ;; or mutate arbitrary memory and must remain observable.
+      (memq opcode '(call icall call.dynamic call.virtual)))
+
     (define (classify-block! block)
       (let loop ((index 0) (count (block-instr-count block)))
         (when (< index count)
           (let ((instruction (block-instr-ref block index)))
             (analysis-put! 'analysis.purity instruction 'side-effect?
-                           (not (pure-opcode? (instr-opcode instruction))))
+                           (or (unknown-call? (instr-opcode instruction))
+                               (not (pure-opcode? (instr-opcode instruction)))))
             (loop (+ index 1) count)))))
 
     (define (kernel-apply capability ir options)

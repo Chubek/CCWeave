@@ -178,7 +178,12 @@ ccwld_phase_layout (ccwld_state *st, ccwld_error *e)
     }
 
   int is_reloc = p->output.kind && !strcmp (p->output.kind, "reloc");
-  uint64_t dot = is_reloc ? 0 : 0x400000;
+  /*
+   * Reserve the ELF header and program-header table in the first page.
+   * Default executable sections therefore begin at the first byte after
+   * those headers, keeping file and virtual addresses page-congruent.
+   */
+  uint64_t dot = is_reloc ? 0 : 0x400080;
   st->dot = dot;
 
   for (size_t i = 0; i < p->nsecs; i++)

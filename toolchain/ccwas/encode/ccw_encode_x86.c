@@ -245,6 +245,19 @@ encode_branch (ccw_unit_t *u, const ccw_insn_stmt_t *insn, uint8_t opcode,
 {
   if (insn->operands[0].kind == CCW_OP_LABEL)
     {
+      /*
+       * Branch targets may be external functions (for example printf).
+       * Record an undefined global symbol so the relocation remains visible
+       * to the linker instead of silently becoming relocation index zero.
+       */
+      if (ccw_symtab_lookup (u->symtab, insn->operands[0].label) == NULL)
+        {
+          ccw_symbol_t *sym
+              = ccw_symtab_define (u->symtab, insn->operands[0].label, 0,
+                                    -1, 1);
+          if (sym != NULL)
+            sym->defined = 0;
+        }
       emit8 (u, opcode);
       /* emit placeholder rel32; will be fixed up via relocation */
       uint64_t off

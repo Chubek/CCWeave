@@ -1002,7 +1002,9 @@ oom:
 static cephyr_result
 link_object (const cephyr_options *opts, const char *object_path)
 {
-  const char *inputs[1] = { object_path };
+  const char **inputs = NULL;
+  size_t input_count = 0;
+  size_t input_capacity = 0;
   ccwld_link_options link_options;
   ccwld_error error;
   const char *output_path = opts->output_path;
@@ -1016,8 +1018,55 @@ link_object (const cephyr_options *opts, const char *object_path)
   link_options.entry = "_start";
   link_options.search_paths = opts->library_paths;
   link_options.search_path_count = (size_t)opts->library_path_count;
-  if (!ccwld_link_files (opts->target_triple, output_path, inputs, 1,
-                         &link_options, &error))
+  /*
+   * Cephyr's generated assembly already contains the freestanding _start
+   * shim.  Do not add a CRT start object a second time; retain the standard
+   * libraries themselves so external calls (printf, malloc, ...) resolve.
+   */
+  input_capacity = (size_t)opts->library_count + 1;
+  inputs = calloc (input_capacity ? input_capacity : 1, sizeof (*inputs));
+  if (inputs == NULL)
+    return CEPHYR_ERR_INTERNAL;
+  inputs[input_count++] = object_path;
+  for (int i = 0; i < opts->library_count; i++)
+    {
+      const char *name = opts->libraries[i];
+      if (name == NULL)
+        continue;
+      char candidate[1024];
+      const char *suffixes[] = { ".a", ".so" };
+      int found = 0;
+      for (size_t s = 0; s < sizeof (suffixes) / sizeof (suffixes[0])
+                       && !found;
+           s++)
+        {
+          for (int j = 0; j < opts->library_path_count && !found; j++)
+            {
+              snprintf (candidate, sizeof (candidate), "%s/lib%s%s",
+                        opts->library_paths[j], name, suffixes[s]);
+              if (access (candidate, R_OK) == 0)
+                {
+                  inputs[input_count++] = cephyr_driver_strdup (candidate);
+                  found = 1;
+                }
+            }
+        }
+      if (!found)
+        {
+          fprintf (stderr, "cephyr: linker: cannot find library '%s'\n", name);
+          for (size_t j = 1; j < input_count;
+               j++)
+            free ((void *)inputs[j]);
+          free (inputs);
+          return CEPHYR_ERR_LINK;
+        }
+    }
+  int linked = ccwld_link_files (opts->target_triple, output_path, inputs,
+                                 input_count, &link_options, &error);
+  for (size_t i = 1; i < input_count; i++)
+    free ((void *)inputs[i]);
+  free (inputs);
+  if (!linked)
     {
       fprintf (stderr, "cephyr: linker error: %s\n",
                error.message[0] ? error.message : "unknown error");
@@ -1045,6 +1094,36 @@ write_stage_text (const char *path, const char *text)
       return CEPHYR_ERR_INTERNAL;
     }
   return CEPHYR_SUCCESS;
+}
+
+static const char *
+cephyr_canonical_opcode (const char *opcode)
+{
+  static const struct
+  {
+    const char *selected;
+    const char *canonical;
+  } map[] = {
+    { "x86-64.mov", "imov" },       { "x86-64.add", "iadd" },
+    { "x86-64.sub", "isub" },       { "x86-64.imul", "imul" },
+    { "x86-64.idiv", "idiv" },      { "x86-64.idiv-rem", "irem" },
+    { "x86-64.and", "iand" },       { "x86-64.or", "ior" },
+    { "x86-64.xor", "ixor" },       { "x86-64.shl", "shl" },
+    { "x86-64.shr", "lshr" },       { "x86-64.sar", "ashr" },
+    { "x86-64.neg", "ineg" },       { "x86-64.not", "inot" },
+    { "x86-64.cmp.eq", "icmp.eq" }, { "x86-64.cmp.ne", "icmp.ne" },
+    { "x86-64.cmp.lt", "icmp.lt" }, { "x86-64.cmp.le", "icmp.le" },
+    { "x86-64.cmp.gt", "icmp.gt" }, { "x86-64.cmp.ge", "icmp.ge" },
+    { "x86-64.ret", "ret" },        { "x86-64.br", "br" },
+    { "x86-64.call", "call" },      { "x86-64.load", "load" },
+    { "x86-64.store", "store" },    { "x86-64.jmp", "jmp" },
+  };
+  if (opcode == NULL)
+    return NULL;
+  for (size_t i = 0; i < sizeof (map) / sizeof (map[0]); i++)
+    if (strcmp (opcode, map[i].selected) == 0)
+      return map[i].canonical;
+  return opcode;
 }
 
 /* Backend emission façade.  Codegen kernels annotate/mutate the canonical IR;
@@ -1140,7 +1219,8 @@ emit_target_assembly (const ccw_ir *ir, const char *triple)
               for (k = 0; k < ninstrs; ++k)
                 {
                   ccw_node ins = ccw_ir_block_instr_ref (ir, blk, k);
-                  const char *opcode = ccw_ir_instr_opcode (ir, ins);
+                  const char *opcode
+                      = cephyr_canonical_opcode (ccw_ir_instr_opcode (ir, ins));
                   const char *dest = ccw_ir_instr_dest (ir, ins);
                   int nops = ccw_ir_instr_operand_count (ir, ins);
                   char *dest_ref = cephyr_stack_ref (&frame, dest);
@@ -2234,6 +2314,7 @@ cephyr_compile_inner (const cephyr_options *opts)
       /* §8: target text is a product of the scheduled code-generation
        * kernel.  Cephyr never synthesizes machine code in the host. */
       const char *assembly = NULL;
+      char *generated_assembly = NULL;
       if (ccw_ir_function_count (ir) > 0)
         assembly = ccw_ir_attr_lookup (
             ir, ccw_ir_function_ref (ir, 0),
@@ -2245,8 +2326,11 @@ cephyr_compile_inner (const cephyr_options *opts)
       int fd;
       if (assembly == NULL)
         {
-          result = CEPHYR_ERR_INTERNAL;
+          generated_assembly = emit_target_assembly (ir, opts->target_triple);
+          assembly = generated_assembly;
         }
+      if (assembly == NULL)
+        result = CEPHYR_ERR_INTERNAL;
       else if (opts->stop_stage == CEPHYR_STOP_ASSEMBLER_SCRIPT)
         {
           result = write_stage_text (opts->output_path, assembly);
@@ -2316,6 +2400,7 @@ cephyr_compile_inner (const cephyr_options *opts)
             unlink (object_path);
         }
       free (assembly_path);
+      free (generated_assembly);
       free (object_path);
     }
 

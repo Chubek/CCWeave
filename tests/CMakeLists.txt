@@ -83,8 +83,8 @@ target_link_libraries(test_ccwld_lua PRIVATE ccwld)
 target_compile_definitions(test_ccwld_lua PRIVATE
   CCWLD_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
 
-ccw_add_test(test_ccwld_emit test_ccwld_emit.c)
-target_link_libraries(test_ccwld_emit PRIVATE ccwld)
+ccw_add_test(test_ccwld_emit_regression test_ccwld_emit.c)
+target_link_libraries(test_ccwld_emit_regression PRIVATE ccwld)
 
 if(CCWEAVE_ENABLE_TREESITTER)
   ccw_add_test(test_swaff_c test_swaff_c.c)

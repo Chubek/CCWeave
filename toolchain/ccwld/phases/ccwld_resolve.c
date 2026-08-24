@@ -14,26 +14,6 @@
 
 #define SHN_UNDEF_SYM 0
 
-/* Does the object define `name` (strong or weak)?  Returns the symbol
- * index or -1. */
-static int
-obj_defines (const ccwld_obj *o, const char *name, int *weak)
-{
-  for (size_t i = 0; i < o->nsyms; i++)
-    {
-      const ccwld_isym *s = &o->syms[i];
-      if (strcmp (s->name, name))
-        continue;
-      if (s->shndx != SHN_UNDEF_SYM)
-        {
-          if (weak)
-            *weak = (s->binding == 2);
-          return (int)i;
-        }
-    }
-  return -1;
-}
-
 /* Merge one object's global/weak symbols into the resolved table.
  * Returns 0 on a hard error (duplicate strong definition). */
 static int
@@ -152,10 +132,11 @@ extract_member (ccwld_state *st, int aoi, int midx, int from_group,
 static int
 archive_scan_once (ccwld_state *st, int aoi, int from_group, ccwld_error *e)
 {
-  ccwld_obj *a = &st->objs[aoi];
   int extracted = 0;
-  for (size_t i = 0; i < a->nar_syms; i++)
+  size_t symbol_count = st->objs[aoi].nar_syms;
+  for (size_t i = 0; i < symbol_count; i++)
     {
+      ccwld_obj *a = &st->objs[aoi];
       ccwld_rsym *r = ccwld_state_rsym (st, a->ar_syms[i]);
       if (!r)
         {
@@ -330,8 +311,14 @@ ccwld_phase_resolve (ccwld_state *st, ccwld_error *e)
       int from_group = o->from_group;
       if (!from_group)
         {
-          if (archive_scan_once (st, (int)i, 0, e) < 0)
-            return 0;
+          for (int round = 0; round < 64; round++)
+            {
+              int n = archive_scan_once (st, (int)i, 0, e);
+              if (n < 0)
+                return 0;
+              if (n == 0)
+                break;
+            }
           continue;
         }
       /* group: repeated scan over this archive until no extraction */

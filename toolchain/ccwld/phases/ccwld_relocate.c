@@ -109,9 +109,6 @@ ccwld_phase_relocate (ccwld_state *st, ccwld_error *e)
                 }
             }
           int64_t A = r->addend;
-          fprintf (stderr, "DBG reloc %s S=%" PRIx64 " P=%" PRIx64 " A=%" PRId64 " off=%" PRIx64 "\n",
-                   r->sym, S, P, A, r->offset);
-
           if (r->offset >= is->size)
             {
               ccwld_error_set (e, CCWLD_EXIT_LINK,
@@ -136,7 +133,8 @@ ccwld_phase_relocate (ccwld_state *st, ccwld_error *e)
                     put_u64 (site, S + (uint64_t)A);
                   break;
                 case 2:   /* PC32 */
-                case 41:  /* PLT32 (same as PC32 at link time) */
+                case 4:   /* PLT32 */
+                case 41:  /* alternate PLT32 spelling */
                   {
                     int64_t v = (int64_t)(S + (uint64_t)A) - (int64_t)P;
                     if (r->offset + 4 > is->size

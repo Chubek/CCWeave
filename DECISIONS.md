@@ -1,5 +1,26 @@
 # Decisions
 
+## 2026-08-24 — Dijkstra reproduction separated codegen and ELF defects
+
+The reproducible Cephyr Dijkstra investigation established two independent
+failure classes.  The first loss of the observable `printf` computation was
+not in purity/DCE: `kernels/codegen-emit-x86-64.scm` published a lossy
+return-value-only assembly artifact (`main` became `return 0`) even though the
+canonical IR still contained the call.  The kernel now declines to publish
+that artifact so Cephyr serializes the instruction-preserving canonical IR;
+purity also classifies calls conservatively as side-effecting.  CCWas now
+records unresolved external branch targets, and CCWld resolves archive
+members iteratively so libc calls remain linkable.
+
+The second defect was in CCWld image construction.  Executable layout now
+reserves space for ELF/program headers, maps the first `PT_LOAD` from file
+offset zero, keeps `e_entry` inside the mapped executable bytes, and enforces
+power-of-two `p_align` plus `p_offset ≡ p_vaddr (mod p_align)`.  A minimal
+`_start` image now executes and exits successfully.  The GCC oracle for the
+Dijkstra source is `4` at both `-O0` and `-O2`; the full Cephyr Dijkstra run
+still requires follow-up work in existing arithmetic/control-flow lowering,
+so this entry must not be read as claiming end-to-end correctness yet.
+
 ## 2026-08-24 — Named-let recursion in kernels must thread every loop parameter
 
 Cephyr compilation failed at the final codegen stage with

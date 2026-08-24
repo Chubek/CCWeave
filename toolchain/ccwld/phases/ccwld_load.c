@@ -611,6 +611,8 @@ load_archive (ccwld_state *st, const char *path, const unsigned char *buf,
       char name[17];
       memcpy (name, hdr, 16);
       name[16] = 0;
+      for (int ni = 15; ni >= 0 && name[ni] == ' '; ni--)
+        name[ni] = 0;
       char *end = NULL;
       long size = strtol (hdr + 48, &end, 10);
       if (!end || size < 0)
