@@ -249,7 +249,7 @@ encode_branch (ccw_unit_t *u, const ccw_insn_stmt_t *insn, uint8_t opcode,
       /* emit placeholder rel32; will be fixed up via relocation */
       uint64_t off
           = (u->cur_section >= 0) ? kv_A (u->sections, u->cur_section).len : 0;
-      ccw_unit_emit_reloc (u, CCW_RELOC_PC32, off + 1, -4,
+      ccw_unit_emit_reloc (u, CCW_RELOC_PC32, off, -4,
                            insn->operands[0].label, -1);
       emit_imm (u, 0, 4);
       return 5;
