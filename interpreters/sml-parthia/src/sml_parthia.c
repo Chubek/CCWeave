@@ -8,7 +8,7 @@
  */
 
 #include "sml_parthia.h"
-#include "ccw_dynalo_bridge.h"
+#include "vendored-bridge.h"
 #include "dyncall.h"
 #include "kbarena.h"
 #include "kstring.h"

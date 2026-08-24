@@ -147,7 +147,7 @@ ccw_vendored_target(ccw_s7)
 # --- vendored dynamic interop ---------------------------------------------
 # dynalo is header-only and supplies the C++ loader bridge; dyncall supplies
 # the ABI-correct scalar call VM used by the language FFI layers.
-add_library(ccw_dynalo STATIC glue/ccw_dynalo_bridge.cpp)
+add_library(ccw_dynalo STATIC glue/bridge/dynalo-bridge.cpp)
 target_include_directories(ccw_dynalo PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}/glue
   ${CCWEAVE_THIRD_PARTY}/dynalo/include)
@@ -311,6 +311,9 @@ if(CCWEAVE_ENABLE_TREESITTER)
   ccw_vendored_target(ccw_tree_sitter_ocaml_type)
 endif()
 
+add_subdirectory(third_party/utf8proc EXCLUDE_FROM_ALL)
+ccw_vendored_target(utf8proc)
+
 add_subdirectory(glue)
 add_subdirectory(ir)
 add_subdirectory(executors/s7)
@@ -380,6 +383,3 @@ add_test(NAME sml-parthia-sched
 add_test(NAME sml-parthia-cli
          COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/interpreters/sml-parthia/tests/test_sml_parthia_cli.sh
                  $<TARGET_FILE:sml-parthia>)
- 
- add_subdirectory(third_party/utf8proc EXCLUDE_FROM_ALL)
- ccw_vendored_target(utf8proc)

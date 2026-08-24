@@ -1,9 +1,8 @@
-#include "ccw_isl.h"
+#include "vendored-bridge.h"
 
 #include <isl/ctx.h>
 #include <isl/options.h>
 #include <isl/schedule.h>
-#include <isl/set.h>
 #include <isl/union_map.h>
 #include <isl/union_set.h>
 
@@ -37,6 +36,7 @@ ccw_isl_ctx_new_pinned (void)
   ccw_isl_ctx *ctx = (ccw_isl_ctx *)calloc (1, sizeof (*ctx));
   if (!ctx)
     return NULL;
+
   ctx->raw = isl_ctx_alloc ();
   if (!ctx->raw)
     {
@@ -44,7 +44,6 @@ ccw_isl_ctx_new_pinned (void)
       return NULL;
     }
 
-  /* Keep every scheduler-affecting choice explicit and deterministic. */
   (void)isl_options_set_schedule_algorithm (ctx->raw,
                                             ISL_SCHEDULE_ALGORITHM_ISL);
   (void)isl_options_set_schedule_max_coefficient (ctx->raw, 1000000);
@@ -58,7 +57,6 @@ ccw_isl_ctx_new_pinned (void)
   (void)isl_options_set_schedule_serialize_sccs (ctx->raw, 1);
   (void)isl_options_set_schedule_whole_component (ctx->raw, 0);
   (void)isl_options_set_schedule_carry_self_first (ctx->raw, 1);
-  /* Quota exhaustion is a recoverable kernel fact, never a process abort. */
   (void)isl_options_set_on_error (ctx->raw, ISL_ON_ERROR_CONTINUE);
   isl_ctx_set_max_operations (ctx->raw, CCW_ISL_MAX_OPERATIONS);
   return ctx;

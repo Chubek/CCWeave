@@ -58,6 +58,7 @@ Whenever you needed to parse S-Expressions (not Scheme, just homoiconic, data-ca
 ```
 ccweave/
   glue/GlueSTD.h        # copied verbatim from .agents/GLUESTD_H.md
+  glue/bridge         # glue bindings for vendored libraries used in kernels
   executors/s7/         # reference executor
   kernels/              # *.scm R7RS kernel libraries
   manifests/            # GENERATED ONLY — never hand-edit
@@ -87,6 +88,13 @@ the next begins; later stages depend on earlier ones.
 1. **`glue/GlueSTD.h` + `ccw_val` support library.** The header is
    transcribed verbatim from `.agents/GLUESTD_H.md`. Implement the
    `ccw_val` constructors and `ccw_val_clear` in `glue/`.
+   - **glue/bridge** contains `.c` files that implement `glue/vendored-bridge.h`.
+     This header file implements the standard for exposing vendored libraries,
+     in `third_party`, that service the kernels. Each `glue/bridge/*.c`
+     implementds `glue/vendored-bridge.h`, and, in turn, `GlueSTD.h` accesses 
+     the functionality of these files from these files, and carries it upstream
+     to the executor, which in turn, uses it to run the kernels that use these
+     vendored libraries.
 2. **Weave IR core** (`ir/`): types, functions, blocks, instructions;
    the programmatic C API; MPC-based text parser and printer.
    Round-trip (parse → print → parse gives identical structures) is a
@@ -114,6 +122,7 @@ the next begins; later stages depend on earlier ones.
    grammar + lowering adapter) last.
 10. **stdlib-salvo**, collection of standard libraries for the supported 
    compilers and interpreters.
+
 
 ## Hard rules (violating any of these is a broken build)
 

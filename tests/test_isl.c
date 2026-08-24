@@ -1,5 +1,5 @@
 #include "ccw_test.h"
-#include "ccw_isl.h"
+#include "vendored-bridge.h"
 
 #include <stdlib.h>
 #include <string.h>

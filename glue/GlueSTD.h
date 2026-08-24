@@ -21,6 +21,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "vendored-bridge.h"
+
 #ifdef __cplusplus
 extern "C"
 {
@@ -52,120 +54,10 @@ extern "C"
     CCW_E_VEC_ILLEGAL = -11   /* vector op reached lowering without map */
   } ccw_status;
 
-  /* ---------- portable SIMD value surface (SIMDe-backed) ----------
-   *
-   * These are fixed-width value types, deliberately separate from ccw_val.
-   * They never cross the Scheme boundary.  The implementation stores the
-   * corresponding SIMDe native/emulated value in the byte representation.
-   */
-  typedef struct
-  {
-    unsigned char bytes[16];
-  } ccw_v128;
-  typedef struct
-  {
-    unsigned char bytes[32];
-  } ccw_v256;
+  /* Vendored library services are declared by vendored-bridge.h. GlueSTD
+   * re-exports that typed C surface to executors and host subsystems. */
 
-  ccw_v128 ccw_simde_load (const void *p);
-  ccw_v128 ccw_simde_loadu (const void *p);
-  void ccw_simde_store (void *p, ccw_v128 v);
-  void ccw_simde_storeu (void *p, ccw_v128 v);
-  ccw_v256 ccw_simde_load256 (const void *p);
-  ccw_v256 ccw_simde_loadu256 (const void *p);
-  void ccw_simde_store256 (void *p, ccw_v256 v);
-  void ccw_simde_storeu256 (void *p, ccw_v256 v);
-
-  ccw_v128 ccw_simde_add_i32x4 (ccw_v128 a, ccw_v128 b);
-  ccw_v128 ccw_simde_sub_i32x4 (ccw_v128 a, ccw_v128 b);
-  ccw_v128 ccw_simde_mul_i32x4 (ccw_v128 a, ccw_v128 b);
-  ccw_v128 ccw_simde_add_f32x4 (ccw_v128 a, ccw_v128 b);
-  ccw_v128 ccw_simde_sub_f32x4 (ccw_v128 a, ccw_v128 b);
-  ccw_v128 ccw_simde_mul_f32x4 (ccw_v128 a, ccw_v128 b);
-  ccw_v128 ccw_simde_div_f32x4 (ccw_v128 a, ccw_v128 b);
-  ccw_v256 ccw_simde_add_f32x8 (ccw_v256 a, ccw_v256 b);
-  ccw_v256 ccw_simde_mul_f32x8 (ccw_v256 a, ccw_v256 b);
-  ccw_v128 ccw_simde_shuffle (ccw_v128 a, const int indices[4]);
-  ccw_v128 ccw_simde_select (ccw_v128 mask, ccw_v128 a, ccw_v128 b);
-  float ccw_simde_hreduce_add_f32x4 (ccw_v128 a);
-  double ccw_simde_hreduce_add_f64x2 (ccw_v128 a);
-
- 
-  /* ---------- utf8proc Unicode processing surface ----------
-   *
-   * Thin wrappers around the vendored utf8proc library (third_party/utf8proc).
-   * These provide Unicode normalization, case folding, character-width
-   * computation, and codepoint classification.
-   *
-   * Ownership rules:
-   *   - Functions returning char* allocate with malloc; the caller frees.
-   *   - Input strings are const uint8_t*; the callee never retains them.
-   *   - Negative return values from iterate/map/reencode/decompose_char
-   *     indicate a utf8proc error code; use ccw_utf8proc_errmsg to decode.
-   */
- 
-  /* Version. Returns malloc'd string; caller frees. */
-  char *ccw_utf8proc_version (void);
- 
-  /* Error message for an error code. Returns static string; do not free. */
-  const char *ccw_utf8proc_errmsg (int64_t errcode);
- 
-  /* Decode one codepoint from a UTF-8 buffer. Returns the number of bytes
-   * consumed (>= 1), or a negative error code on invalid input. */
-  int64_t ccw_utf8proc_iterate (const uint8_t *str, int64_t strlen,
-                                int32_t *codepoint_out);
- 
-  /* Encode a codepoint into a UTF-8 buffer. Returns the number of bytes
-   * written (1–4), or a negative error code. */
-  int64_t ccw_utf8proc_encode_char (int32_t codepoint, uint8_t *dst);
- 
-  /* Returns true if codepoint is a valid Unicode scalar value. */
-  bool ccw_utf8proc_codepoint_valid (int32_t codepoint);
- 
-  /* Character width. Returns 0 (non-printable), 1 (narrow), 2 (wide),
-   * or -1 (unassigned). */
-  int ccw_utf8proc_charwidth (int32_t codepoint);
- 
-  /* Case conversion. Each returns the converted codepoint. */
-  int32_t ccw_utf8proc_tolower (int32_t c);
-  int32_t ccw_utf8proc_toupper (int32_t c);
-  int32_t ccw_utf8proc_totitle (int32_t c);
- 
-  /* Unicode general category. Returns a utf8proc_category_t value. */
-  int ccw_utf8proc_category (int32_t codepoint);
- 
-  /* Unicode normalization shortcuts. Each returns a malloc'd UTF-8 string;
-   * caller frees with free(). Returns NULL on allocation failure. */
-  char *ccw_utf8proc_NFD (const uint8_t *str);
-  char *ccw_utf8proc_NFC (const uint8_t *str);
-  char *ccw_utf8proc_NFKD (const uint8_t *str);
-  char *ccw_utf8proc_NFKC (const uint8_t *str);
-  char *ccw_utf8proc_NFKC_Casefold (const uint8_t *str);
- 
-  /* Generic utf8proc_map. The options bitmask selects decomposition,
-   * case-folding, stripping, etc. Returns a malloc'd string or NULL on
-   * allocation failure; negative on error. */
-  int64_t ccw_utf8proc_map (const uint8_t *str, int64_t len, uint8_t **dst_out,
-                            int options);
- 
-  /* Decompose a single codepoint. Writes up to 18 codepoints into dst (must
-   * have space for 18 int32_t). Returns the number of codepoints written,
-   * or a negative error code. */
-  int64_t ccw_utf8proc_decompose_char (int32_t codepoint, int32_t *dst,
-                                       int64_t bufsize, int options,
-                                       int *last_boundclass);
- 
-  /* Reencode a buffer of codepoints into a malloc'd UTF-8 string.
-   * The buffer is reencoded in-place; the codepoint array is overwritten
-   * with UTF-8 bytes. Returns new byte-length or negative error code. */
-  int64_t ccw_utf8proc_reencode (int32_t *buffer, int64_t length,
-                                 int options);
- 
-  /* Grapheme-cluster break detection. Returns true if there is a grapheme
-   * break between c1 and c2. */
-  bool ccw_utf8proc_grapheme_break (int32_t c1, int32_t c2);
- 
- /* ---------- boundary values ----------
+  /* ---------- boundary values ----------
    *
    * The closed set of value types that may cross between Scheme and C.
    * Deliberately minimal: no pairs/vectors cross the boundary; aggregate
@@ -197,34 +89,6 @@ extern "C"
       ccw_node node;
     } as;
   } ccw_val;
-
-  /* ---------- pinned ISL polyhedral bindings ----------
-   *
-   * These handles own ISL objects in the pinned context created by
-   * ccw_isl_ctx_new_pinned().  The textual forms are canonical ISL strings;
-   * callers own returned strings and must free them with free().
-   */
-  typedef struct ccw_isl_ctx ccw_isl_ctx;
-  typedef struct ccw_isl_uset ccw_isl_uset;
-  typedef struct ccw_isl_umap ccw_isl_umap;
-  typedef struct ccw_isl_schedule ccw_isl_schedule;
-
-  ccw_isl_ctx *ccw_isl_ctx_new_pinned (void);
-  void ccw_isl_ctx_free (ccw_isl_ctx *ctx);
-  unsigned long ccw_isl_ctx_quota (const ccw_isl_ctx *ctx);
-
-  ccw_isl_uset *ccw_isl_uset_parse (ccw_isl_ctx *ctx, const char *text);
-  char *ccw_isl_uset_serialize (const ccw_isl_uset *uset);
-  void ccw_isl_uset_free (ccw_isl_uset *uset);
-
-  ccw_isl_umap *ccw_isl_umap_parse (ccw_isl_ctx *ctx, const char *text);
-  char *ccw_isl_umap_serialize (const ccw_isl_umap *umap);
-  void ccw_isl_umap_free (ccw_isl_umap *umap);
-
-  ccw_isl_schedule *ccw_isl_schedule_parse (ccw_isl_ctx *ctx,
-                                            const char *text);
-  char *ccw_isl_schedule_serialize (const ccw_isl_schedule *schedule);
-  void ccw_isl_schedule_free (ccw_isl_schedule *schedule);
 
   /* Constructors (by value; string constructors copy their input). */
   ccw_val ccw_nil (void);

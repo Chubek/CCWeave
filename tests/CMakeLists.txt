@@ -24,6 +24,9 @@ target_compile_definitions(test_glue_executor PRIVATE
 ccw_add_test(test_isl test_isl.c)
 target_link_libraries(test_isl PRIVATE ccw_glue)
 
+ccw_add_test(test_vendored_bridge test_vendored_bridge.c)
+target_link_libraries(test_vendored_bridge PRIVATE ccw_glue ccw_dynalo)
+
 ccw_add_test(test_functional_kernels test_functional_kernels.c)
 target_link_libraries(test_functional_kernels PRIVATE ccw_host_glue ccw_executor_s7)
 target_compile_definitions(test_functional_kernels PRIVATE

@@ -1,5 +1,15 @@
 # Decisions
 
+## 2026-08-24 — Vendored bridges use typed APIs, not a generic dispatcher
+
+`glue/vendored-bridge.h` centralizes the existing C-callable SIMDe, utf8proc,
+ISL, and Dynalo surfaces, while `glue/vendored-bridge.hpp` adds the optional
+hipSYCL extension that depends on Glue executor types. `GlueSTD.h` re-exports
+the C header so executors and hosts see one stable boundary. The bridge does
+not add a name-based registry or aggregate argument marshalling: each vendored
+library retains its typed scalar/opaque-handle API, consistent with the Glue
+ABI's deliberately simple boundary and the ban on aggregate ABI values.
+
 ## 2026-08-24 — Dijkstra reproduction separated codegen and ELF defects
 
 The reproducible Cephyr Dijkstra investigation established two independent
@@ -165,7 +175,7 @@ The kernels and their capabilities:
 - `gpu-codegen.scm` — `lower.gpu-codegen`: GPU-parallel dispatch of code
   generation across functions.
 
-A hipSYCL C++ backend (`glue/ccw_hipsycl_backend.{hpp,cpp}`) implements the
+A hipSYCL C++ backend (`glue/bridge/hipsycl-bridge.cpp`) implements the
 GPU operations via the SYCL 1.2.1 runtime.  It registers `gpu-has?`,
 `gpu-device-count`, and `gpu-parse-batch` as host extension accessors;
 kernels feature-test them with `(glue-has? …)` before use.  The backend
@@ -623,7 +633,7 @@ ISL's autotools-generated `isl_config.h` and `gitversion.h` are not checked
 into the upstream vendored tree.  CCWeave therefore supplies equivalent
 generated configuration headers under `third_party/isl-config/`, builds the
 library directly from its checked-in C sources with GMP, and applies all
-scheduler/quota options in `glue/ccw_isl.c`.  This keeps builds offline and
+scheduler/quota options in `glue/bridge/isl-bridge.c`. This keeps builds offline and
 reproducible without modifying upstream ISL sources.
 
 # 2026-08-18 — Soft-fail polyhedral kernels on non-affine regions

@@ -1,5 +1,5 @@
 #include "../frontend/moonix_frontend.h"
-#include "ccw_dynalo_bridge.h"
+#include "vendored-bridge.h"
 #include "dyncall.h"
 #include "kstring.h"
 #include "moonix_internal.h"
