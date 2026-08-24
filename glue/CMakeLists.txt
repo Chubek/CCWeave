@@ -1,7 +1,7 @@
 # Glue: the ABI header plus the ccw_val boundary-value support library.
-add_library(ccw_glue STATIC ccw_val.c ccw_isl.c ccw_simde.c)
+add_library(ccw_glue STATIC ccw_val.c ccw_isl.c ccw_simde.c ccw_utf8proc.c)
 target_include_directories(ccw_glue PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(ccw_glue PUBLIC ccw_klib ccw_isl)
+target_link_libraries(ccw_glue PUBLIC ccw_klib ccw_isl utf8proc)
 target_compile_options(ccw_glue PRIVATE -Wno-psabi)
 
 # hipSYCL GPU-accelerated backend (optional; kernels feature-test with gpu-has?)

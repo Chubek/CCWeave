@@ -380,3 +380,6 @@ add_test(NAME sml-parthia-sched
 add_test(NAME sml-parthia-cli
          COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/interpreters/sml-parthia/tests/test_sml_parthia_cli.sh
                  $<TARGET_FILE:sml-parthia>)
+ 
+ add_subdirectory(third_party/utf8proc EXCLUDE_FROM_ALL)
+ ccw_vendored_target(utf8proc)
