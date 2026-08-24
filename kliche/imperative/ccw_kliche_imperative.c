@@ -176,7 +176,11 @@ ccw_kliche_return (ccw_ir *ir, ccw_node blk, const char *value_reg)
       ccw_kliche_opnd no_ops[] = { CCW_K_END };
       return ccw_kliche_emit (ir, blk, "ret", CCW_TY_VOID, NULL, no_ops);
     }
-  return ccw_kliche_emit (ir, blk, "ret", CCW_TY_VOID, NULL, ops);
+  /* A value-returning terminator carries the function result type.  Frontends
+   * currently lower scalar values through the canonical i64 register class;
+   * emitting it as void makes the IR validator reject otherwise valid
+   * functions. */
+  return ccw_kliche_emit (ir, blk, "ret", CCW_TY_I64, NULL, ops);
 }
 
 /* ---------- loops ---------- */

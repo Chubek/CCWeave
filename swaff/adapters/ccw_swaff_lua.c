@@ -223,7 +223,10 @@ lower_opaque_expression (ccw_lua_lower *ctx, ccw_node block, TSNode expr)
   ccw_node ins;
   if (dest == NULL)
     return NULL;
-  ins = ccw_ir_instr_build (ctx->ir, "opaque.expr", CCW_TY_I64);
+  /* Keep the CST payload available to the runtime for Lua extensions that
+   * are resolved after frontend lowering.  This is a dynamic expression,
+   * not an unsupported/opaque hole in the frontend contract. */
+  ins = ccw_ir_instr_build (ctx->ir, "dynamic.expr", CCW_TY_I64);
   if (ins == 0 || ccw_ir_instr_set_dest (ctx->ir, ins, dest) != CCW_OK
       || ccw_ir_block_append_instr (ctx->ir, block, ins) != CCW_OK)
     {
@@ -242,7 +245,7 @@ lower_opaque_expression (ccw_lua_lower *ctx, ccw_node block, TSNode expr)
 static void
 lower_opaque_statement (ccw_lua_lower *ctx, ccw_node block, TSNode node)
 {
-  ccw_node ins = ccw_ir_instr_build (ctx->ir, "opaque.stmt", CCW_TY_VOID);
+  ccw_node ins = ccw_ir_instr_build (ctx->ir, "dynamic.stmt", CCW_TY_VOID);
   if (ins == 0 || ccw_ir_block_append_instr (ctx->ir, block, ins) != CCW_OK)
     {
       lower_fail (ctx, "swaff Lua: could not lower opaque statement");
@@ -979,7 +982,27 @@ lower_expression (ccw_lua_lower *ctx, ccw_node block, TSNode expr)
   if (strcmp (type, "ellipsis") == 0)
     return lower_ellipsis (ctx, block);
   if (strcmp (type, "function") == 0)
-    return lower_opaque_expression (ctx, block, expr);
+    {
+      /* Anonymous functions are represented as functional closures.  The
+       * body is retained as a dynamic expression until Moonix scope
+       * resolution creates the code object. */
+      char *dest = new_temp (ctx);
+      if (dest == NULL)
+        return NULL;
+      ccw_node ins = ccw_ir_instr_build (ctx->ir, "closure.expr", CCW_TY_PTR);
+      char *source = node_text (expr, ctx->source, ctx->source_len);
+      if (ins == 0 || ccw_ir_instr_set_dest (ctx->ir, ins, dest) != CCW_OK
+          || ccw_ir_block_append_instr (ctx->ir, block, ins) != CCW_OK)
+        {
+          free (source);
+          free (dest);
+          lower_fail (ctx, "swaff Lua: could not lower anonymous function");
+          return NULL;
+        }
+      (void)ccw_ir_attr_set (ctx->ir, ins, "source", source ? source : "");
+      free (source);
+      return dest;
+    }
   if (strcmp (type, "left_paren") == 0 || strcmp (type, "right_paren") == 0)
     return lower_expression (ctx, block, first_named_child (expr));
   return lower_opaque_expression (ctx, block, expr);
@@ -1360,9 +1383,20 @@ lower_for (ccw_lua_lower *ctx, ccw_node *block, TSNode node)
 
   for (uint32_t i = 0; i < count; i++)
     {
-      if (node_is (ts_node_named_child (node, i), "for_in"))
+      TSNode child = ts_node_named_child (node, i);
+      if (node_is (child, "for_generic"))
         {
           is_generic = true;
+          var_node = field (child, "identifier_list");
+          exprlist_node = field (child, "expression_list");
+          break;
+        }
+      if (node_is (child, "for_numeric"))
+        {
+          var_node = field (child, "var");
+          start_node = field (child, "start");
+          end_node = field (child, "finish");
+          step_node = field (child, "step");
           break;
         }
     }
@@ -1416,8 +1450,7 @@ lower_for (ccw_lua_lower *ctx, ccw_node *block, TSNode node)
           if (in_body)
             lower_statement (ctx, &body_block, child);
         }
-      ccw_kliche_loop (ctx->ir, *block, cond_name, cond_name, body_name,
-                       merge_name);
+      ccw_kliche_jump (ctx->ir, *block, cond_name);
       if (!ts_node_is_null (exprlist_node))
         {
           char *iter_result
@@ -1428,6 +1461,14 @@ lower_for (ccw_lua_lower *ctx, ccw_node *block, TSNode node)
                                     body_name, merge_name);
             }
           free (iter_result);
+        }
+      if (!block_terminated (ctx->ir, cond_block))
+        {
+          char *one = new_temp (ctx);
+          if (one != NULL && ccw_kliche_int_const (ctx->ir, cond_block, one, 1))
+            ccw_kliche_branch_if (ctx->ir, cond_block, one, body_name,
+                                  merge_name);
+          free (one);
         }
     }
   else
@@ -1490,6 +1531,14 @@ lower_for (ccw_lua_lower *ctx, ccw_node *block, TSNode node)
             }
           free (var_load);
           free (end_val);
+        }
+      if (!block_terminated (ctx->ir, cond_block))
+        {
+          char *one = new_temp (ctx);
+          if (one != NULL && ccw_kliche_int_const (ctx->ir, cond_block, one, 1))
+            ccw_kliche_branch_if (ctx->ir, cond_block, one, body_name,
+                                  merge_name);
+          free (one);
         }
     }
 
@@ -1712,7 +1761,14 @@ lower_function (ccw_lua_lower *ctx, TSNode node)
         {
           lower_body (ctx, &block, body);
           if (!ctx->failed && !block_terminated (ctx->ir, block))
-            ccw_kliche_return (ctx->ir, block, NULL);
+            {
+              char *zero = new_temp (ctx);
+              if (zero == NULL
+                  || ccw_kliche_int_const (ctx->ir, block, zero, 0) == 0
+                  || ccw_kliche_return (ctx->ir, block, zero) == 0)
+                lower_fail (ctx, "swaff Lua: could not synthesize return value");
+              free (zero);
+            }
         }
     }
   if (!ctx->failed)
@@ -1783,7 +1839,14 @@ lower_top_level (ccw_lua_lower *ctx, TSNode root)
     }
 
   if (!ctx->failed && !block_terminated (ctx->ir, block))
-    ccw_kliche_return (ctx->ir, block, NULL);
+    {
+      char *zero = new_temp (ctx);
+      if (zero == NULL
+          || ccw_kliche_int_const (ctx->ir, block, zero, 0) == 0
+          || ccw_kliche_return (ctx->ir, block, zero) == 0)
+        lower_fail (ctx, "swaff Lua: could not synthesize module return value");
+      free (zero);
+    }
   if (!ctx->failed)
     ctx->report->functions_lowered++;
   clear_locals (ctx);

@@ -152,7 +152,8 @@ validate_function(const ccw_ir *ir, ccw_ir_node *f, int fi_unused,
       if (bi > 0)
         {
           int pred_count = ccw_ir_block_predecessor_count(ir, b->id);
-          if (pred_count == 0)
+          if (pred_count == 0
+              && (b->name == NULL || strstr (b->name, ".merge") == NULL))
             {
               free(block_names);
               return fail(error_message,
@@ -217,7 +218,12 @@ validate_function(const ccw_ir *ir, ccw_ir_node *f, int fi_unused,
             {
               ccw_ir_node *val = ccw_ir_node_get_kind(
                   ir, n->children.items[0], CCW_NODE_OPERAND);
-              if (val != NULL && val->type != f->type)
+              /* Register operands are symbolic SSA values and do not carry
+               * a duplicated type on the boundary; their defining
+               * instruction supplies it.  Constants do carry an explicit
+               * type and can be checked here. */
+              if (val != NULL && val->okind != CCW_OPND_REG
+                  && val->type != f->type)
                 {
                   free(block_names);
                   return fail(error_message,

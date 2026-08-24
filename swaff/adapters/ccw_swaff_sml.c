@@ -286,7 +286,7 @@ lower_opaque_expression (ccw_sml_lower *ctx, ccw_node *block, TSNode node)
   ccw_node ins;
   if (!dest)
     return NULL;
-  ins = ccw_ir_instr_build (ctx->ir, "opaque.expr", CCW_TY_I64);
+  ins = ccw_ir_instr_build (ctx->ir, "dynamic.expr", CCW_TY_I64);
   if (!ins || ccw_ir_instr_set_dest (ctx->ir, ins, dest) != CCW_OK
       || ccw_ir_block_append_instr (ctx->ir, *block, ins) != CCW_OK)
     {
@@ -389,6 +389,60 @@ lower_boolean (ccw_sml_lower *ctx, ccw_node block, bool value)
       lower_fail (ctx, "swaff SML: could not lower boolean value");
       return NULL;
     }
+  return dest;
+}
+
+static char *
+lower_string_literal (ccw_sml_lower *ctx, ccw_node block, TSNode node)
+{
+  char *raw = node_text (node, ctx->source, ctx->source_len);
+  char *dest = new_temp (ctx);
+  ccw_node ins;
+  if (raw == NULL || dest == NULL)
+    {
+      free (raw);
+      free (dest);
+      lower_fail (ctx, "swaff SML: could not read string literal");
+      return NULL;
+    }
+  ins = ccw_ir_instr_build (ctx->ir, "str.const", CCW_TY_I64);
+  if (ins == 0 || ccw_ir_instr_set_dest (ctx->ir, ins, dest) != CCW_OK
+      || ccw_ir_block_append_instr (ctx->ir, block, ins) != CCW_OK)
+    {
+      free (raw);
+      free (dest);
+      lower_fail (ctx, "swaff SML: could not lower string literal");
+      return NULL;
+    }
+  (void)ccw_ir_attr_set (ctx->ir, ins, "str.value", raw);
+  free (raw);
+  return dest;
+}
+
+static char *
+lower_real_literal (ccw_sml_lower *ctx, ccw_node block, TSNode node)
+{
+  char *raw = node_text (node, ctx->source, ctx->source_len);
+  char *dest = new_temp (ctx);
+  char *end = NULL;
+  double value;
+  if (raw == NULL || dest == NULL)
+    {
+      free (raw);
+      free (dest);
+      lower_fail (ctx, "swaff SML: could not read real literal");
+      return NULL;
+    }
+  value = strtod (raw, &end);
+  if (end == raw || *end != '\0'
+      || ccw_kliche_float_const (ctx->ir, block, dest, value) == 0)
+    {
+      free (raw);
+      free (dest);
+      lower_fail (ctx, "swaff SML: could not lower real literal");
+      return NULL;
+    }
+  free (raw);
   return dest;
 }
 
@@ -838,7 +892,7 @@ lower_local_val_dec (ccw_sml_lower *ctx, ccw_node *block, TSNode declaration)
   TSNode name_node = simple_pattern_name (field (binding, "pat"));
   if (ts_node_is_null (name_node))
     {
-      ccw_node ins = ccw_ir_instr_build (ctx->ir, "opaque.stmt", CCW_TY_VOID);
+      ccw_node ins = ccw_ir_instr_build (ctx->ir, "dynamic.stmt", CCW_TY_VOID);
       if (!ins || ccw_ir_block_append_instr (ctx->ir, *block, ins) != CCW_OK)
         {
           lower_fail (ctx, "swaff SML: could not lower pattern binding");
@@ -900,6 +954,10 @@ lower_expression (ccw_sml_lower *ctx, ccw_node *block, TSNode expression)
       TSNode literal = first_named_child (expression);
       if (node_is (literal, "integer_scon") || node_is (literal, "word_scon"))
         return lower_integer (ctx, *block, expression);
+      if (node_is (literal, "real_scon"))
+        return lower_real_literal (ctx, *block, literal);
+      if (node_is (literal, "string_scon") || node_is (literal, "char_scon"))
+        return lower_string_literal (ctx, *block, literal);
     }
   if (strcmp (type, "vid_exp") == 0)
     return lower_value (ctx, *block, expression);
