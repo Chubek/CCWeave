@@ -979,3 +979,9 @@ pass that enforces the §5.2/§5.3 structural invariants:
 - `tests/test_ir_profiles.c` updated to add terminators to every block whose
   validation was previously tested without them (the old tests happened to
   pass because the validator didn't check for terminators).
+
+## 2026-8-24 - Revamped the Glue Layer
+
+The Glue layer now uses "bridges" to hook vendored libraries used by kernels, into the Executor layer.
+
+
