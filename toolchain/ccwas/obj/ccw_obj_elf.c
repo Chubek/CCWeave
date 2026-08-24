@@ -223,6 +223,20 @@ write_elf64 (const ccw_unit_t *u, const char *path, char **error)
         nsym++;
     }
 
+  /* Count sections before constructing section-name tables. */
+  size_t nsec = kv_size (u->sections);
+  /* Each section with relocs gets a rela section. */
+  size_t nrela = 0;
+  for (size_t i = 0; i < kv_size (u->relocs); i++)
+    {
+      ccw_reloc_t *r = &kv_A (u->relocs, i);
+      if (r->section >= 0 && (size_t)r->section < nsec)
+        nrela = (size_t)(r->section + 1);
+    }
+  /* If we have relocs but no section, use section zero. */
+  if (kv_size (u->relocs) > 0 && nrela == 0)
+    nrela = 1;
+
   /* Build string tables */
   /* Section header string table */
   size_t shstr_offsets[32];
@@ -272,20 +286,6 @@ write_elf64 (const ccw_unit_t *u, const char *path, char **error)
   char *strtab = (char *)calloc (strtab_cap, 1);
   size_t strtab_len
       = build_strtab (strtab, strtab_cap, sym_names, nsym + 1, sym_offsets);
-
-  /* Count sections */
-  size_t nsec = kv_size (u->sections);
-  /* Each section with relocs gets a rela section */
-  size_t nrela = 0;
-  for (size_t i = 0; i < kv_size (u->relocs); i++)
-    {
-      ccw_reloc_t *r = &kv_A (u->relocs, i);
-      if (r->section >= 0 && (size_t)r->section < nsec)
-        nrela = (size_t)(r->section + 1);
-    }
-  /* If we have relocs but no section, use 0 */
-  if (kv_size (u->relocs) > 0 && nrela == 0)
-    nrela = 1;
 
   size_t shnum
       = 1 + nsec + nrela
