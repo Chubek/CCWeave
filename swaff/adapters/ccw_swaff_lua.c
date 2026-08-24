@@ -14,6 +14,7 @@
 
 #include <errno.h>
 #include <limits.h>
+#include <ctype.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -155,6 +156,67 @@ node_text (TSNode node, const char *source, size_t source_len)
   if (kputsn (source + start, (int)n, &text_buffer) == EOF)
     return NULL;
   return ks_release (&text_buffer);
+}
+
+static char *new_temp (ccw_lua_lower *ctx);
+static void lower_fail (ccw_lua_lower *ctx, const char *message);
+static char *lower_expression (ccw_lua_lower *ctx, ccw_node block,
+                              TSNode expr);
+static TSNode binary_operand_node (TSNode expr, uint32_t start, uint32_t end);
+
+static char *
+lower_opaque_expression_text (ccw_lua_lower *ctx, ccw_node block, const char *source,
+                             size_t start, size_t end)
+{
+  if (end < start || end > ctx->source_len)
+    return NULL;
+  size_t n = end - start;
+  char *slice = (char *)malloc (n + 1u);
+  char *dest;
+  ccw_node ins;
+  if (slice == NULL)
+    return NULL;
+  memcpy (slice, source + start, n);
+  slice[n] = '\0';
+  dest = new_temp (ctx);
+  if (dest == NULL)
+    {
+      free (slice);
+      return NULL;
+    }
+  ins = ccw_ir_instr_build (ctx->ir, "dynamic.expr", CCW_TY_I64);
+  if (ins == 0 || ccw_ir_instr_set_dest (ctx->ir, ins, dest) != CCW_OK
+      || ccw_ir_block_append_instr (ctx->ir, block, ins) != CCW_OK)
+    {
+      free (dest);
+      free (slice);
+      lower_fail (ctx, "swaff Lua: could not lower opaque expression");
+      return NULL;
+    }
+  (void)ccw_ir_attr_set (ctx->ir, ins, "source", slice);
+  free (slice);
+  return dest;
+}
+
+static void
+trim_range (ccw_lua_lower *ctx, uint32_t *start, uint32_t *end)
+{
+  while (*start < *end && isspace ((unsigned char)ctx->source[*start]))
+    (*start)++;
+  while (*end > *start && isspace ((unsigned char)ctx->source[*end - 1]))
+    (*end)--;
+}
+
+static char *
+lower_expression_range (ccw_lua_lower *ctx, ccw_node block, TSNode expr,
+                       uint32_t start, uint32_t end)
+{
+  TSNode node;
+  trim_range (ctx, &start, &end);
+  node = binary_operand_node (expr, start, end);
+  if (!ts_node_is_null (node))
+    return lower_expression (ctx, block, node);
+  return lower_opaque_expression_text (ctx, block, ctx->source, start, end);
 }
 
 static void
@@ -328,6 +390,59 @@ operator_between (ccw_lua_lower *ctx, TSNode left, TSNode right)
   memcpy (op, ctx->source + begin, finish - begin);
   op[finish - begin] = '\0';
   return op;
+}
+
+static const char *binary_opcode (const char *op);
+
+static TSNode
+binary_operation_child (ccw_lua_lower *ctx, TSNode expr, char **op_text,
+                       const char **opcode, uint32_t *op_start,
+                       uint32_t *op_end)
+{
+  uint32_t count = ts_node_child_count (expr);
+  for (uint32_t i = 0; i < count; i++)
+    {
+      TSNode child = ts_node_child (expr, i);
+      char *text;
+      const char *mapped;
+      if (ts_node_is_named (child))
+        continue;
+      text = node_text (child, ctx->source, ctx->source_len);
+      if (text == NULL)
+        continue;
+      mapped = binary_opcode (text);
+      if (mapped != NULL)
+        {
+          *op_text = text;
+          *opcode = mapped;
+          *op_start = ts_node_start_byte (child);
+          *op_end = ts_node_end_byte (child);
+          return child;
+        }
+      free (text);
+    }
+  *op_text = NULL;
+  *opcode = NULL;
+  *op_start = 0u;
+  *op_end = 0u;
+  return null_node ();
+}
+
+static TSNode
+binary_operand_node (TSNode expr, uint32_t start, uint32_t end)
+{
+  TSNode self = ts_node_descendant_for_byte_range (expr, start, end);
+  if (end <= start || start >= ts_node_end_byte (expr)
+      || end > ts_node_end_byte (expr))
+    return null_node ();
+  if (ts_node_is_null (self))
+    return null_node ();
+  if (!ts_node_is_named (self))
+    return null_node ();
+  if (ts_node_start_byte (self) == ts_node_start_byte (expr)
+      && ts_node_end_byte (self) == ts_node_end_byte (expr))
+    return null_node ();
+  return self;
 }
 
 static const char *
@@ -605,38 +720,89 @@ static char *
 lower_binary (ccw_lua_lower *ctx, ccw_node block, TSNode expr)
 {
   TSNode left = null_node (), right = null_node ();
-  uint32_t count = ts_node_named_child_count (expr);
-  char *op_text;
-  const char *opcode;
+  uint32_t named_count = ts_node_named_child_count (expr);
+  uint32_t expr_start = ts_node_start_byte (expr);
+  uint32_t expr_end = ts_node_end_byte (expr);
+  char *op_text = NULL;
+  const char *opcode = NULL;
   char *lhs, *rhs, *dest;
-  for (uint32_t i = 0; i < count; i++)
+  uint32_t op_start = 0, op_end = 0;
+  TSNode op_node = null_node ();
+  bool used_op_scan = false;
+
+  op_node = binary_operation_child (ctx, expr, &op_text, &opcode, &op_start,
+                                   &op_end);
+  if (!ts_node_is_null (op_node))
     {
-      TSNode child = ts_node_named_child (expr, i);
-      if (node_is (child, "left_paren") || node_is (child, "right_paren"))
-        continue;
-      if (ts_node_is_null (left))
-        left = child;
-      else if (ts_node_is_null (right))
+      used_op_scan = true;
+      lhs = lower_expression_range (ctx, block, expr, expr_start, op_start);
+      rhs = lower_expression_range (ctx, block, expr, op_end, expr_end);
+      if (lhs == NULL || rhs == NULL || opcode == NULL)
         {
-          right = child;
-          break;
+          free (op_text);
+          op_text = NULL;
+          opcode = NULL;
+          op_node = null_node ();
+          if (lhs != NULL)
+            {
+              free (lhs);
+              lhs = NULL;
+            }
+          if (rhs != NULL)
+            {
+              free (rhs);
+              rhs = NULL;
+            }
+          used_op_scan = false;
         }
     }
-  if (ts_node_is_null (left) || ts_node_is_null (right))
+
+  if (ts_node_is_null (op_node))
     {
-      lower_fail (ctx, "swaff Lua: malformed binary operation");
-      return NULL;
+      if (used_op_scan)
+        {
+          lower_fail (ctx, "swaff Lua: malformed binary operation");
+          return NULL;
+        }
+      /* Fallback for grammars where tokenized operator lookup fails.
+       * Keep the original two-named-child heuristic intact for recovery. */
+      for (uint32_t i = 0; i < named_count; i++)
+        {
+          TSNode child = ts_node_named_child (expr, i);
+          if (node_is (child, "left_paren") || node_is (child, "right_paren"))
+            continue;
+          if (ts_node_is_null (left))
+            left = child;
+          else if (ts_node_is_null (right))
+            {
+              right = child;
+              break;
+            }
+        }
+      op_text = operator_between (ctx, left, right);
+      opcode = op_text != NULL ? binary_opcode (op_text) : NULL;
+      if (ts_node_is_null (left) || ts_node_is_null (right))
+        {
+          free (op_text);
+          lower_fail (ctx, "swaff Lua: malformed binary operation");
+          return NULL;
+        }
+      lhs = lower_expression (ctx, block, left);
+      rhs = lower_expression (ctx, block, right);
     }
-  op_text = operator_between (ctx, left, right);
-  opcode = op_text != NULL ? binary_opcode (op_text) : NULL;
   if (opcode == NULL)
     {
       free (op_text);
       lower_fail (ctx, "swaff Lua: unsupported binary operator");
       return NULL;
     }
-  lhs = lower_expression (ctx, block, left);
-  rhs = lower_expression (ctx, block, right);
+  if (lhs == NULL || rhs == NULL)
+    {
+      free (lhs);
+      free (rhs);
+      free (op_text);
+      return NULL;
+    }
   dest = new_temp (ctx);
   if (lhs == NULL || rhs == NULL || dest == NULL)
     {

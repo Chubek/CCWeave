@@ -78,7 +78,7 @@ moonix_frontend_compile (moonix_state *state, const char *source,
       moonix_set_error (state, "syntax error <eof>");
       return MOONIX_ERR_SYNTAX;
     }
-  chunk->data = (unsigned char *)malloc (12u + source_len);
+  chunk->data = (unsigned char *)malloc (12u + source_len + 1u);
   if (!chunk->data)
     return MOONIX_ERR_OOM;
   memcpy (chunk->data, magic, 8);
@@ -86,6 +86,7 @@ moonix_frontend_compile (moonix_state *state, const char *source,
   chunk->data[9] = chunk->data[10] = chunk->data[11] = 0;
   memcpy (chunk->data + 12, source, source_len);
   chunk->size = 12u + source_len;
+  chunk->data[12u + source_len] = 0;
   for (size_t i = 0; i < source_len; i++)
     if (source[i] == '\n')
       chunk->source_line_count++;
