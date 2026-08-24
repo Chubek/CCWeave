@@ -1,5 +1,24 @@
 # Decisions
 
+## 2026-08-24 — Compiler and interpreter backends are kernel-only
+
+Language implementations may own language-specific preprocessing, parsing,
+typing, and AST construction, but once canonical Weave IR exists, every
+analysis, transformation, lowering, instruction selection, allocation,
+scheduling, interpretation/JIT lowering, and target-artifact emission step
+MUST be supplied by kernels and executed through one sealed Sched plan. A
+compiler/interpreter host MUST NOT invoke kernels or rewrite rules directly
+outside that plan, and MUST NOT contain a fallback instruction printer,
+assembly-text generator, bytecode emitter, or equivalent IR-to-target switch.
+If a target artifact is needed, the responsible kernel publishes it through
+Glue-owned IR facts or another specified kernel result channel; the host may
+only serialize that result or pass it to the next toolchain stage.
+
+Cephyr's `codegen.emit-x86-64` kernel and scheduler kernel-execution path are
+the reference implementation. If a required capability is missing, implement
+the kernel and regenerate the live manifests before changing the language
+host.
+
 ## 2026-08-24 — Cephyr's emitted objects must remain linkable through ccwas/ccwld
 
 The Dijkstra failure exposed a chain of integration gaps rather than a single

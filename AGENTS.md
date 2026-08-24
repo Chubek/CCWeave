@@ -126,6 +126,20 @@ the next begins; later stages depend on earlier ones.
 - **Kernels never mutate global state and never touch IR except through
   Glue accessors.** All structural edits go through `instr-build` +
   `instr-replace!`/`instr-insert-before!`/`instr-delete!`.
+- **Compiler/interpreter backends are entirely kernel-reliant after canonical
+  IR exists.** Language hosts may own preprocessing, parsing, typing, AST
+  construction, and other language-specific work that necessarily precedes
+  Weave IR. From the canonical IR boundary onward, every analysis,
+  transformation, lowering, optimization, instruction selection, scheduling,
+  register allocation, interpretation/JIT lowering, and target-artifact
+  emission step MUST be implemented by kernels and executed through one
+  sealed Sched plan. Hosts MUST NOT invoke kernels or rewrite rules directly
+  outside that plan and MUST NOT emit target assembly, bytecode, machine code,
+  or equivalent artifacts with host-side opcode switches or fallback printers.
+  A host may only serialize the artifact produced by a kernel or pass it to
+  the next declared toolchain stage. If a needed operation has no capability,
+  add the kernel and regenerate the live manifests before changing the
+  language host.
 - **No aggregate types cross the C ABI.** Only the seven `ccw_type`
   variants. Collections are traversed with `-count`/`-ref` pairs. If
   you feel the need to marshal a list, you are off-spec.
@@ -230,4 +244,3 @@ or picking a different command cannot help.
    fenced block and wait for pasted output. Batch questions; don't ask per-command.
 5. **Say so in your final report.** If work was blocked on unrunnable commands, list
    them so the user knows what remains to be executed manually.
-

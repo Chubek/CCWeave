@@ -31,6 +31,7 @@ local ra = S:probe   { capability = "codegen.regalloc-graph" }
           prefer = "regalloc-linear-scan"
         }
 local sched_list = S:require { capability = "codegen.sched-list" }
+local emit = S:require { capability = "codegen.emit-x86-64" }
 
 -- Ordering: analyses → normalization → optimizations → Tilly barrier → codegen.
 S:edge(def_use, purity)
@@ -45,5 +46,6 @@ S:edge(arith_rules, pre_tilly)
 S:edge(pre_tilly, isel)
 S:edge(isel, ra)
 S:edge(ra, sched_list)
+S:edge(sched_list, emit)
 
 return S:seal()

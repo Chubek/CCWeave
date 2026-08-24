@@ -9,6 +9,7 @@
 #include <inttypes.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 
 #ifndef CCWLD_VERSION
 #define CCWLD_VERSION "0.1.0"
@@ -733,6 +734,12 @@ emit_elf64 (ccwld_state *st, const char *path, ccwld_error *e)
     {
       ccwld_error_set (e, CCWLD_EXIT_LINK, "short write on output '%s'",
                        path);
+      goto fail;
+    }
+  if (!is_reloc && chmod (path, 0755) != 0)
+    {
+      ccwld_error_set (e, CCWLD_EXIT_LINK,
+                       "cannot make executable output '%s'", path);
       goto fail;
     }
 

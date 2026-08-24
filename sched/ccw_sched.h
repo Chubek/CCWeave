@@ -1,6 +1,7 @@
 #ifndef CCW_SCHED_H
 #define CCW_SCHED_H
 #include "../oeuph/ccw_oeuph.h"
+#include "../glue/GlueSTD.h"
 #include <stddef.h>
 #include <stdint.h>
 
@@ -44,6 +45,11 @@ int ccw_plan_apply_rewrites (const ccw_plan *, ccw_ir *,
                              ccw_cost_model, ccw_oeuph_stats *stats,
                              size_t stats_capacity, size_t *stats_count,
                              ccw_sched_error *);
+/* Execute kernel nodes in the sealed plan in dependency order.  The caller
+ * must register host accessors before invoking this function. */
+int ccw_plan_apply_kernels (const ccw_plan *, ccw_ir *,
+                            const char *manifest_dir, ccw_executor *,
+                            const char *const *options, ccw_sched_error *);
 int ccw_sched_run_script (const char *script, const char *manifest_dir,
                           ccw_plan **out, ccw_sched_error *);
 

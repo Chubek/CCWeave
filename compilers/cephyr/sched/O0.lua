@@ -17,11 +17,13 @@ local regalloc = S:require {
   prefer = "regalloc-linear-scan"
 }
 local sched_list = S:require { capability = "codegen.sched-list" }
+local emit = S:require { capability = "codegen.emit-x86-64" }
 
 -- Order: SSA construct first, then codegen passes.
 S:edge(ssa_construct, pre_tilly)
 S:edge(pre_tilly, isel)
 S:edge(isel, regalloc)
 S:edge(regalloc, sched_list)
+S:edge(sched_list, emit)
 
 return S:seal()

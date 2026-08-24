@@ -1057,9 +1057,28 @@ ruleset_file_path (const char *manifest_dir, const char *ruleset_path)
   if (parent == NULL)
     return NULL;
   candidate = path_join3 (parent, ruleset_path, "rules.scm");
+  if (candidate == NULL)
+    {
+      free (parent);
+      return NULL;
+    }
+  probe = fopen (candidate, "r");
+  if (probe != NULL)
+    {
+      fclose (probe);
+      free (parent);
+      return candidate;
+    }
+  free (candidate);
+  candidate = path_join3 (parent, "rewrite-salvo", ruleset_path);
   free (parent);
   if (candidate == NULL)
     return NULL;
+  {
+    char *rules = path_join3 (candidate, "", "rules.scm");
+    free (candidate);
+    candidate = rules;
+  }
   probe = fopen (candidate, "r");
   if (probe == NULL)
     {
@@ -1275,6 +1294,157 @@ ccw_plan_apply_rewrites (const ccw_plan *plan, ccw_ir *ir,
 
   if (stats_count != NULL)
     *stats_count = written;
+  free (done);
+  ccw_sched_free (manifest);
+  free_node_array (nodes, nn);
+  free (edges);
+  return 1;
+}
+
+int
+ccw_plan_apply_kernels (const ccw_plan *plan, ccw_ir *ir,
+                        const char *manifest_dir, ccw_executor *executor,
+                        const char *const *options, ccw_sched_error *e)
+{
+  ccw_sched *manifest = NULL;
+  node *nodes = NULL;
+  edge *edges = NULL;
+  size_t nn = 0, ne = 0;
+  bool *done = NULL;
+  ccw_sched_error local_error;
+
+  if (plan == NULL || ir == NULL || manifest_dir == NULL || executor == NULL)
+    {
+      fail (e, 1, "invalid kernel execution request");
+      return 0;
+    }
+  if (!parse_plan_text (plan->text, &nodes, &nn, &edges, &ne, e))
+    return 0;
+  manifest = ccw_sched_new ("kernel-execution", manifest_dir, &local_error);
+  if (manifest == NULL)
+    {
+      if (e)
+        *e = local_error;
+      free_node_array (nodes, nn);
+      free (edges);
+      return 0;
+    }
+  done = (bool *)calloc (nn, sizeof (*done));
+  if (done == NULL)
+    {
+      fail (e, 1, "out of memory");
+      ccw_sched_free (manifest);
+      free_node_array (nodes, nn);
+      free (edges);
+      return 0;
+    }
+
+  for (size_t completed = 0; completed < nn; ++completed)
+    {
+      size_t selected = nn;
+      for (size_t i = 0; i < nn; ++i)
+        {
+          bool ready = !done[i];
+          if (!ready)
+            continue;
+          for (size_t j = 0; j < ne; ++j)
+            if (edges[j].to == nodes[i].id && !done[edges[j].from - 1])
+              {
+                ready = false;
+                break;
+              }
+          if (ready)
+            {
+              selected = i;
+              break;
+            }
+        }
+      if (selected == nn)
+        {
+          fail (e, 6, "plan contains a cycle");
+          free (done);
+          ccw_sched_free (manifest);
+          free_node_array (nodes, nn);
+          free (edges);
+          return 0;
+        }
+
+      if (nodes[selected].kind == NODE_KERNEL)
+        {
+          khint_t slot = kh_get (sched_kernel_by_name, manifest->kernel_by_name,
+                                 nodes[selected].name);
+          if (slot == kh_end (manifest->kernel_by_name))
+            {
+              fail (e, 8, "plan references a kernel absent from Kernel.yaml");
+              free (done);
+              ccw_sched_free (manifest);
+              free_node_array (nodes, nn);
+              free (edges);
+              return 0;
+            }
+          kernel *k = &manifest->kernels[kh_value (manifest->kernel_by_name,
+                                                   slot)];
+          char *path = NULL;
+          char *load_error = NULL;
+          int kid;
+          char *root = manifest_parent (manifest_dir);
+          if (root != NULL)
+            path = path_join3 (root, "", k->path);
+          free (root);
+          if (path == NULL)
+            {
+              fail (e, 2, "kernel path from Kernel.yaml is unreadable");
+              free (done);
+              ccw_sched_free (manifest);
+              free_node_array (nodes, nn);
+              free (edges);
+              return 0;
+            }
+          kid = ccw_kernel_load (executor, path, &load_error);
+          free (path);
+          if (kid < 0)
+            {
+              if (load_error != NULL)
+                {
+                  fail (e, kid, load_error);
+                  free (load_error);
+                }
+              else
+                fail (e, kid, "failed to load scheduled kernel");
+              free (done);
+              ccw_sched_free (manifest);
+              free_node_array (nodes, nn);
+              free (edges);
+              return 0;
+            }
+          for (size_t j = 0; j < nodes[selected].nm; ++j)
+            {
+              ccw_status st = ccw_kernel_apply (
+                  executor, kid, nodes[selected].members[j], ir, options,
+                  &load_error);
+              if (st != CCW_OK)
+                {
+                  if (load_error != NULL)
+                    {
+                      fail (e, st, load_error);
+                      free (load_error);
+                    }
+                  else
+                    fail (e, st, "scheduled kernel failed");
+                  ccw_kernel_unload (executor, kid);
+                  free (done);
+                  ccw_sched_free (manifest);
+                  free_node_array (nodes, nn);
+                  free (edges);
+                  return 0;
+                }
+            }
+          ccw_kernel_unload (executor, kid);
+          free (load_error);
+        }
+      done[selected] = true;
+    }
+
   free (done);
   ccw_sched_free (manifest);
   free_node_array (nodes, nn);

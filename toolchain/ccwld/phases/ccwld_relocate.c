@@ -109,6 +109,8 @@ ccwld_phase_relocate (ccwld_state *st, ccwld_error *e)
                 }
             }
           int64_t A = r->addend;
+          fprintf (stderr, "DBG reloc %s S=%" PRIx64 " P=%" PRIx64 " A=%" PRId64 " off=%" PRIx64 "\n",
+                   r->sym, S, P, A, r->offset);
 
           if (r->offset >= is->size)
             {

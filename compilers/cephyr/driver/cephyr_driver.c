@@ -25,6 +25,7 @@
 #include "../stdmodule/cephyr_stdmodule.h"
 
 #include "../../../ir/ccw_ir.h"
+#include "../../../glue/ccw_host_accessors.h"
 #include "../../../oeuph/ccw_sema.h"
 #include "../../../sched/ccw_sched.h"
 #include "../../../sched/ccw_rewrite_scheme.h"
@@ -1012,7 +1013,7 @@ link_object (const cephyr_options *opts, const char *object_path)
     output_path = "a.out";
   link_options.kind = kind;
   link_options.format = "elf";
-  link_options.entry = "main";
+  link_options.entry = "_start";
   link_options.search_paths = opts->library_paths;
   link_options.search_path_count = (size_t)opts->library_path_count;
   if (!ccwld_link_files (opts->target_triple, output_path, inputs, 1,
@@ -1049,7 +1050,7 @@ write_stage_text (const char *path, const char *text)
 /* Backend emission façade.  Codegen kernels annotate/mutate the canonical IR;
  * this deterministic textual fallback gives the assembler a concrete target
  * program until target-specific instruction printers are available. */
-static char *
+__attribute__ ((unused)) static char *
 emit_target_assembly (const ccw_ir *ir, const char *triple)
 {
   const char *arch = cephyr_target_arch (triple);
@@ -1089,6 +1090,18 @@ emit_target_assembly (const ccw_ir *ir, const char *triple)
   else if (strcmp (arch, "x86-64") == 0)
     {
       APPEND_FMT (".text\n");
+      /* A linked Cephyr program is a freestanding ELF image.  `main` is
+       * a normal C function and cannot be used as the process entry point:
+       * returning from it would jump to an uninitialised return address.
+       * Provide the Linux x86-64 process shim which invokes main and exits
+       * through the kernel ABI. */
+      APPEND_FMT (".global _start\n_start:\n"
+                  "  xor ebp, ebp\n"
+                  "  and rsp, -16\n"
+                  "  call main\n"
+                  "  mov edi, eax\n"
+                  "  mov eax, 60\n"
+                  "  syscall\n");
       functions = ccw_ir_function_count (ir);
       for (i = 0; i < functions; ++i)
         {
@@ -2022,12 +2035,35 @@ run_sched_plan (ccw_ir *ir, const cephyr_options *opts)
 
   if (plan)
     {
+      ccw_executor *executor = ccw_executor_create ();
+      const char *kernel_options[] = {
+        "target=x86-64",
+        NULL
+      };
+      if (executor == NULL
+          || ccw_executor_abi_version (executor) != CCW_GLUE_ABI_VERSION
+          || ccw_host_register_core_accessors (executor) != CCW_OK)
+        {
+          fprintf (stderr, "cephyr: cannot initialize kernel executor\n");
+          ccw_executor_destroy (executor);
+          ccw_plan_free (plan);
+          return CEPHYR_ERR_SCHED;
+        }
       ccw_oeuph_budget budget = ccw_oeuph_default_budget ();
       if (!ccw_rewrite_scheme_apply (
               plan, ir, manifest_dir, budget, CCW_COST_PERFORMANCE, NULL, 0,
               NULL, &err))
         {
           fprintf (stderr, "cephyr: rewrite error: %s\n", err.message);
+          ccw_plan_free (plan);
+          ccw_executor_destroy (executor);
+          return CEPHYR_ERR_SCHED;
+        }
+      if (!ccw_plan_apply_kernels (plan, ir, manifest_dir, executor,
+                                   kernel_options, &err))
+        {
+          fprintf (stderr, "cephyr: kernel error: %s\n", err.message);
+          ccw_executor_destroy (executor);
           ccw_plan_free (plan);
           return CEPHYR_ERR_SCHED;
         }
@@ -2037,6 +2073,7 @@ run_sched_plan (ccw_ir *ir, const cephyr_options *opts)
       snprintf (plan_path, sizeof (plan_path),
                 "compilers/cephyr/sched/plans/%s.plan", plan_name);
       ccw_plan_write (plan, plan_path, &err);
+      ccw_executor_destroy (executor);
       ccw_plan_free (plan);
     }
 
@@ -2194,7 +2231,13 @@ cephyr_compile_inner (const cephyr_options *opts)
   /* Step 6: emit target assembly, then assemble unless -S was requested. */
   if (result == CEPHYR_SUCCESS && !opts->emit_ir)
     {
-      char *assembly = emit_target_assembly (ir, opts->target_triple);
+      /* §8: target text is a product of the scheduled code-generation
+       * kernel.  Cephyr never synthesizes machine code in the host. */
+      const char *assembly = NULL;
+      if (ccw_ir_function_count (ir) > 0)
+        assembly = ccw_ir_attr_lookup (
+            ir, ccw_ir_function_ref (ir, 0),
+            "analysis.codegen.emit-x86-64.assembly");
       char assembly_template[] = "/tmp/cephyr-asm-XXXXXX";
       char object_template[] = "/tmp/cephyr-obj-XXXXXX";
       char *assembly_path = NULL;
@@ -2274,7 +2317,6 @@ cephyr_compile_inner (const cephyr_options *opts)
         }
       free (assembly_path);
       free (object_path);
-      free (assembly);
     }
 
   /* Cleanup */

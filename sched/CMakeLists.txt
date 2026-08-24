@@ -44,6 +44,7 @@ target_include_directories(ccw_sched PUBLIC
   ${CMAKE_SOURCE_DIR}/oeuph
   ${CMAKE_SOURCE_DIR}/third_party/lua
   ${CMAKE_SOURCE_DIR}/third_party/klib)
-target_link_libraries(ccw_sched PUBLIC ccw_lua ccw_oeuph ccw_klib)
+target_link_libraries(ccw_sched PUBLIC ccw_lua ccw_oeuph ccw_klib
+  ccw_host_glue ccw_executor_s7)
 add_executable(ccw-sched ccw_sched.c)
 target_link_libraries(ccw-sched PRIVATE ccw_sched)
