@@ -5,6 +5,8 @@ tmp="${TMPDIR:-/tmp}/ccwas-test-$$"
 trap 'rm -rf "$tmp"' EXIT
 mkdir "$tmp"
 cat >"$tmp/in.s" <<'EOF'
+# A comment line should be ignored by CCWas.
+  # Indented pound comments are comments too.
 .text
 .global f
 f:

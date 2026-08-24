@@ -23,6 +23,19 @@ trim_left (char *s)
 static char *
 strip_comment (char *s, int is_wasm)
 {
+  /*
+   * CCWas source files commonly use shell-style comment lines for
+   * annotations generated alongside assembly.  A pound is a comment
+   * delimiter only when it is the first non-whitespace character; keeping
+   * inline pound handling out of this path preserves immediate literals
+   * such as #10 in grammars/targets that support them.
+   */
+  if (*s == '#')
+    {
+      *s = '\0';
+      return s;
+    }
+
   char *c = is_wasm ? strstr (s, ";;") : strchr (s, ';');
   if (c)
     *c = '\0';
