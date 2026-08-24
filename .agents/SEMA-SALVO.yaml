@@ -1,0 +1,722 @@
+# ── sema.type — type inference and propagation (1–15) ──
+- name: sema.type.int-literal
+  description: "Integer literals carry type int"
+  trigger: (int-lit $v)
+  target: (assert (type (int-lit $v) int))
+  gating: true
+- name: sema.type.float-literal
+  description: "Float literals carry type f64"
+  trigger: (float-lit $v)
+  target: (assert (type (float-lit $v) f64))
+  gating: true
+- name: sema.type.bool-literal
+  description: "Boolean literals carry type bool"
+  trigger: (bool-lit $v)
+  target: (assert (type (bool-lit $v) bool))
+  gating: true
+- name: sema.type.string-literal
+  description: "String literals carry pointer-to-const-char type"
+  trigger: (str-lit $s)
+  target: (assert (type (str-lit $s) (ptr (const char))))
+  gating: true
+- name: sema.type.add-propagate
+  description: "Addition joins operand types"
+  trigger: (add $x $y)
+  target: (assert (type (add $x $y) (type-join $x $y)))
+  gating: true
+- name: sema.type.sub-propagate
+  description: "Subtraction joins operand types"
+  trigger: (sub $x $y)
+  target: (assert (type (sub $x $y) (type-join $x $y)))
+  gating: true
+- name: sema.type.mul-propagate
+  description: "Multiplication joins operand types"
+  trigger: (mul $x $y)
+  target: (assert (type (mul $x $y) (type-join $x $y)))
+  gating: true
+- name: sema.type.div-propagate
+  description: "Division joins operand types"
+  trigger: (div $x $y)
+  target: (assert (type (div $x $y) (type-join $x $y)))
+  gating: true
+- name: sema.type.cmp-bool
+  description: "Comparisons yield bool regardless of operand types"
+  trigger: (cmp $op $x $y)
+  target: (assert (type (cmp $op $x $y) bool))
+  gating: true
+- name: sema.type.load-deref
+  description: "Load yields the pointee type of its address"
+  trigger: (load $p)
+  target: (assert (type (load $p) (pointee-type $p)))
+  gating: true
+- name: sema.type.store-check
+  description: "Stored value must match the pointee type"
+  trigger: (store $p $v)
+  target: (require (type-eq $v (pointee-type $p)))
+  gating: true
+- name: sema.type.call-result
+  description: "Call takes the callee's declared return type"
+  trigger: (call $f $args)
+  target: (assert (type (call $f $args) (return-type $f)))
+  gating: true
+- name: sema.type.phi-join
+  description: "Phi joins all incoming operand types"
+  trigger: (phi $ops)
+  target: (assert (type (phi $ops) (type-join-all $ops)))
+  gating: true
+- name: sema.type.cast-explicit
+  description: "Explicit cast fixes the result type"
+  trigger: (cast $t $x)
+  target: (assert (type (cast $t $x) $t))
+  gating: true
+- name: sema.type.select-join
+  description: "Select joins its two arm types; condition must be bool"
+  trigger: (select $c $a $b)
+  target: (assert (type (select $c $a $b) (type-join $a $b)))
+  gating: true
+
+# ── sema.const — constness and compile-time evaluability (16–25) ──
+- name: sema.const.literal
+  description: "Every literal is a compile-time constant"
+  trigger: (int-lit $v)
+  target: (assert (const (int-lit $v)))
+  gating: true
+- name: sema.const.fold-candidate
+  description: "Binop over two constants is foldable"
+  trigger: (binop $op $x $y)
+  target: (assert (foldable (binop $op $x $y)))
+  gating: (and (fact (const $x)) (fact (const $y)))
+- name: sema.const.pure-call
+  description: "Pure call with constant args is foldable"
+  trigger: (call $f $args)
+  target: (assert (foldable (call $f $args)))
+  gating: (and (fact (pure $f)) (fact (all-const $args)))
+- name: sema.const.global-immutable
+  description: "Load from an immutable global is constant"
+  trigger: (load (global $g))
+  target: (assert (const (load (global $g))))
+  gating: (fact (immutable $g))
+- name: sema.const.propagate-copy
+  description: "Copy of a constant is constant"
+  trigger: (copy $x)
+  target: (assert (const (copy $x)))
+  gating: (fact (const $x))
+- name: sema.const.string-immutable
+  description: "String literal storage is immutable"
+  trigger: (str-lit $s)
+  target: (assert (immutable-storage (str-lit $s)))
+  gating: true
+- name: sema.const.addr-not-const
+  description: "Taking an address is never a compile-time constant value"
+  trigger: (addr-of $x)
+  target: (assert (not-const (addr-of $x)))
+  gating: true
+- name: sema.const.volatile-not-const
+  description: "Volatile loads are never constant"
+  trigger: (load-volatile $p)
+  target: (assert (not-const (load-volatile $p)))
+  gating: true
+- name: sema.const.phi-same
+  description: "Phi with identical constant inputs is constant"
+  trigger: (phi $ops)
+  target: (assert (const (phi $ops)))
+  gating: (fact (all-same-const $ops))
+- name: sema.const.select-const-cond
+  description: "Select with constant condition is foldable"
+  trigger: (select $c $a $b)
+  target: (assert (foldable (select $c $a $b)))
+  gating: (fact (const $c))
+
+# ── sema.scope — binding and name resolution (26–37) ──
+- name: sema.scope.bind-def
+  description: "Definition introduces a binding in the current scope"
+  trigger: (def $name $val)
+  target: (assert (binds (current-scope) $name (def $name $val)))
+  gating: true
+- name: sema.scope.bind-use
+  description: "Use resolves to the nearest enclosing binding"
+  trigger: (use $name)
+  target: (assert (resolves (use $name) (lookup (current-scope) $name)))
+  gating: true
+- name: sema.scope.shadow
+  description: "Inner binding shadowing an outer one is recorded"
+  trigger: (def $name $val)
+  target: (assert (shadows $name (outer-binding $name)))
+  gating: (fact (bound-in-outer $name))
+- name: sema.scope.unresolved
+  description: "Use with no binding in any scope is a semantic error"
+  trigger: (use $name)
+  target: (error (unresolved-name $name))
+  gating: (fact (not (bound-any $name)))
+- name: sema.scope.dead-binding
+  description: "Binding with no uses is marked dead"
+  trigger: (def $name $val)
+  target: (assert (dead-binding $name))
+  gating: (fact (use-count $name 0))
+- name: sema.scope.closure-capture
+  description: "Free variable in a lambda is a capture"
+  trigger: (lambda $params $body)
+  target: (assert (captures (lambda $params $body) (free-vars $body $params)))
+  gating: true
+- name: sema.scope.capture-by-ref
+  description: "Captured variable that is mutated must be captured by reference"
+  trigger: (lambda $params $body)
+  target: (assert (capture-mode $body by-ref))
+  gating: (fact (mutates-capture $body))
+- name: sema.scope.global-ref
+  description: "Reference to module-level binding is a global reference"
+  trigger: (use $name)
+  target: (assert (global-ref (use $name)))
+  gating: (fact (bound-at-module $name))
+- name: sema.scope.param-bind
+  description: "Formal parameter binds within the function body"
+  trigger: (param $name $ty)
+  target: (assert (binds (function-scope) $name (param $name $ty)))
+  gating: true
+- name: sema.scope.letrec-cycle
+  description: "Mutually recursive bindings form a resolution group"
+  trigger: (letrec $binds $body)
+  target: (assert (resolution-group $binds))
+  gating: true
+- name: sema.scope.module-export
+  description: "Exported name must be bound at module level"
+  trigger: (export $name)
+  target: (require (bound-at-module $name))
+  gating: true
+- name: sema.scope.module-import
+  description: "Import introduces an external binding"
+  trigger: (import $mod $name)
+  target: (assert (binds (module-scope) $name (external $mod $name)))
+  gating: true
+
+# ── sema.effect — effect inference (38–49) ──
+- name: sema.effect.pure-arith
+  description: "Arithmetic on non-volatile operands is effect-free"
+  trigger: (binop $op $x $y)
+  target: (assert (effect (binop $op $x $y) none))
+  gating: true
+- name: sema.effect.load-read
+  description: "Load has a read effect on its address region"
+  trigger: (load $p)
+  target: (assert (effect (load $p) (read (region $p))))
+  gating: true
+- name: sema.effect.store-write
+  description: "Store has a write effect on its address region"
+  trigger: (store $p $v)
+  target: (assert (effect (store $p $v) (write (region $p))))
+  gating: true
+- name: sema.effect.call-unknown
+  description: "Call to unannotated function assumes full effects"
+  trigger: (call $f $args)
+  target: (assert (effect (call $f $args) all))
+  gating: (fact (not (effect-annotated $f)))
+- name: sema.effect.call-annotated
+  description: "Annotated call inherits the callee's declared effect set"
+  trigger: (call $f $args)
+  target: (assert (effect (call $f $args) (declared-effects $f)))
+  gating: (fact (effect-annotated $f))
+- name: sema.effect.volatile-io
+  description: "Volatile access is an io effect and is unremovable"
+  trigger: (load-volatile $p)
+  target: (assert (effect (load-volatile $p) io))
+  gating: true
+- name: sema.effect.atomic-sync
+  description: "Atomic operation carries a synchronization effect"
+  trigger: (atomic $op $args)
+  target: (assert (effect (atomic $op $args) sync))
+  gating: true
+- name: sema.effect.alloc-heap
+  description: "Heap allocation has an alloc effect"
+  trigger: (alloc $ty $n)
+  target: (assert (effect (alloc $ty $n) alloc))
+  gating: true
+- name: sema.effect.free-heap
+  description: "Deallocation has a free effect on its region"
+  trigger: (free $p)
+  target: (assert (effect (free $p) (free (region $p))))
+  gating: true
+- name: sema.effect.throw
+  description: "Throw carries a control effect"
+  trigger: (throw $e)
+  target: (assert (effect (throw $e) control))
+  gating: true
+- name: sema.effect.wasi-io
+  description: "Any wasi-op carries an io effect"
+  trigger: (wasi-op $op $args)
+  target: (assert (effect (wasi-op $op $args) io))
+  gating: true
+- name: sema.effect.safepoint
+  description: "Safepoint carries a gc effect"
+  trigger: (safepoint $id)
+  target: (assert (effect (safepoint $id) gc))
+  gating: true
+
+# ── sema.null — nullability (50–57) ──
+- name: sema.null.literal
+  description: "Null literal is definitely null"
+  trigger: (null-lit)
+  target: (assert (nullability (null-lit) null))
+  gating: true
+- name: sema.null.alloc-nonnull
+  description: "Successful allocation result is non-null"
+  trigger: (alloc $ty $n)
+  target: (assert (nullability (alloc $ty $n) non-null))
+  gating: true
+- name: sema.null.param-unknown
+  description: "Pointer parameters are maybe-null unless annotated"
+  trigger: (param $name (ptr $ty))
+  target: (assert (nullability (param $name (ptr $ty)) maybe-null))
+  gating: (fact (not (nonnull-annotated $name)))
+- name: sema.null.checked-nonnull
+  description: "Value is non-null on the taken edge of a null check"
+  trigger: (branch (cmp ne $p (null-lit)) $then $else)
+  target: (assert (nullability-on-edge $p $then non-null))
+  gating: true
+- name: sema.null.deref-requires
+  description: "Dereference requires a non-null address"
+  trigger: (load $p)
+  target: (require (nullability $p non-null))
+  gating: true
+- name: sema.null.phi-join
+  description: "Phi nullability is the join of incoming nullabilities"
+  trigger: (phi $ops)
+  target: (assert (nullability (phi $ops) (null-join $ops)))
+  gating: true
+- name: sema.null.addr-of
+  description: "Address-of always yields non-null"
+  trigger: (addr-of $x)
+  target: (assert (nullability (addr-of $x) non-null))
+  gating: true
+- name: sema.null.string-lit
+  description: "String literal address is non-null"
+  trigger: (str-lit $s)
+  target: (assert (nullability (str-lit $s) non-null))
+  gating: true
+
+# ── sema.range — value range facts (58–67) ──
+- name: sema.range.const
+  description: "Constant has the singleton range of its value"
+  trigger: (int-lit $v)
+  target: (assert (range (int-lit $v) $v $v))
+  gating: true
+- name: sema.range.add
+  description: "Addition range is the interval sum of operand ranges"
+  trigger: (add $x $y)
+  target: (assert (range (add $x $y) (range-add $x $y)))
+  gating: (and (fact (ranged $x)) (fact (ranged $y)))
+- name: sema.range.sub
+  description: "Subtraction range is the interval difference"
+  trigger: (sub $x $y)
+  target: (assert (range (sub $x $y) (range-sub $x $y)))
+  gating: (and (fact (ranged $x)) (fact (ranged $y)))
+- name: sema.range.mul
+  description: "Multiplication range is the interval product"
+  trigger: (mul $x $y)
+  target: (assert (range (mul $x $y) (range-mul $x $y)))
+  gating: (and (fact (ranged $x)) (fact (ranged $y)))
+- name: sema.range.and-mask
+  description: "Bitwise and with constant mask bounds the result"
+  trigger: (and $x (int-lit $m))
+  target: (assert (range (and $x (int-lit $m)) 0 $m))
+  gating: true
+- name: sema.range.shift-bound
+  description: "Right shift by constant narrows the range"
+  trigger: (lshr $x (int-lit $k))
+  target: (assert (range (lshr $x (int-lit $k)) (range-lshr $x $k)))
+  gating: (fact (ranged $x))
+- name: sema.range.cmp-guard
+  description: "Comparison guard refines the range on the taken edge"
+  trigger: (branch (cmp $op $x (int-lit $c)) $then $else)
+  target: (assert (range-on-edge $x $then (refine $op $x $c)))
+  gating: true
+- name: sema.range.loop-iv
+  description: "Affine induction variable range from bounds and step"
+  trigger: (loop-iv $iv $init $step $bound)
+  target: (assert (range $iv (iv-range $init $step $bound)))
+  gating: (fact (loop-detected $iv))
+- name: sema.range.zext-nonneg
+  description: "Zero extension yields a non-negative value"
+  trigger: (zext $ty $x)
+  target: (assert (range (zext $ty $x) 0 (type-max $ty)))
+  gating: true
+- name: sema.range.div-narrow
+  description: "Division by constant greater than one narrows the range"
+  trigger: (div $x (int-lit $c))
+  target: (assert (range (div $x (int-lit $c)) (range-div $x $c)))
+  gating: (and (fact (ranged $x)) (fact (gt $c 1)))
+
+# ── sema.mem — aliasing, allocation, escape (68–77) ──
+- name: sema.mem.alloca-noalias
+  description: "Each stack allocation is a distinct region"
+  trigger: (alloca $ty $n)
+  target: (assert (distinct-region (alloca $ty $n)))
+  gating: true
+- name: sema.mem.malloc-fresh
+  description: "Heap allocation yields a fresh region aliasing nothing prior"
+  trigger: (alloc $ty $n)
+  target: (assert (fresh-region (alloc $ty $n)))
+  gating: true
+- name: sema.mem.distinct-allocs
+  description: "Two distinct allocation sites never alias"
+  trigger: (pair (alloc $t1 $n1) (alloc $t2 $n2))
+  target: (assert (no-alias (alloc $t1 $n1) (alloc $t2 $n2)))
+  gating: true
+- name: sema.mem.field-disjoint
+  description: "Distinct fields of one object are disjoint regions"
+  trigger: (field $obj $f)
+  target: (assert (disjoint-within $obj $f))
+  gating: true
+- name: sema.mem.restrict-param
+  description: "Restrict-qualified parameter aliases no other parameter"
+  trigger: (param $name (restrict-ptr $ty))
+  target: (assert (no-alias-params $name))
+  gating: true
+- name: sema.mem.escape-store
+  description: "Storing a pointer into memory escapes it"
+  trigger: (store $p $q)
+  target: (assert (escapes $q))
+  gating: (fact (is-pointer $q))
+- name: sema.mem.escape-call
+  description: "Passing a pointer to an unknown call escapes it"
+  trigger: (call $f $args)
+  target: (assert (escapes-any (pointer-args $args)))
+  gating: (fact (not (effect-annotated $f)))
+- name: sema.mem.escape-return
+  description: "Returning a pointer escapes it"
+  trigger: (return $p)
+  target: (assert (escapes $p))
+  gating: (fact (is-pointer $p))
+- name: sema.mem.stack-no-escape
+  description: "Non-escaping stack allocation is promotable"
+  trigger: (alloca $ty $n)
+  target: (assert (promotable (alloca $ty $n)))
+  gating: (fact (not (escapes (alloca $ty $n))))
+- name: sema.mem.alias-may
+  description: "Unrelated pointer pair defaults to may-alias"
+  trigger: (pair $p $q)
+  target: (assert (may-alias $p $q))
+  gating: (fact (not (proven-distinct $p $q)))
+
+# ── sema.cfg — control-flow semantics (78–87) ──
+- name: sema.cfg.unreachable-after-return
+  description: "Code after return in the same block is unreachable"
+  trigger: (seq (return $v) $rest)
+  target: (assert (unreachable $rest))
+  gating: true
+- name: sema.cfg.unreachable-after-throw
+  description: "Code after throw in the same block is unreachable"
+  trigger: (seq (throw $e) $rest)
+  target: (assert (unreachable $rest))
+  gating: true
+- name: sema.cfg.loop-header
+  description: "Block targeted by a back edge is a loop header"
+  trigger: (block $b)
+  target: (assert (loop-header $b))
+  gating: (fact (has-back-edge $b))
+- name: sema.cfg.loop-exit
+  description: "Edge leaving a loop body is an exit edge"
+  trigger: (edge $from $to)
+  target: (assert (loop-exit-edge $from $to))
+  gating: (and (fact (in-loop $from)) (fact (not (in-loop $to))))
+- name: sema.cfg.dominates-use
+  description: "Every use must be dominated by its definition"
+  trigger: (use-of $def $use)
+  target: (require (dominates $def $use))
+  gating: true
+- name: sema.cfg.back-edge
+  description: "Edge to a dominator is a back edge"
+  trigger: (edge $from $to)
+  target: (assert (back-edge $from $to))
+  gating: (fact (dominates $to $from))
+- name: sema.cfg.irreducible
+  description: "Multiple-entry cycle is flagged irreducible"
+  trigger: (cycle $blocks)
+  target: (assert (irreducible $blocks))
+  gating: (fact (multi-entry $blocks))
+- name: sema.cfg.infinite-loop
+  description: "Loop with no exit edges and no io effect is flagged"
+  trigger: (loop $body)
+  target: (assert (non-terminating (loop $body)))
+  gating: (and (fact (no-exit-edges $body)) (fact (effect-free $body)))
+- name: sema.cfg.cold-path
+  description: "Path ending in throw or abort is cold"
+  trigger: (block $b)
+  target: (assert (cold $b))
+  gating: (fact (ends-in-abnormal $b))
+- name: sema.cfg.exception-edge
+  description: "Call inside a try region has an exceptional successor"
+  trigger: (call $f $args)
+  target: (assert (exc-edge (call $f $args) (handler-of (current-region))))
+  gating: (fact (in-try-region (call $f $args)))
+
+# ── sema.call — call and linkage semantics (88–97) ──
+- name: sema.call.direct-known
+  description: "Call to a defined symbol is direct and inlinable-candidate"
+  trigger: (call (global $f) $args)
+  target: (assert (direct-call (call (global $f) $args)))
+  gating: (fact (defined $f))
+- name: sema.call.indirect-unknown
+  description: "Call through a value has an unknown target set"
+  trigger: (call-indirect $p $args)
+  target: (assert (targets (call-indirect $p $args) unknown))
+  gating: true
+- name: sema.call.vararg
+  description: "Variadic call sites are marked and excluded from strict arity"
+  trigger: (call $f $args)
+  target: (assert (vararg-site (call $f $args)))
+  gating: (fact (variadic $f))
+- name: sema.call.tail-position
+  description: "Call whose result is immediately returned is in tail position"
+  trigger: (return (call $f $args))
+  target: (assert (tail-position (call $f $args)))
+  gating: true
+- name: sema.call.recursive
+  description: "Call targeting the enclosing function is recursive"
+  trigger: (call (global $f) $args)
+  target: (assert (recursive-call (call (global $f) $args)))
+  gating: (fact (enclosing-function $f))
+- name: sema.call.extern-linkage
+  description: "Call to an external symbol crosses the module boundary"
+  trigger: (call (global $f) $args)
+  target: (assert (extern-call (call (global $f) $args)))
+  gating: (fact (external $f))
+- name: sema.call.intrinsic-recognized
+  description: "Call matching a libc intrinsic idiom is tagged"
+  trigger: (call (global $f) $args)
+  target: (assert (intrinsic-site (call (global $f) $args) (intrinsic-id $f)))
+  gating: (fact (analysis.libc-intrinsic $f))
+- name: sema.call.abi-mismatch
+  description: "Call whose argument types differ from the declaration errors"
+  trigger: (call (global $f) $args)
+  target: (error (abi-mismatch $f $args))
+  gating: (fact (not (signature-match $f $args)))
+- name: sema.call.arity-check
+  description: "Non-variadic call must match declared arity"
+  trigger: (call (global $f) $args)
+  target: (require (arity-eq $f $args))
+  gating: (fact (not (variadic $f)))
+- name: sema.call.noreturn
+  description: "Call to a noreturn function terminates the block"
+  trigger: (call (global $f) $args)
+  target: (assert (block-terminator (call (global $f) $args)))
+  gating: (fact (noreturn $f))
+
+# ── sema.ub — undefined-behavior detection (98–107) ──
+- name: sema.ub.div-by-zero
+  description: "Division by literal zero is a definite error"
+  trigger: (div $x (int-lit 0))
+  target: (error (div-by-zero (div $x (int-lit 0))))
+  gating: true
+- name: sema.ub.shift-oob
+  description: "Shift amount at or above bit width is undefined"
+  trigger: (shl $x (int-lit $k))
+  target: (error (shift-oob $k))
+  gating: (fact (geq $k (bit-width $x)))
+- name: sema.ub.signed-overflow-add
+  description: "Signed add proven to overflow by ranges is flagged"
+  trigger: (add $x $y)
+  target: (assert (ub-site (add $x $y) signed-overflow))
+  gating: (fact (ranges-overflow add $x $y))
+- name: sema.ub.signed-overflow-mul
+  description: "Signed mul proven to overflow by ranges is flagged"
+  trigger: (mul $x $y)
+  target: (assert (ub-site (mul $x $y) signed-overflow))
+  gating: (fact (ranges-overflow mul $x $y))
+- name: sema.ub.null-deref
+  description: "Dereference of definitely-null pointer is a definite error"
+  trigger: (load $p)
+  target: (error (null-deref (load $p)))
+  gating: (fact (nullability $p null))
+- name: sema.ub.oob-index
+  description: "Index proven out of bounds by ranges is flagged"
+  trigger: (index $arr $i)
+  target: (assert (ub-site (index $arr $i) out-of-bounds))
+  gating: (fact (range-exceeds $i (length $arr)))
+- name: sema.ub.uninit-read
+  description: "Read of a variable with no reaching definition is flagged"
+  trigger: (use $name)
+  target: (assert (ub-site (use $name) uninitialized))
+  gating: (fact (no-reaching-def $name))
+- name: sema.ub.misaligned
+  description: "Access with provably insufficient alignment is flagged"
+  trigger: (load $p)
+  target: (assert (ub-site (load $p) misaligned))
+  gating: (fact (align-below $p (natural-align (pointee-type $p))))
+- name: sema.ub.dangling-load
+  description: "Load from a freed region is a definite error"
+  trigger: (load $p)
+  target: (error (use-after-free (load $p)))
+  gating: (fact (region-freed (region $p)))
+- name: sema.ub.invalid-cast
+  description: "Cast between incompatible non-pointer types is flagged"
+  trigger: (cast $t $x)
+  target: (assert (ub-site (cast $t $x) invalid-cast))
+  gating: (fact (incompatible-cast $t $x))
+
+# ── sema.life — lifetime and ownership (108–115) ──
+- name: sema.life.def-before-use
+  description: "Definition point opens the value's live range"
+  trigger: (def $name $val)
+  target: (assert (live-from $name (def $name $val)))
+  gating: true
+- name: sema.life.last-use
+  description: "Use with no later uses closes the live range"
+  trigger: (use $name)
+  target: (assert (live-to $name (use $name)))
+  gating: (fact (no-later-use $name))
+- name: sema.life.dead-store
+  description: "Store overwritten before any read is dead"
+  trigger: (store $p $v)
+  target: (assert (dead-store (store $p $v)))
+  gating: (fact (overwritten-before-read $p))
+- name: sema.life.live-across-call
+  description: "Value live across a call needs a callee-saved home"
+  trigger: (use $name)
+  target: (assert (live-across-call $name))
+  gating: (fact (call-between-def-use $name))
+- name: sema.life.live-across-safepoint
+  description: "Managed pointer live across a safepoint must be in the stack map"
+  trigger: (use $name)
+  target: (require (in-stack-map $name))
+  gating: (and (fact (managed-pointer $name)) (fact (safepoint-between-def-use $name)))
+- name: sema.life.borrow-local
+  description: "Address of a local must not outlive the local's scope"
+  trigger: (addr-of (local $x))
+  target: (require (contained-lifetime (addr-of (local $x)) (scope-of $x)))
+  gating: true
+- name: sema.life.owner-move
+  description: "Move transfers ownership and kills the source binding"
+  trigger: (move $dst $src)
+  target: (assert (moved-out $src))
+  gating: true
+- name: sema.life.drop-point
+  description: "Owned value's live-range end is its drop point"
+  trigger: (def $name $val)
+  target: (assert (drop-at $name (live-to-point $name)))
+  gating: (fact (owned $name))
+
+# ── sema.vec — SIMD/vector semantics (116–123) ──
+- name: sema.vec.lane-type
+  description: "Vector op lanes must share one element type"
+  trigger: (vec-op $op $width $args)
+  target: (require (uniform-lane-type $args))
+  gating: true
+- name: sema.vec.width-legal
+  description: "Vector width must be published legal for the target"
+  trigger: (vec-op $op $width $args)
+  target: (require (fact (analysis.vector-width $width)))
+  gating: true
+- name: sema.vec.unit-stride
+  description: "Unit-stride access pattern is recorded for legality"
+  trigger: (index $arr (loop-iv $iv $init 1 $bound))
+  target: (assert (unit-stride (index $arr $iv)))
+  gating: true
+- name: sema.vec.reduction-assoc
+  description: "Reduction over a strictly associative op is vectorizable"
+  trigger: (reduce $op $init $seq)
+  target: (assert (vectorizable-reduction (reduce $op $init $seq)))
+  gating: (fact (associative $op))
+- name: sema.vec.mask-bool
+  description: "Vector mask lanes must be boolean"
+  trigger: (vec-select $mask $a $b)
+  target: (require (lane-type $mask bool))
+  gating: true
+- name: sema.vec.splat-uniform
+  description: "Splat of a loop-invariant value is uniform across lanes"
+  trigger: (splat $x $width)
+  target: (assert (uniform (splat $x $width)))
+  gating: (fact (loop-invariant $x))
+- name: sema.vec.gather-deferred
+  description: "Non-unit-stride access is published as a negative legality fact"
+  trigger: (index $arr $i)
+  target: (assert (not-vectorizable (index $arr $i) non-unit-stride))
+  gating: (fact (not (unit-stride (index $arr $i))))
+- name: sema.vec.fp-reassoc-optin
+  description: "Float reduction reorder requires the explicit reassociation flag"
+  trigger: (reduce $op $init $seq)
+  target: (require (flag fp-reassociate))
+  gating: (fact (float-lane $seq))
+
+# ── sema.wasi — WASI semantics (124–129) ──
+- name: sema.wasi.op-known
+  description: "wasi-op name must exist in the frozen preview1 op table"
+  trigger: (wasi-op $op $args)
+  target: (require (abi-preview1-op $op))
+  gating: true
+- name: sema.wasi.fd-rights
+  description: "fd operation records the rights it requires"
+  trigger: (wasi-op $op $args)
+  target: (assert (requires-rights $op (rights-of $op)))
+  gating: (fact (fd-op $op))
+- name: sema.wasi.path-sandbox
+  description: "Statically absolute path outside the sandbox is a definite error"
+  trigger: (wasi-op path_open $args)
+  target: (error (sandbox-escape $args))
+  gating: (fact (static-absolute-path $args))
+- name: sema.wasi.errno-domain
+  description: "wasi-op result is an errno in the preview1 domain"
+  trigger: (wasi-op $op $args)
+  target: (assert (range (wasi-op $op $args) 0 76))
+  gating: true
+- name: sema.wasi.clock-monotonic
+  description: "Monotonic clock reads never decrease across a single run"
+  trigger: (wasi-op clock_time_get (clock monotonic))
+  target: (assert (monotone (wasi-op clock_time_get (clock monotonic))))
+  gating: true
+- name: sema.wasi.random-entropy
+  description: "random_get results are opaque and never foldable"
+  trigger: (wasi-op random_get $args)
+  target: (assert (not-const (wasi-op random_get $args)))
+  gating: true
+
+# ── sema.oop — object-oriented semantics (130–137) ──
+- name: sema.oop.receiver-type
+  description: "Virtual call receiver static type bounds the target set"
+  trigger: (vcall $recv $slot $args)
+  target: (assert (target-set (vcall $recv $slot $args) (subclasses (type-of $recv))))
+  gating: true
+- name: sema.oop.monomorphic-site
+  description: "Virtual site with a single feedback type is devirtualizable"
+  trigger: (vcall $recv $slot $args)
+  target: (assert (devirt-candidate (vcall $recv $slot $args)))
+  gating: (fact (single-type-feedback $recv))
+- name: sema.oop.null-receiver
+  description: "Virtual call requires a non-null receiver"
+  trigger: (vcall $recv $slot $args)
+  target: (require (nullability $recv non-null))
+  gating: true
+- name: sema.oop.field-offset
+  description: "Field access resolves to a fixed offset once layout is final"
+  trigger: (field $obj $f)
+  target: (assert (offset (field $obj $f) (layout-offset (type-of $obj) $f)))
+  gating: (fact (layout-final (type-of $obj)))
+- name: sema.oop.ctor-init
+  description: "Every field must be initialized on all constructor paths"
+  trigger: (ctor $cls $body)
+  target: (require (all-fields-initialized $cls $body))
+  gating: true
+- name: sema.oop.override-check
+  description: "Override must match the overridden slot's signature"
+  trigger: (method $cls $name $sig)
+  target: (require (signature-compatible $sig (super-slot $cls $name)))
+  gating: (fact (overrides $cls $name))
+- name: sema.oop.upcast-safe
+  description: "Cast to a superclass is always safe and effect-free"
+  trigger: (cast $t $x)
+  target: (assert (safe-cast (cast $t $x)))
+  gating: (fact (superclass-of $t (type-of $x)))
+- name: sema.oop.downcast-check
+  description: "Cast to a subclass requires a runtime type check"
+  trigger: (cast $t $x)
+  target: (assert (needs-type-check (cast $t $x)))
+  gating: (fact (subclass-of $t (type-of $x)))
+
+# ── sema.fn — functional-language semantics (138–145) ──
+- name: sema.fn.closure-env
+  description: "Closure environment layout is derived from its capture set"
+  trigger: (lambda $params $body)
+  target: (assert (env-layout (lambda $params $body) (sorted-captures $body)))
+  gating: true
+- name: sema.fn.lambda-arity
+  description: "Saturated application must match lambda arity"
+  trigger: (a

@@ -18,6 +18,7 @@ We have three salvos so far:
   - Implemented libc
   - Implemented SML Basis
 - `rewrite-salvo` -> a salvo of Oeuph rewrite rules
+- `sema-salvo` -> a salvo of Oeuph semantic rules
 - `examples-salvo` -> a salvo of examples for the compilers/interpreters
   - `examples-salvo/simple` -> Simple code
   - `examples-salvo/semi-complex` -> Semi-complex algorithms specified in `.agents/SEMI-COMPLEX.md`
@@ -65,7 +66,8 @@ ccweave/
   kliche/               # functional/, imperative/, oop/ stereotypes
   swaff/                # grammars/ + adapters/
   oeuph/                # e-graph engine
-  rewrite-salvo/           # rulesets
+  sema-salvo            # semantic rulesets
+  rewrite-salvo/        # rewrite rulesets
   sched/                # the scheduler + orchestrator engine
   compilers/            # the compilers derived from the CCWeave infrastructure
   interpreters/         # the interpreters weaved from CCWeave
@@ -106,8 +108,7 @@ the next begins; later stages depend on earlier ones.
 7. **Example kernels** (`kernels/`): start by transcribing
    `strength-reduce.scm` from the specs, then add at least one kernel
    per capability domain you need for testing.
-8. **Oeuph** (`oeuph/`) and **rewrite-salvo**: e-graph engine over the
-   canonical in-memory IR, with budgets, determinism, per-ruleset
+8. **Oeuph** (`oeuph/`), **sema-salvo** and **rewrite-salvo**: e-graph engine over the canonical in-memory IR, with budgets, determinism, per-ruleset
    diagnostics.
 9. **Kliche** stereotypes, then **Swaff** frontends (Tree-sitter
    grammar + lowering adapter) last.

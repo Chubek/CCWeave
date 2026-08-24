@@ -225,11 +225,29 @@ write_elf64 (const ccw_unit_t *u, const char *path, char **error)
 
   /* Build string tables */
   /* Section header string table */
-  size_t shstr_offsets[16];
-  const char *shstr_names[]
-      = { "",        ".text",     ".data",     ".bss",       ".symtab",
-          ".strtab", ".shstrtab", ".note.ccw", ".rela.text", ".rela.data" };
-  size_t nshstr = sizeof (shstr_names) / sizeof (shstr_names[0]);
+  size_t shstr_offsets[32];
+  /* Build shstrtab dynamically from actual section names + fixed names */
+  const char *shstr_names[32];
+  size_t nshstr = 0;
+  shstr_names[nshstr++] = ""; /* index 0: empty */
+  /* Add content section names from the unit */
+  for (size_t i = 0; i < nsec; i++)
+    shstr_names[nshstr++] = kv_A (u->sections, i).name;
+  /* Add fixed section names for non-content sections */
+  size_t fixed_start = nshstr;
+  shstr_names[nshstr++] = ".symtab";
+  shstr_names[nshstr++] = ".strtab";
+  shstr_names[nshstr++] = ".shstrtab";
+  shstr_names[nshstr++] = ".note.ccw";
+  /* Add rela section names */
+  size_t rela_name_start = nshstr;
+  for (size_t i = 0; i < nrela; i++)
+    {
+      char rela_name[64];
+      snprintf (rela_name, sizeof (rela_name), ".rela%s",
+                kv_A (u->sections, i).name);
+      shstr_names[nshstr++] = strdup (rela_name);
+    }
   char shstrtab[512];
   size_t shstr_len = build_strtab (shstrtab, sizeof (shstrtab), shstr_names,
                                    nshstr, shstr_offsets);
@@ -447,7 +465,7 @@ write_elf64 (const ccw_unit_t *u, const char *path, char **error)
   for (size_t i = 0; i < nsec; i++)
     {
       ccw_section_t *sec = &kv_A (u->sections, i);
-      shdr[1 + i].sh_name = (Elf64_Word)shstr_offsets[1 + (i < 3 ? i : 3)];
+      shdr[1 + i].sh_name = (Elf64_Word)shstr_offsets[1 + i];
       shdr[1 + i].sh_type = (sec->type == 8) ? SHT_NOBITS : SHT_PROGBITS;
       shdr[1 + i].sh_flags = sec->flags;
       shdr[1 + i].sh_offset = sec_offsets[i];
@@ -460,7 +478,7 @@ write_elf64 (const ccw_unit_t *u, const char *path, char **error)
   for (size_t i = 0; i < nrela; i++)
     {
       size_t hi = 1 + nsec + i;
-      shdr[hi].sh_name = (Elf64_Word)shstr_offsets[8 + (i == 0 ? 0 : 1)];
+      shdr[hi].sh_name = (Elf64_Word)shstr_offsets[rela_name_start + i];
       shdr[hi].sh_type = SHT_RELA;
       shdr[hi].sh_flags = 0;
       shdr[hi].sh_offset = rela_offsets[i];
@@ -473,7 +491,7 @@ write_elf64 (const ccw_unit_t *u, const char *path, char **error)
 
   /* Symtab, strtab, shstrtab, note */
   size_t symtab_idx = 1 + nsec + nrela;
-  shdr[symtab_idx].sh_name = (Elf64_Word)shstr_offsets[4];
+  shdr[symtab_idx].sh_name = (Elf64_Word)shstr_offsets[fixed_start + 0];
   shdr[symtab_idx].sh_type = SHT_SYMTAB;
   shdr[symtab_idx].sh_offset = symoff;
   shdr[symtab_idx].sh_size = symn * sizeof (Elf64_Sym);
@@ -482,17 +500,17 @@ write_elf64 (const ccw_unit_t *u, const char *path, char **error)
   shdr[symtab_idx].sh_addralign = 8;
   shdr[symtab_idx].sh_entsize = sizeof (Elf64_Sym);
 
-  shdr[symtab_idx + 1].sh_name = (Elf64_Word)shstr_offsets[5];
+  shdr[symtab_idx + 1].sh_name = (Elf64_Word)shstr_offsets[fixed_start + 1];
   shdr[symtab_idx + 1].sh_type = SHT_STRTAB;
   shdr[symtab_idx + 1].sh_offset = stroff;
   shdr[symtab_idx + 1].sh_size = strtab_len;
 
-  shdr[symtab_idx + 2].sh_name = (Elf64_Word)shstr_offsets[6];
+  shdr[symtab_idx + 2].sh_name = (Elf64_Word)shstr_offsets[fixed_start + 2];
   shdr[symtab_idx + 2].sh_type = SHT_STRTAB;
   shdr[symtab_idx + 2].sh_offset = shstroff;
   shdr[symtab_idx + 2].sh_size = shstr_len;
 
-  shdr[symtab_idx + 3].sh_name = (Elf64_Word)shstr_offsets[7];
+  shdr[symtab_idx + 3].sh_name = (Elf64_Word)shstr_offsets[fixed_start + 3];
   shdr[symtab_idx + 3].sh_type = SHT_NOTE;
   shdr[symtab_idx + 3].sh_offset = noteoff;
   shdr[symtab_idx + 3].sh_size = 32;
@@ -501,6 +519,8 @@ write_elf64 (const ccw_unit_t *u, const char *path, char **error)
   FILE *f = fopen (path, "wb");
   if (!f)
     {
+      for (size_t i = 0; i < nrela; i++)
+        free ((void *)shstr_names[rela_name_start + i]);
       free (buf);
       free (sec_offsets);
       free (sec_sizes);
@@ -516,6 +536,8 @@ write_elf64 (const ccw_unit_t *u, const char *path, char **error)
   fwrite (buf, 1, total, f);
   fclose (f);
 
+  for (size_t i = 0; i < nrela; i++)
+    free ((void *)shstr_names[rela_name_start + i]);
   free (buf);
   free (sec_offsets);
   free (sec_sizes);
