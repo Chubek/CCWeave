@@ -279,16 +279,17 @@ type_from_text (delphi_ctx *ctx, TSNode n)
 static bool
 terminated (const ccw_ir *ir, ccw_node block)
 {
-  int n = ccw_ir_block_instr_count (ir, block);
-static bool
-block_terminated (const ccw_ir *ir, ccw_node block)
-{
   int count = ccw_ir_block_instr_count (ir, block);
   if (count == 0)
     return false;
   ccw_node last = ccw_ir_block_instr_ref (ir, block, count - 1);
   return ccw_ir_instr_is_terminator (ir, last);
 }
+
+static char *
+lower_identifier (delphi_ctx *ctx, ccw_node block, TSNode n)
+{
+  char *name = text (ctx, n);
   if (name == NULL)
     {
       fail (ctx, "swaff Delphi: invalid identifier");

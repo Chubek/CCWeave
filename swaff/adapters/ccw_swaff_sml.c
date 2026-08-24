@@ -173,7 +173,6 @@ new_block_name (ccw_sml_lower *ctx, const char *stem)
 }
 
 static bool
-static bool
 block_terminated (const ccw_ir *ir, ccw_node block)
 {
   int count = ccw_ir_block_instr_count (ir, block);
