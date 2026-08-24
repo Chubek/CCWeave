@@ -272,9 +272,21 @@ write_elf64 (const ccw_unit_t *u, const char *path, char **error)
       = (const char **)calloc (nsym + 1, sizeof (const char *));
   sym_names[0] = "";
   size_t si = 1;
+  size_t first_global = 1;
   for (k = kh_begin (u->symtab); k != kh_end (u->symtab); ++k)
     {
-      if (kh_exist (u->symtab, k))
+      if (kh_exist (u->symtab, k)
+          && kh_value (u->symtab, k).binding == STB_LOCAL)
+        {
+          sym_names[si] = kh_key (u->symtab, k);
+          si++;
+        }
+    }
+  first_global = si;
+  for (k = kh_begin (u->symtab); k != kh_end (u->symtab); ++k)
+    {
+      if (kh_exist (u->symtab, k)
+          && kh_value (u->symtab, k).binding != STB_LOCAL)
         {
           sym_names[si] = kh_key (u->symtab, k);
           si++;
@@ -389,21 +401,21 @@ write_elf64 (const ccw_unit_t *u, const char *path, char **error)
   syms[0].st_value = 0;
   syms[0].st_size = 0;
   si = 1;
-  for (k = kh_begin (u->symtab); k != kh_end (u->symtab); ++k)
+  for (size_t sym_i = 1; sym_i <= nsym; sym_i++)
     {
-      if (kh_exist (u->symtab, k))
+      khint_t sym_k = kh_get (ccw_sym, u->symtab, sym_names[sym_i]);
+      if (sym_k != kh_end (u->symtab))
         {
-          ccw_symbol_t *sym = &kh_value (u->symtab, k);
-          syms[si].st_name = (Elf64_Word)sym_offsets[si];
-          syms[si].st_info
+          ccw_symbol_t *sym = &kh_value (u->symtab, sym_k);
+          syms[sym_i].st_name = (Elf64_Word)sym_offsets[sym_i];
+          syms[sym_i].st_info
               = (unsigned char)((sym->binding << 4)
                                 | (sym->section < 0 ? STT_NOTYPE : STT_FUNC));
-          syms[si].st_other = 0;
-          syms[si].st_shndx
+          syms[sym_i].st_other = 0;
+          syms[sym_i].st_shndx
               = (Elf64_Half)(sym->section >= 0 ? sym->section + 1 : 0);
-          syms[si].st_value = sym->value;
-          syms[si].st_size = sym->size;
-          si++;
+          syms[sym_i].st_value = sym->value;
+          syms[sym_i].st_size = sym->size;
         }
     }
 
@@ -496,7 +508,7 @@ write_elf64 (const ccw_unit_t *u, const char *path, char **error)
   shdr[symtab_idx].sh_offset = symoff;
   shdr[symtab_idx].sh_size = symn * sizeof (Elf64_Sym);
   shdr[symtab_idx].sh_link = (Elf64_Word)(symtab_idx + 1);
-  shdr[symtab_idx].sh_info = (Elf64_Word)1;
+  shdr[symtab_idx].sh_info = (Elf64_Word)first_global;
   shdr[symtab_idx].sh_addralign = 8;
   shdr[symtab_idx].sh_entsize = sizeof (Elf64_Sym);
 

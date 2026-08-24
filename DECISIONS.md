@@ -1,5 +1,17 @@
 # Decisions
 
+## 2026-08-24 — Cephyr's emitted objects must remain linkable through ccwas/ccwld
+
+The Dijkstra failure exposed a chain of integration gaps rather than a single
+bad instruction: Cephyr's x86-64 fallback had to stop emitting bare virtual
+names and instead map them to stack slots; ccwas had to write ELF symbol tables
+with locals first and a correct `sh_info`; ccwld had to read ELF string tables
+as raw byte ranges instead of C strings; and ccwld relocation resolution had
+to honor same-object local labels before falling back to the global resolved
+table.  That progression is now the expected path for Cephyr-generated
+objects, and future fixes in this area should preserve linkability at each
+stage rather than papering over one stage's output format.
+
 ## 2026-08-24 — Swaff adapters are total over their grammars
 
 Swaff adapters must not reject a valid Tree-sitter construct merely because

@@ -47,6 +47,153 @@ cephyr_driver_strdup (const char *s)
   return ks_release (&copy);
 }
 
+typedef struct
+{
+  char *name;
+  int offset;
+} cephyr_stack_slot;
+
+typedef struct
+{
+  cephyr_stack_slot *slots;
+  size_t count;
+  size_t cap;
+} cephyr_stack_frame;
+
+static void
+cephyr_stack_frame_init (cephyr_stack_frame *frame)
+{
+  memset (frame, 0, sizeof (*frame));
+}
+
+static void
+cephyr_stack_frame_destroy (cephyr_stack_frame *frame)
+{
+  if (frame == NULL)
+    return;
+  for (size_t i = 0; i < frame->count; i++)
+    free (frame->slots[i].name);
+  free (frame->slots);
+  memset (frame, 0, sizeof (*frame));
+}
+
+static int
+cephyr_is_x86_reg_name (const char *name)
+{
+  static const char *const regs[] = {
+    "rax",  "rbx",  "rcx",  "rdx",  "rsi",  "rdi",  "rbp",  "rsp",
+    "eax",  "ebx",  "ecx",  "edx",  "esi",  "edi",  "ebp",  "esp",
+    "ax",   "bx",   "cx",   "dx",   "si",   "di",   "bp",   "sp",
+    "al",   "bl",   "cl",   "dl",   "ah",   "bh",   "ch",   "dh",
+    "r8",   "r9",   "r10",  "r11",  "r12",  "r13",  "r14",  "r15",
+    "r8d",  "r9d",  "r10d", "r11d", "r12d", "r13d", "r14d", "r15d",
+    "r8w",  "r9w",  "r10w", "r11w", "r12w", "r13w", "r14w", "r15w",
+    "r8b",  "r9b",  "r10b", "r11b", "r12b", "r13b", "r14b", "r15b",
+    NULL
+  };
+  if (name == NULL)
+    return 0;
+  for (size_t i = 0; regs[i] != NULL; i++)
+    if (strcmp (name, regs[i]) == 0)
+      return 1;
+  return 0;
+}
+
+static int
+cephyr_stack_frame_find (const cephyr_stack_frame *frame, const char *name)
+{
+  if (frame == NULL || name == NULL)
+    return -1;
+  for (size_t i = 0; i < frame->count; i++)
+    if (strcmp (frame->slots[i].name, name) == 0)
+      return (int)i;
+  return -1;
+}
+
+static int
+cephyr_stack_frame_add (cephyr_stack_frame *frame, const char *name)
+{
+  cephyr_stack_slot *slots;
+  if (frame == NULL || name == NULL || *name == '\0'
+      || cephyr_is_x86_reg_name (name))
+    return -1;
+  if (cephyr_stack_frame_find (frame, name) >= 0)
+    return 0;
+  if (frame->count == frame->cap)
+    {
+      size_t ncap = frame->cap ? frame->cap * 2 : 32;
+      slots = realloc (frame->slots, ncap * sizeof (*slots));
+      if (slots == NULL)
+        return -1;
+      frame->slots = slots;
+      frame->cap = ncap;
+    }
+  frame->slots[frame->count].name = cephyr_driver_strdup (name);
+  if (frame->slots[frame->count].name == NULL)
+    return -1;
+  frame->slots[frame->count].offset = (int)((frame->count + 1) * 8);
+  frame->count++;
+  return 0;
+}
+
+static void
+cephyr_stack_frame_collect_operand (cephyr_stack_frame *frame, const char *name)
+{
+  (void)cephyr_stack_frame_add (frame, name);
+}
+
+static void
+cephyr_stack_frame_collect_instruction (cephyr_stack_frame *frame,
+                                       const ccw_ir *ir, ccw_node ins)
+{
+  const char *opcode = ccw_ir_instr_opcode (ir, ins);
+  const char *dest = ccw_ir_instr_dest (ir, ins);
+  int nops = ccw_ir_instr_operand_count (ir, ins);
+  if (opcode == NULL)
+    return;
+  cephyr_stack_frame_collect_operand (frame, dest);
+  for (int oi = 0; oi < nops; oi++)
+    {
+      ccw_node op = ccw_ir_instr_operand (ir, ins, oi);
+      if (ccw_ir_operand_is_const (ir, op))
+        continue;
+      const char *name = ccw_ir_operand_name (ir, op);
+      if (name == NULL)
+        continue;
+      if (strcmp (opcode, "call") == 0 && oi == 0)
+        continue;
+      if (strcmp (opcode, "branch") == 0 && oi == 0)
+        continue;
+      if (strcmp (opcode, "branch.if") == 0 && oi > 0)
+        continue;
+      if (strcmp (opcode, "br.cond") == 0 && oi > 0)
+        continue;
+      if (strcmp (opcode, "phi") == 0 && (oi % 2) == 1)
+        continue;
+      cephyr_stack_frame_collect_operand (frame, name);
+    }
+}
+
+static char *
+cephyr_stack_ref (const cephyr_stack_frame *frame, const char *name)
+{
+  kstring_t out = { 0, 0, NULL };
+  int idx;
+  if (name == NULL)
+    return NULL;
+  if (cephyr_is_x86_reg_name (name))
+    return cephyr_driver_strdup (name);
+  idx = cephyr_stack_frame_find (frame, name);
+  if (idx < 0)
+    return cephyr_driver_strdup (name);
+  if (ksprintf (&out, "[rbp - %d]", frame->slots[idx].offset) < 0)
+    {
+      free (out.s);
+      return NULL;
+    }
+  return ks_release (&out);
+}
+
 static char *read_file (const char *path, size_t *out_len);
 
 /* Check if an env var is set to a truthy value (1, true, yes,
@@ -949,9 +1096,26 @@ emit_target_assembly (const ccw_ir *ir, const char *triple)
           const char *name = ccw_ir_function_name (ir, fn);
           if (name == NULL || *name == '\0')
             continue;
-          APPEND_FMT (".global %s\n.type %s, @function\n%s:\n", name, name, name);
+          APPEND_FMT (".global %s\n%s:\n", name, name);
 
+          cephyr_stack_frame frame;
+          cephyr_stack_frame_init (&frame);
           int nblocks = ccw_ir_function_block_count (ir, fn);
+          for (j = 0; j < nblocks; ++j)
+            {
+              ccw_node blk = ccw_ir_function_block_ref (ir, fn, j);
+              int ninstrs = ccw_ir_block_instr_count (ir, blk);
+              for (k = 0; k < ninstrs; ++k)
+                cephyr_stack_frame_collect_instruction (
+                    &frame, ir, ccw_ir_block_instr_ref (ir, blk, k));
+            }
+          int frame_size = (int)((frame.count * 8 + 15) & ~15);
+          if (frame_size > 0)
+            APPEND_FMT ("  push rbp\n  mov rbp, rsp\n  sub rsp, %d\n",
+                        frame_size);
+          else
+            APPEND_FMT ("  push rbp\n  mov rbp, rsp\n");
+
           for (j = 0; j < nblocks; ++j)
             {
               ccw_node blk = ccw_ir_function_block_ref (ir, fn, j);
@@ -966,6 +1130,7 @@ emit_target_assembly (const ccw_ir *ir, const char *triple)
                   const char *opcode = ccw_ir_instr_opcode (ir, ins);
                   const char *dest = ccw_ir_instr_dest (ir, ins);
                   int nops = ccw_ir_instr_operand_count (ir, ins);
+                  char *dest_ref = cephyr_stack_ref (&frame, dest);
 
                   if (opcode == NULL)
                     continue;
@@ -1001,166 +1166,239 @@ emit_target_assembly (const ccw_ir *ir, const char *triple)
                           if (op_is_const[0])
                             APPEND_FMT ("  mov eax, %ld\n", (long)op_vals[0]);
                           else if (ops[0])
-                            APPEND_FMT ("  mov eax, %s\n", ops[0]);
+                            {
+                              char *src0 = cephyr_stack_ref (&frame, ops[0]);
+                              APPEND_FMT ("  mov eax, %s\n", src0);
+                              free (src0);
+                            }
                         }
+                      APPEND_FMT ("  mov rsp, rbp\n  pop rbp\n");
                       APPEND_FMT ("  ret\n");
                     }
                   else if (strcmp (opcode, "iadd") == 0)
                     {
-                      if (dest && nops >= 2)
+                      if (dest_ref && nops >= 2)
                         {
-                          APPEND_FMT ("  mov eax, %s\n", ops[0]);
+                          char *lhs = cephyr_stack_ref (&frame, ops[0]);
+                          char *rhs = op_is_const[1] ? NULL
+                                                      : cephyr_stack_ref (
+                                                            &frame, ops[1]);
+                          APPEND_FMT ("  mov eax, %s\n", lhs);
                           if (op_is_const[1])
                             APPEND_FMT ("  add eax, %ld\n", (long)op_vals[1]);
                           else
-                            APPEND_FMT ("  add eax, %s\n", ops[1]);
-                          APPEND_FMT ("  mov %s, eax\n", dest);
+                            APPEND_FMT ("  add eax, %s\n", rhs);
+                          APPEND_FMT ("  mov %s, eax\n", dest_ref);
+                          free (lhs);
+                          free (rhs);
                         }
                     }
                   else if (strcmp (opcode, "isub") == 0)
                     {
-                      if (dest && nops >= 2)
+                      if (dest_ref && nops >= 2)
                         {
-                          APPEND_FMT ("  mov eax, %s\n", ops[0]);
+                          char *lhs = cephyr_stack_ref (&frame, ops[0]);
+                          char *rhs = op_is_const[1] ? NULL
+                                                      : cephyr_stack_ref (
+                                                            &frame, ops[1]);
+                          APPEND_FMT ("  mov eax, %s\n", lhs);
                           if (op_is_const[1])
                             APPEND_FMT ("  sub eax, %ld\n", (long)op_vals[1]);
                           else
-                            APPEND_FMT ("  sub eax, %s\n", ops[1]);
-                          APPEND_FMT ("  mov %s, eax\n", dest);
+                            APPEND_FMT ("  sub eax, %s\n", rhs);
+                          APPEND_FMT ("  mov %s, eax\n", dest_ref);
+                          free (lhs);
+                          free (rhs);
                         }
                     }
                   else if (strcmp (opcode, "imul") == 0)
                     {
-                      if (dest && nops >= 2)
+                      if (dest_ref && nops >= 2)
                         {
-                          APPEND_FMT ("  mov eax, %s\n", ops[0]);
+                          char *lhs = cephyr_stack_ref (&frame, ops[0]);
+                          char *rhs = op_is_const[1] ? NULL
+                                                      : cephyr_stack_ref (
+                                                            &frame, ops[1]);
+                          APPEND_FMT ("  mov eax, %s\n", lhs);
                           if (op_is_const[1])
                             APPEND_FMT ("  imul eax, %ld\n", (long)op_vals[1]);
                           else
-                            APPEND_FMT ("  imul eax, %s\n", ops[1]);
-                          APPEND_FMT ("  mov %s, eax\n", dest);
+                            APPEND_FMT ("  imul eax, %s\n", rhs);
+                          APPEND_FMT ("  mov %s, eax\n", dest_ref);
+                          free (lhs);
+                          free (rhs);
                         }
                     }
                   else if (strcmp (opcode, "iand") == 0)
                     {
-                      if (dest && nops >= 2)
+                      if (dest_ref && nops >= 2)
                         {
-                          APPEND_FMT ("  mov eax, %s\n", ops[0]);
+                          char *lhs = cephyr_stack_ref (&frame, ops[0]);
+                          char *rhs = op_is_const[1] ? NULL
+                                                      : cephyr_stack_ref (
+                                                            &frame, ops[1]);
+                          APPEND_FMT ("  mov eax, %s\n", lhs);
                           if (op_is_const[1])
                             APPEND_FMT ("  and eax, %ld\n", (long)op_vals[1]);
                           else
-                            APPEND_FMT ("  and eax, %s\n", ops[1]);
-                          APPEND_FMT ("  mov %s, eax\n", dest);
+                            APPEND_FMT ("  and eax, %s\n", rhs);
+                          APPEND_FMT ("  mov %s, eax\n", dest_ref);
+                          free (lhs);
+                          free (rhs);
                         }
                     }
                   else if (strcmp (opcode, "ior") == 0)
                     {
-                      if (dest && nops >= 2)
+                      if (dest_ref && nops >= 2)
                         {
-                          APPEND_FMT ("  mov eax, %s\n", ops[0]);
+                          char *lhs = cephyr_stack_ref (&frame, ops[0]);
+                          char *rhs = op_is_const[1] ? NULL
+                                                      : cephyr_stack_ref (
+                                                            &frame, ops[1]);
+                          APPEND_FMT ("  mov eax, %s\n", lhs);
                           if (op_is_const[1])
                             APPEND_FMT ("  or eax, %ld\n", (long)op_vals[1]);
                           else
-                            APPEND_FMT ("  or eax, %s\n", ops[1]);
-                          APPEND_FMT ("  mov %s, eax\n", dest);
+                            APPEND_FMT ("  or eax, %s\n", rhs);
+                          APPEND_FMT ("  mov %s, eax\n", dest_ref);
+                          free (lhs);
+                          free (rhs);
                         }
                     }
                   else if (strcmp (opcode, "ixor") == 0)
                     {
-                      if (dest && nops >= 2)
+                      if (dest_ref && nops >= 2)
                         {
-                          APPEND_FMT ("  mov eax, %s\n", ops[0]);
+                          char *lhs = cephyr_stack_ref (&frame, ops[0]);
+                          char *rhs = op_is_const[1] ? NULL
+                                                      : cephyr_stack_ref (
+                                                            &frame, ops[1]);
+                          APPEND_FMT ("  mov eax, %s\n", lhs);
                           if (op_is_const[1])
                             APPEND_FMT ("  xor eax, %ld\n", (long)op_vals[1]);
                           else
-                            APPEND_FMT ("  xor eax, %s\n", ops[1]);
-                          APPEND_FMT ("  mov %s, eax\n", dest);
+                            APPEND_FMT ("  xor eax, %s\n", rhs);
+                          APPEND_FMT ("  mov %s, eax\n", dest_ref);
+                          free (lhs);
+                          free (rhs);
                         }
                     }
                   else if (strcmp (opcode, "shl") == 0)
                     {
-                      if (dest && nops >= 2)
+                      if (dest_ref && nops >= 2)
                         {
-                          APPEND_FMT ("  mov eax, %s\n", ops[0]);
-                          APPEND_FMT ("  mov ecx, %s\n", ops[1]);
+                          char *lhs = cephyr_stack_ref (&frame, ops[0]);
+                          char *rhs = cephyr_stack_ref (&frame, ops[1]);
+                          APPEND_FMT ("  mov eax, %s\n", lhs);
+                          APPEND_FMT ("  mov ecx, %s\n", rhs);
                           APPEND_FMT ("  shl eax, cl\n");
-                          APPEND_FMT ("  mov %s, eax\n", dest);
+                          APPEND_FMT ("  mov %s, eax\n", dest_ref);
+                          free (lhs);
+                          free (rhs);
                         }
                     }
                   else if (strcmp (opcode, "ashr") == 0)
                     {
-                      if (dest && nops >= 2)
+                      if (dest_ref && nops >= 2)
                         {
-                          APPEND_FMT ("  mov eax, %s\n", ops[0]);
-                          APPEND_FMT ("  mov ecx, %s\n", ops[1]);
+                          char *lhs = cephyr_stack_ref (&frame, ops[0]);
+                          char *rhs = cephyr_stack_ref (&frame, ops[1]);
+                          APPEND_FMT ("  mov eax, %s\n", lhs);
+                          APPEND_FMT ("  mov ecx, %s\n", rhs);
                           APPEND_FMT ("  sar eax, cl\n");
-                          APPEND_FMT ("  mov %s, eax\n", dest);
+                          APPEND_FMT ("  mov %s, eax\n", dest_ref);
+                          free (lhs);
+                          free (rhs);
                         }
                     }
                   else if (strcmp (opcode, "icmp.eq") == 0)
                     {
-                      if (dest && nops >= 2)
+                      if (dest_ref && nops >= 2)
                         {
-                          APPEND_FMT ("  mov eax, %s\n", ops[0]);
-                          APPEND_FMT ("  cmp eax, %s\n", ops[1]);
+                          char *lhs = cephyr_stack_ref (&frame, ops[0]);
+                          char *rhs = cephyr_stack_ref (&frame, ops[1]);
+                          APPEND_FMT ("  mov eax, %s\n", lhs);
+                          APPEND_FMT ("  cmp eax, %s\n", rhs);
                           APPEND_FMT ("  sete al\n");
                           APPEND_FMT ("  movzx eax, al\n");
-                          APPEND_FMT ("  mov %s, eax\n", dest);
+                          APPEND_FMT ("  mov %s, eax\n", dest_ref);
+                          free (lhs);
+                          free (rhs);
                         }
                     }
                   else if (strcmp (opcode, "icmp.ne") == 0)
                     {
-                      if (dest && nops >= 2)
+                      if (dest_ref && nops >= 2)
                         {
-                          APPEND_FMT ("  mov eax, %s\n", ops[0]);
-                          APPEND_FMT ("  cmp eax, %s\n", ops[1]);
+                          char *lhs = cephyr_stack_ref (&frame, ops[0]);
+                          char *rhs = cephyr_stack_ref (&frame, ops[1]);
+                          APPEND_FMT ("  mov eax, %s\n", lhs);
+                          APPEND_FMT ("  cmp eax, %s\n", rhs);
                           APPEND_FMT ("  setne al\n");
                           APPEND_FMT ("  movzx eax, al\n");
-                          APPEND_FMT ("  mov %s, eax\n", dest);
+                          APPEND_FMT ("  mov %s, eax\n", dest_ref);
+                          free (lhs);
+                          free (rhs);
                         }
                     }
                   else if (strcmp (opcode, "icmp.lt") == 0)
                     {
-                      if (dest && nops >= 2)
+                      if (dest_ref && nops >= 2)
                         {
-                          APPEND_FMT ("  mov eax, %s\n", ops[0]);
-                          APPEND_FMT ("  cmp eax, %s\n", ops[1]);
+                          char *lhs = cephyr_stack_ref (&frame, ops[0]);
+                          char *rhs = cephyr_stack_ref (&frame, ops[1]);
+                          APPEND_FMT ("  mov eax, %s\n", lhs);
+                          APPEND_FMT ("  cmp eax, %s\n", rhs);
                           APPEND_FMT ("  setl al\n");
                           APPEND_FMT ("  movzx eax, al\n");
-                          APPEND_FMT ("  mov %s, eax\n", dest);
+                          APPEND_FMT ("  mov %s, eax\n", dest_ref);
+                          free (lhs);
+                          free (rhs);
                         }
                     }
                   else if (strcmp (opcode, "icmp.gt") == 0)
                     {
-                      if (dest && nops >= 2)
+                      if (dest_ref && nops >= 2)
                         {
-                          APPEND_FMT ("  mov eax, %s\n", ops[0]);
-                          APPEND_FMT ("  cmp eax, %s\n", ops[1]);
+                          char *lhs = cephyr_stack_ref (&frame, ops[0]);
+                          char *rhs = cephyr_stack_ref (&frame, ops[1]);
+                          APPEND_FMT ("  mov eax, %s\n", lhs);
+                          APPEND_FMT ("  cmp eax, %s\n", rhs);
                           APPEND_FMT ("  setg al\n");
                           APPEND_FMT ("  movzx eax, al\n");
-                          APPEND_FMT ("  mov %s, eax\n", dest);
+                          APPEND_FMT ("  mov %s, eax\n", dest_ref);
+                          free (lhs);
+                          free (rhs);
                         }
                     }
                   else if (strcmp (opcode, "icmp.le") == 0)
                     {
-                      if (dest && nops >= 2)
+                      if (dest_ref && nops >= 2)
                         {
-                          APPEND_FMT ("  mov eax, %s\n", ops[0]);
-                          APPEND_FMT ("  cmp eax, %s\n", ops[1]);
+                          char *lhs = cephyr_stack_ref (&frame, ops[0]);
+                          char *rhs = cephyr_stack_ref (&frame, ops[1]);
+                          APPEND_FMT ("  mov eax, %s\n", lhs);
+                          APPEND_FMT ("  cmp eax, %s\n", rhs);
                           APPEND_FMT ("  setle al\n");
                           APPEND_FMT ("  movzx eax, al\n");
-                          APPEND_FMT ("  mov %s, eax\n", dest);
+                          APPEND_FMT ("  mov %s, eax\n", dest_ref);
+                          free (lhs);
+                          free (rhs);
                         }
                     }
                   else if (strcmp (opcode, "icmp.ge") == 0)
                     {
-                      if (dest && nops >= 2)
+                      if (dest_ref && nops >= 2)
                         {
-                          APPEND_FMT ("  mov eax, %s\n", ops[0]);
-                          APPEND_FMT ("  cmp eax, %s\n", ops[1]);
+                          char *lhs = cephyr_stack_ref (&frame, ops[0]);
+                          char *rhs = cephyr_stack_ref (&frame, ops[1]);
+                          APPEND_FMT ("  mov eax, %s\n", lhs);
+                          APPEND_FMT ("  cmp eax, %s\n", rhs);
                           APPEND_FMT ("  setge al\n");
                           APPEND_FMT ("  movzx eax, al\n");
-                          APPEND_FMT ("  mov %s, eax\n", dest);
+                          APPEND_FMT ("  mov %s, eax\n", dest_ref);
+                          free (lhs);
+                          free (rhs);
                         }
                     }
                   else if (strcmp (opcode, "branch") == 0)
@@ -1172,9 +1410,12 @@ emit_target_assembly (const ccw_ir *ir, const char *triple)
                     {
                       if (nops >= 3 && ops[0] && ops[1] && ops[2])
                         {
-                          APPEND_FMT ("  test %s, %s\n", ops[0], ops[0]);
-                          APPEND_FMT ("  jnz .L%s\n", ops[1]);
+                          char *cond = cephyr_stack_ref (&frame, ops[0]);
+                          APPEND_FMT ("  mov rax, %s\n", cond);
+                          APPEND_FMT ("  test rax, rax\n");
+                          APPEND_FMT ("  jne .L%s\n", ops[1]);
                           APPEND_FMT ("  jmp .L%s\n", ops[2]);
+                          free (cond);
                         }
                     }
                   else if (strcmp (opcode, "call") == 0)
@@ -1182,88 +1423,120 @@ emit_target_assembly (const ccw_ir *ir, const char *triple)
                       if (nops >= 1 && ops[0])
                         {
                           APPEND_FMT ("  call %s\n", ops[0]);
-                          if (dest)
-                            APPEND_FMT ("  mov %s, eax\n", dest);
+                          if (dest_ref)
+                            APPEND_FMT ("  mov %s, eax\n", dest_ref);
                         }
                     }
                   else if (strcmp (opcode, "alloc") == 0)
                     {
-                      if (dest && nops >= 1)
+                      if (dest_ref && nops >= 1)
                         {
                           if (op_is_const[0])
                             APPEND_FMT ("  sub rsp, %ld\n", (long)op_vals[0]);
                           else
-                            APPEND_FMT ("  sub rsp, %s\n", ops[0]);
-                          APPEND_FMT ("  mov %s, rsp\n", dest);
+                            {
+                              char *src0 = cephyr_stack_ref (&frame, ops[0]);
+                              APPEND_FMT ("  sub rsp, %s\n", src0);
+                              free (src0);
+                            }
+                          APPEND_FMT ("  mov %s, rsp\n", dest_ref);
                         }
                     }
                   else if (strcmp (opcode, "load") == 0)
                     {
-                      if (dest && nops >= 1 && ops[0])
-                        APPEND_FMT ("  mov eax, [%s]\n  mov %s, eax\n", ops[0], dest);
+                      if (dest_ref && nops >= 1 && ops[0])
+                        {
+                          char *src0 = cephyr_stack_ref (&frame, ops[0]);
+                          APPEND_FMT ("  mov eax, %s\n  mov %s, eax\n",
+                                      src0, dest_ref);
+                          free (src0);
+                        }
                     }
                   else if (strcmp (opcode, "store") == 0)
                     {
                       if (nops >= 2 && ops[0] && ops[1])
-                        APPEND_FMT ("  mov [%s], %s\n", ops[0], ops[1]);
+                        {
+                          char *dst0 = cephyr_stack_ref (&frame, ops[0]);
+                          char *src1 = cephyr_stack_ref (&frame, ops[1]);
+                          APPEND_FMT ("  mov rax, %s\n", src1);
+                          APPEND_FMT ("  mov %s, rax\n", dst0);
+                          free (dst0);
+                          free (src1);
+                        }
                     }
                   else if (strcmp (opcode, "ineg") == 0)
                     {
-                      if (dest && nops >= 1 && ops[0])
+                      if (dest_ref && nops >= 1 && ops[0])
                         {
-                          APPEND_FMT ("  mov eax, %s\n", ops[0]);
+                          char *src0 = cephyr_stack_ref (&frame, ops[0]);
+                          APPEND_FMT ("  mov eax, %s\n", src0);
                           APPEND_FMT ("  neg eax\n");
-                          APPEND_FMT ("  mov %s, eax\n", dest);
+                          APPEND_FMT ("  mov %s, eax\n", dest_ref);
+                          free (src0);
                         }
                     }
                   else if (strcmp (opcode, "logic.not") == 0)
                     {
-                      if (dest && nops >= 1 && ops[0])
+                      if (dest_ref && nops >= 1 && ops[0])
                         {
-                          APPEND_FMT ("  test %s, %s\n", ops[0], ops[0]);
-                          APPEND_FMT ("  setz al\n");
+                          char *src0 = cephyr_stack_ref (&frame, ops[0]);
+                          APPEND_FMT ("  mov eax, %s\n", src0);
+                          APPEND_FMT ("  test eax, eax\n");
+                          APPEND_FMT ("  sete al\n");
                           APPEND_FMT ("  movzx eax, al\n");
-                          APPEND_FMT ("  mov %s, eax\n", dest);
+                          APPEND_FMT ("  mov %s, eax\n", dest_ref);
+                          free (src0);
                         }
                     }
                   else if (strcmp (opcode, "phi") == 0)
                      {
                        /* phi dest, val1, block1, val2, block2, ...
                         * In a simple codegen, pick the first value. */
-                       if (dest && nops >= 1 && ops[0])
-                         APPEND_FMT ("  mov %s, %s\n", dest, ops[0]);
+                       if (dest_ref && nops >= 1 && ops[0])
+                         {
+                           char *src0 = cephyr_stack_ref (&frame, ops[0]);
+                           APPEND_FMT ("  mov rax, %s\n", src0);
+                           APPEND_FMT ("  mov %s, rax\n", dest_ref);
+                           free (src0);
+                         }
                      }
                     /* ---------- Kliche imperative opcodes (§6.1) ---------- */
                     else if (strcmp (opcode, "iconst") == 0)
                       {
-                        if (dest && nops >= 1 && op_is_const[0])
-                          APPEND_FMT ("  mov %s, %ld\n", dest,
-                                      (long)op_vals[0]);
+                        if (dest_ref && nops >= 1 && op_is_const[0])
+                          APPEND_FMT ("  mov rax, %ld\n  mov %s, rax\n",
+                                      (long)op_vals[0], dest_ref);
                       }
                     else if (strcmp (opcode, "local.alloc") == 0)
                       {
-                        if (dest)
+                        if (dest_ref)
                           {
                             APPEND_FMT ("  sub rsp, 8\n");
-                            APPEND_FMT ("  mov %s, rsp\n", dest);
+                            APPEND_FMT ("  mov %s, rsp\n", dest_ref);
                           }
                       }
                     else if (strcmp (opcode, "local.store") == 0)
                       {
                         if (nops >= 2 && ops[0] && ops[1])
                           {
-                            APPEND_FMT ("  mov rax, [%s]\n", ops[0]);
-                            APPEND_FMT ("  mov rbx, [%s]\n", ops[1]);
+                            char *slot0 = cephyr_stack_ref (&frame, ops[0]);
+                            char *slot1 = cephyr_stack_ref (&frame, ops[1]);
+                            APPEND_FMT ("  mov rax, %s\n", slot0);
+                            APPEND_FMT ("  mov rbx, %s\n", slot1);
                             APPEND_FMT ("  mov [rax], rbx\n");
+                            free (slot0);
+                            free (slot1);
                           }
                       }
                     else if (strcmp (opcode, "local.load") == 0)
                       {
-                        if (dest && nops >= 1 && ops[0])
+                        if (dest_ref && nops >= 1 && ops[0])
                           {
-                            APPEND_FMT ("  mov rax, [%s]\n", ops[0]);
+                            char *slot0 = cephyr_stack_ref (&frame, ops[0]);
+                            APPEND_FMT ("  mov rax, %s\n", slot0);
                             APPEND_FMT ("  mov rax, [rax]\n");
-                            APPEND_FMT ("  mov [%s], rax\n", dest);
+                            APPEND_FMT ("  mov %s, rax\n", dest_ref);
+                            free (slot0);
                           }
                       }
                     else if (strcmp (opcode, "br") == 0)
@@ -1275,71 +1548,91 @@ emit_target_assembly (const ccw_ir *ir, const char *triple)
                       {
                         if (nops >= 3 && ops[0] && ops[1] && ops[2])
                           {
-                            APPEND_FMT ("  mov rax, [%s]\n", ops[0]);
+                            char *cond = cephyr_stack_ref (&frame, ops[0]);
+                            APPEND_FMT ("  mov rax, %s\n", cond);
                             APPEND_FMT ("  test rax, rax\n");
-                            APPEND_FMT ("  jnz .L%s\n", ops[1]);
+                            APPEND_FMT ("  jne .L%s\n", ops[1]);
                             APPEND_FMT ("  jmp .L%s\n", ops[2]);
+                            free (cond);
                           }
                       }
                     else if (strcmp (opcode, "array.alloc") == 0)
                       {
-                        if (dest && nops >= 2 && op_is_const[0])
+                        if (dest_ref && nops >= 2 && op_is_const[0])
                           {
                             int64_t total = op_vals[0] * 8;
                             APPEND_FMT ("  sub rsp, %ld\n", (long)total);
-                            APPEND_FMT ("  mov %s, rsp\n", dest);
+                            APPEND_FMT ("  mov %s, rsp\n", dest_ref);
                           }
                       }
                     else if (strcmp (opcode, "array.load") == 0)
                       {
-                        if (dest && nops >= 2 && ops[0] && ops[1])
+                        if (dest_ref && nops >= 2 && ops[0] && ops[1])
                           {
-                            APPEND_FMT ("  mov rax, [%s]\n", ops[0]);
-                            APPEND_FMT ("  mov rbx, [%s]\n", ops[1]);
+                            char *slot0 = cephyr_stack_ref (&frame, ops[0]);
+                            char *slot1 = cephyr_stack_ref (&frame, ops[1]);
+                            APPEND_FMT ("  mov rax, %s\n", slot0);
+                            APPEND_FMT ("  mov rbx, %s\n", slot1);
                             APPEND_FMT ("  shl rbx, 3\n");
                             APPEND_FMT ("  mov rax, [rax + rbx]\n");
-                            APPEND_FMT ("  mov [%s], rax\n", dest);
+                            APPEND_FMT ("  mov %s, rax\n", dest_ref);
+                            free (slot0);
+                            free (slot1);
                           }
                       }
                     else if (strcmp (opcode, "array.store") == 0)
                       {
                         if (nops >= 3 && ops[0] && ops[1] && ops[2])
                           {
-                            APPEND_FMT ("  mov rax, [%s]\n", ops[0]);
-                            APPEND_FMT ("  mov rbx, [%s]\n", ops[1]);
+                            char *slot0 = cephyr_stack_ref (&frame, ops[0]);
+                            char *slot1 = cephyr_stack_ref (&frame, ops[1]);
+                            char *slot2 = cephyr_stack_ref (&frame, ops[2]);
+                            APPEND_FMT ("  mov rax, %s\n", slot0);
+                            APPEND_FMT ("  mov rbx, %s\n", slot1);
                             APPEND_FMT ("  shl rbx, 3\n");
-                            APPEND_FMT ("  mov rcx, [%s]\n", ops[2]);
+                            APPEND_FMT ("  mov rcx, %s\n", slot2);
                             APPEND_FMT ("  mov [rax + rbx], rcx\n");
+                            free (slot0);
+                            free (slot1);
+                            free (slot2);
                           }
                       }
                     else if (strcmp (opcode, "logic.and") == 0)
                       {
-                        if (dest && nops >= 2 && ops[0] && ops[1])
+                        if (dest_ref && nops >= 2 && ops[0] && ops[1])
                           {
-                            APPEND_FMT ("  mov rax, [%s]\n", ops[0]);
+                            char *slot0 = cephyr_stack_ref (&frame, ops[0]);
+                            char *slot1 = cephyr_stack_ref (&frame, ops[1]);
+                            APPEND_FMT ("  mov rax, %s\n", slot0);
                             APPEND_FMT ("  test rax, rax\n");
-                            APPEND_FMT ("  setnz al\n");
-                            APPEND_FMT ("  mov rbx, [%s]\n", ops[1]);
+                            APPEND_FMT ("  setne al\n");
+                            APPEND_FMT ("  mov rbx, %s\n", slot1);
                             APPEND_FMT ("  test rbx, rbx\n");
-                            APPEND_FMT ("  setnz bl\n");
+                            APPEND_FMT ("  setne bl\n");
                             APPEND_FMT ("  and al, bl\n");
                             APPEND_FMT ("  movzx rax, al\n");
-                            APPEND_FMT ("  mov [%s], rax\n", dest);
+                            APPEND_FMT ("  mov %s, rax\n", dest_ref);
+                            free (slot0);
+                            free (slot1);
                           }
                       }
                     else if (strcmp (opcode, "logic.or") == 0)
                       {
-                        if (dest && nops >= 2 && ops[0] && ops[1])
+                        if (dest_ref && nops >= 2 && ops[0] && ops[1])
                           {
-                            APPEND_FMT ("  mov rax, [%s]\n", ops[0]);
+                            char *slot0 = cephyr_stack_ref (&frame, ops[0]);
+                            char *slot1 = cephyr_stack_ref (&frame, ops[1]);
+                            APPEND_FMT ("  mov rax, %s\n", slot0);
                             APPEND_FMT ("  test rax, rax\n");
-                            APPEND_FMT ("  setnz al\n");
-                            APPEND_FMT ("  mov rbx, [%s]\n", ops[1]);
+                            APPEND_FMT ("  setne al\n");
+                            APPEND_FMT ("  mov rbx, %s\n", slot1);
                             APPEND_FMT ("  test rbx, rbx\n");
-                            APPEND_FMT ("  setnz bl\n");
+                            APPEND_FMT ("  setne bl\n");
                             APPEND_FMT ("  or al, bl\n");
                             APPEND_FMT ("  movzx rax, al\n");
-                            APPEND_FMT ("  mov [%s], rax\n", dest);
+                            APPEND_FMT ("  mov %s, rax\n", dest_ref);
+                            free (slot0);
+                            free (slot1);
                           }
                       }
                     else if (strcmp (opcode, "opaque.expr") == 0)
@@ -1347,11 +1640,12 @@ emit_target_assembly (const ccw_ir *ir, const char *triple)
                         /* skip — opaque expression placeholder */
                       }
                     /* ---------- arithmetic/comparison missing opcodes ---------- */
-                    else if (strcmp (opcode, "idiv") == 0)
-                      {
-                        if (dest && nops >= 2 && ops[0] && ops[1])
+                  else if (strcmp (opcode, "idiv") == 0)
+                    {
+                        if (dest_ref && nops >= 2 && ops[0] && ops[1])
                           {
-                            APPEND_FMT ("  mov eax, dword [%s]\n", ops[0]);
+                            char *slot0 = cephyr_stack_ref (&frame, ops[0]);
+                            APPEND_FMT ("  mov eax, dword %s\n", slot0);
                             APPEND_FMT ("  cdq\n");
                             if (op_is_const[1])
                               {
@@ -1360,15 +1654,21 @@ emit_target_assembly (const ccw_ir *ir, const char *triple)
                                 APPEND_FMT ("  idiv ecx\n");
                               }
                             else
-                              APPEND_FMT ("  idiv dword [%s]\n", ops[1]);
-                            APPEND_FMT ("  mov dword [%s], eax\n", dest);
+                              {
+                                char *slot1 = cephyr_stack_ref (&frame, ops[1]);
+                                APPEND_FMT ("  idiv dword %s\n", slot1);
+                                free (slot1);
+                              }
+                            APPEND_FMT ("  mov dword %s, eax\n", dest_ref);
+                            free (slot0);
                           }
                       }
                     else if (strcmp (opcode, "irem") == 0)
                       {
-                        if (dest && nops >= 2 && ops[0] && ops[1])
+                        if (dest_ref && nops >= 2 && ops[0] && ops[1])
                           {
-                            APPEND_FMT ("  mov eax, dword [%s]\n", ops[0]);
+                            char *slot0 = cephyr_stack_ref (&frame, ops[0]);
+                            APPEND_FMT ("  mov eax, dword %s\n", slot0);
                             APPEND_FMT ("  cdq\n");
                             if (op_is_const[1])
                               {
@@ -1377,59 +1677,85 @@ emit_target_assembly (const ccw_ir *ir, const char *triple)
                                 APPEND_FMT ("  idiv ecx\n");
                               }
                             else
-                              APPEND_FMT ("  idiv dword [%s]\n", ops[1]);
-                            APPEND_FMT ("  mov dword [%s], edx\n", dest);
+                              {
+                                char *slot1 = cephyr_stack_ref (&frame, ops[1]);
+                                APPEND_FMT ("  idiv dword %s\n", slot1);
+                                free (slot1);
+                              }
+                            APPEND_FMT ("  mov dword %s, edx\n", dest_ref);
+                            free (slot0);
                           }
                       }
                     else if (strcmp (opcode, "inot") == 0)
                       {
-                        if (dest && nops >= 1 && ops[0])
+                        if (dest_ref && nops >= 1 && ops[0])
                           {
-                            APPEND_FMT ("  mov rax, [%s]\n", ops[0]);
+                            char *slot0 = cephyr_stack_ref (&frame, ops[0]);
+                            APPEND_FMT ("  mov rax, %s\n", slot0);
                             APPEND_FMT ("  not rax\n");
-                            APPEND_FMT ("  mov [%s], rax\n", dest);
+                            APPEND_FMT ("  mov %s, rax\n", dest_ref);
+                            free (slot0);
                           }
                       }
                     else if (strcmp (opcode, "lshr") == 0)
                       {
-                        if (dest && nops >= 2 && ops[0] && ops[1])
+                        if (dest_ref && nops >= 2 && ops[0] && ops[1])
                           {
-                            APPEND_FMT ("  mov rax, [%s]\n", ops[0]);
-                            APPEND_FMT ("  mov rcx, [%s]\n", ops[1]);
+                            char *slot0 = cephyr_stack_ref (&frame, ops[0]);
+                            char *slot1 = cephyr_stack_ref (&frame, ops[1]);
+                            APPEND_FMT ("  mov rax, %s\n", slot0);
+                            APPEND_FMT ("  mov rcx, %s\n", slot1);
                             APPEND_FMT ("  shr rax, cl\n");
-                            APPEND_FMT ("  mov [%s], rax\n", dest);
+                            APPEND_FMT ("  mov %s, rax\n", dest_ref);
+                            free (slot0);
+                            free (slot1);
                           }
                       }
                     /* ---------- type casts ---------- */
                     else if (strcmp (opcode, "id") == 0)
                       {
-                        if (dest && nops >= 1 && ops[0])
-                          APPEND_FMT ("  mov rax, [%s]\n"
-                                      "  mov [%s], rax\n",
-                                      ops[0], dest);
+                        if (dest_ref && nops >= 1 && ops[0])
+                          {
+                            char *slot0 = cephyr_stack_ref (&frame, ops[0]);
+                            APPEND_FMT ("  mov rax, %s\n"
+                                        "  mov %s, rax\n",
+                                        slot0, dest_ref);
+                            free (slot0);
+                          }
                       }
                     else if (strcmp (opcode, "sext") == 0)
                       {
-                        if (dest && nops >= 1 && ops[0])
-                          APPEND_FMT ("  movsx rax, dword [%s]\n"
-                                      "  mov [%s], rax\n",
-                                      ops[0], dest);
+                        if (dest_ref && nops >= 1 && ops[0])
+                          {
+                            char *slot0 = cephyr_stack_ref (&frame, ops[0]);
+                            APPEND_FMT ("  movsx rax, dword %s\n"
+                                        "  mov %s, rax\n",
+                                        slot0, dest_ref);
+                            free (slot0);
+                          }
                       }
                     else if (strcmp (opcode, "trunc") == 0)
                       {
-                        if (dest && nops >= 1 && ops[0])
-                          APPEND_FMT ("  mov eax, dword [%s]\n"
-                                      "  mov dword [%s], eax\n",
-                                      ops[0], dest);
+                        if (dest_ref && nops >= 1 && ops[0])
+                          {
+                            char *slot0 = cephyr_stack_ref (&frame, ops[0]);
+                            APPEND_FMT ("  mov eax, dword %s\n"
+                                        "  mov dword %s, eax\n",
+                                        slot0, dest_ref);
+                            free (slot0);
+                          }
                       }
                     else
                       {
                         /* Unknown opcode: emit as comment */
                         APPEND_FMT ("  # unknown opcode: %s\n", opcode);
                       }
+                  free (dest_ref);
                 }
             }
-          APPEND_FMT (".size %s, .-%s\n", name, name);
+          if (frame_size > 0)
+            APPEND_FMT ("  mov rsp, rbp\n  pop rbp\n");
+          cephyr_stack_frame_destroy (&frame);
         }
     }
   else if (strcmp (arch, "aarch64") == 0)

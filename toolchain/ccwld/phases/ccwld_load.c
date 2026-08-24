@@ -155,6 +155,19 @@ rd_cstr (rd_buf *b, size_t off, size_t limit)
   return out;
 }
 
+static char *
+rd_strtab (rd_buf *b, size_t off, size_t size)
+{
+  if (off > b->n || size > b->n - off)
+    return NULL;
+  char *out = malloc (size + 1);
+  if (!out)
+    return NULL;
+  memcpy (out, b->p + off, size);
+  out[size] = 0;
+  return out;
+}
+
 /* --- small file reader --- */
 
 static unsigned char *
@@ -394,8 +407,8 @@ ccwld_load_elf_mem (ccwld_state *st, const char *path,
 
   char *shstr = NULL;
   if (eh.e_shstrndx < eh.e_shnum)
-    shstr = rd_cstr (&rb, sh[eh.e_shstrndx].sh_offset,
-                     sh[eh.e_shstrndx].sh_size);
+    shstr = rd_strtab (&rb, sh[eh.e_shstrndx].sh_offset,
+                       sh[eh.e_shstrndx].sh_size);
   if (!shstr)
     {
       free (sh);
@@ -444,8 +457,8 @@ ccwld_load_elf_mem (ccwld_state *st, const char *path,
           || sh[symsh->sh_link].sh_type != SHT_STRTAB)
         continue;
       char *strtab
-          = rd_cstr (&rb, sh[symsh->sh_link].sh_offset,
-                     sh[symsh->sh_link].sh_size);
+          = rd_strtab (&rb, sh[symsh->sh_link].sh_offset,
+                       sh[symsh->sh_link].sh_size);
       if (!strtab)
         continue;
       size_t n = (size_t)(symsh->sh_size / sizeof (E64_Sym));
@@ -511,8 +524,8 @@ ccwld_load_elf_mem (ccwld_state *st, const char *path,
           || sh[symsh->sh_link].sh_type != SHT_STRTAB)
         continue;
       char *strtab
-          = rd_cstr (&rb, sh[symsh->sh_link].sh_offset,
-                     sh[symsh->sh_link].sh_size);
+          = rd_strtab (&rb, sh[symsh->sh_link].sh_offset,
+                       sh[symsh->sh_link].sh_size);
       if (!strtab)
         continue;
       size_t n = (size_t)(sh[i].sh_size / sizeof (E64_Rela));

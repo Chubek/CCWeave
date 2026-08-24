@@ -9,8 +9,33 @@
 #include <string.h>
 
 static int
-rs_value (ccwld_state *st, const char *name, uint64_t *out, int *weak_undef)
+rs_value (ccwld_state *st, ccwld_obj *obj, const char *name, uint64_t *out,
+          int *weak_undef)
 {
+  if (obj)
+    {
+      for (size_t i = 0; i < obj->nsyms; i++)
+        {
+          const ccwld_isym *s = &obj->syms[i];
+          if (s->binding != 0 || strcmp (s->name, name))
+            continue;
+          if (s->shndx < 0)
+            {
+              *out = s->value;
+              return 1;
+            }
+          if (s->shndx > 0)
+            {
+              ccwld_isec *sec = ccwld_state_isec (st, s->obj, s->shndx);
+              if (!sec || !sec->placed || sec->out_sec < 0)
+                return 0;
+              *out = st->plan->secs[sec->out_sec].vma + sec->out_off
+                     + s->value;
+              return 1;
+            }
+          return 0;
+        }
+    }
   for (size_t i = 0; i < st->nrsyms; i++)
     {
       const ccwld_rsym *r = &st->rsyms[i];
@@ -74,7 +99,7 @@ ccwld_phase_relocate (ccwld_state *st, ccwld_error *e)
           int weak_undef = 0;
           if (r->sym[0])
             {
-              if (!rs_value (st, r->sym, &S, &weak_undef))
+              if (!rs_value (st, o, r->sym, &S, &weak_undef))
                 {
                   ccwld_error_set (e, CCWLD_EXIT_LINK,
                                    "relocation against unresolved symbol "
@@ -242,8 +267,9 @@ ccwld_phase_relocate (ccwld_state *st, ccwld_error *e)
                 case 23: /* PCREL_HI20 */
                   {
                     int64_t off = (int64_t)(S + (uint64_t)A) - (int64_t)P;
-                    if (r->offset + 4 > is->size || (off > (1 << 31) - 1)
-                        || (off < -(1 << 31)))
+                    if (r->offset + 4 > is->size
+                        || off > INT64_C (2147483647)
+                        || off < -INT64_C (2147483648))
                       ok = 0;
                     else
                       {
