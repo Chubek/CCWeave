@@ -1,5 +1,40 @@
 # Decisions
 
+## 2026-08-24 — Semantic and rewrite responsibilities progress to shared schemes
+
+The language frontends are progressing from local, case-by-case semantic and
+rewrite handling toward shared CCWeave schemes.  First, Cephyr, Moonix, and
+SML-Parthia dispatch semantic analysis through Oeuph's declarative
+`sema-salvo` using `ccw_sema_analyze`.  Rewrite execution now follows the same
+direction through `ccw_rewrite_scheme_apply`, which centralizes sealed-plan
+validation, `rewrite-salvo` resolution, Oeuph execution, budgets, cost models,
+and diagnostics.  New language implementations should adopt these two shared
+entry points instead of embedding language-specific semantic or rewrite
+dispatch.
+
+## 2026-08-24 — Frontends use the central rewrite scheme
+
+Rewrite execution is exposed through `ccw_rewrite_scheme_apply`, a stable
+host-facing entry point over sealed scheduler plans.  The scheme owns plan
+validation, `Stdrewrite.yaml` resolution, `rewrite-salvo` loading, Oeuph
+budgets, cost models, deterministic execution, and per-ruleset diagnostics.
+Cephyr calls it for its scheduled rewrite phase, Moonix uses it for T2
+On1x plans, and SML-Parthia exposes it through its plan API.  Future language
+implementations should depend on this entry point rather than calling
+`ccw_plan_apply_rewrites` directly or reimplementing rewrite-salvo discovery.
+
+## 2026-08-24 — Frontend semantics dispatch through Oeuph's sema-salvo
+
+Cephyr, Moonix, and SML-Parthia now enter semantic analysis through the
+shared `ccw_sema_analyze` Oeuph API.  Each frontend selects only its language
+domain rulesets; the dispatcher loads the corresponding declarative
+`sema-salvo` files, records the applied rulesets on the canonical IR module,
+and performs the common IR/profile validation before lowering or execution
+continues.  This removes frontend-owned case-by-case semantic dispatch from
+the pipeline and gives all three consumers one observable ruleset-loading
+contract.  The legacy Cephyr AST sema remains available for compatibility and
+unit tests, but is no longer called by the Cephyr driver.
+
 ## 2026-08-24 — Cephyr embeds ucpp through its text-emission contract
 
 The in-process Cephyr preprocessor binds both `lexer_state.output` and

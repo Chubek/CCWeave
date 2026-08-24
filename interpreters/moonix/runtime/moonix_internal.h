@@ -3,6 +3,7 @@
 
 #include "moonix.h"
 #include "ccw_sched.h"
+#include "ccw_rewrite_scheme.h"
 
 struct moonix_state
 {
@@ -19,6 +20,8 @@ struct moonix_state
 
 void moonix_set_error (moonix_state *state, const char *message);
 moonix_status moonix_jit_select_tier (moonix_state *state, moonix_tier tier);
+moonix_status moonix_jit_apply_rewrites (moonix_state *state, moonix_tier tier,
+                                         ccw_ir *ir);
 int moonix_install_stdlib (moonix_state *state);
 int moonix_source_has_close_attribute (const char *source, size_t source_len);
 int moonix_source_has_goto (const char *source, size_t source_len);

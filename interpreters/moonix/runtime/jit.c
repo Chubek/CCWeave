@@ -154,3 +154,22 @@ moonix_jit_select_tier (moonix_state *state, moonix_tier tier)
   state->error[0] = '\0';
   return MOONIX_OK;
 }
+
+moonix_status
+moonix_jit_apply_rewrites (moonix_state *state, moonix_tier tier, ccw_ir *ir)
+{
+  ccw_sched_error error = { 0 };
+  if (state == NULL || ir == NULL || tier != MOONIX_TIER_T2)
+    return MOONIX_OK;
+  if (load_plan (state, tier) != MOONIX_OK)
+    return MOONIX_ERR_SCHED;
+  if (!ccw_rewrite_scheme_apply (
+          state->plans[(int)tier - (int)MOONIX_TIER_T1], ir,
+          state->manifest_dir, ccw_oeuph_default_budget(),
+          CCW_COST_PERFORMANCE, NULL, 0, NULL, &error))
+    {
+      moonix_set_error (state, error.message);
+      return MOONIX_ERR_SCHED;
+    }
+  return MOONIX_OK;
+}

@@ -2,12 +2,16 @@
  * budgets actually halting saturation, and per-ruleset diagnostics. */
 
 #include "ccw_oeuph.h"
+#include "ccw_sema.h"
 #include "ccw_test.h"
 
 #include <stdlib.h>
 
 #ifndef CCW_REWRITE_SALVO_DIR
 #define CCW_REWRITE_SALVO_DIR "rewrite-salvo"
+#endif
+#ifndef CCW_SEMA_SALVO_DIR
+#define CCW_SEMA_SALVO_DIR "sema-salvo"
 #endif
 
 static ccw_ir *sample(void)
@@ -56,6 +60,28 @@ static char *run_once(const char *ruleset_dir, ccw_oeuph_budget budget,
 
 int main(void)
 {
+    {
+        static const char *const rulesets[] = {
+            "sema.type.misc", "sema.scope.resolution"
+        };
+        ccw_ir *semantic_ir = ccw_ir_module_create(
+            "sema-sample", CCW_PROFILE_TILLY);
+        ccw_sema_report semantic_report;
+        char *semantic_error = NULL;
+        ccw_status semantic_status = ccw_sema_analyze(
+            semantic_ir, CCW_SEMA_SALVO_DIR, rulesets,
+            sizeof(rulesets) / sizeof(rulesets[0]), &semantic_report,
+            &semantic_error);
+        CCW_CHECK(semantic_status == CCW_OK,
+                  "sema-salvo analysis failed: %s",
+                  semantic_error ? semantic_error : "");
+        CCW_CHECK(semantic_report.rulesets_loaded == 2 &&
+                      semantic_report.rules_loaded > 0,
+                  "sema-salvo report must include loaded rules");
+        free(semantic_error);
+        ccw_ir_module_destroy(semantic_ir);
+    }
+
     /* --- rulesets declare a name and load their rules --- */
     char path[512];
     snprintf(path, sizeof(path), "%s/arith/identity/rules.scm",

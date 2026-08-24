@@ -95,6 +95,11 @@ extern "C"
   int ccw_sml_parthia_load_plan (const char *level, const char *manifest_dir,
                                  const char *sched_dir, ccw_plan **out,
                                  char **error_message);
+  int ccw_sml_parthia_apply_rewrites (
+      const ccw_plan *plan, ccw_ir *ir, const char *manifest_dir,
+      ccw_oeuph_budget budget, ccw_cost_model model,
+      ccw_oeuph_stats *stats, size_t stats_capacity, size_t *stats_count,
+      char **error_message);
 
   /* Stable serialized forms for pipeline hand-off and reproducibility tests.
    * The returned pointers remain owned by `program`. */

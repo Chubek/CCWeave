@@ -1,4 +1,5 @@
 #include "../sched/ccw_sched.h"
+#include "../sched/ccw_rewrite_scheme.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -65,9 +66,9 @@ int main(void) {
     ccw_sched_free(scheduler);
     ir = rewrite_sample();
     if (!ir ||
-        !ccw_plan_apply_rewrites(rewrite_plan, ir, CCW_MANIFEST_DIR, budget,
-                                 CCW_COST_PERFORMANCE, stats, 1,
-                                 &stats_count, &error)) {
+        !ccw_rewrite_scheme_apply(rewrite_plan, ir, CCW_MANIFEST_DIR, budget,
+                                   CCW_COST_PERFORMANCE, stats, 1,
+                                   &stats_count, &error)) {
       fprintf(stderr, "could not apply rewrite plan: %s\n", error.message);
       ccw_ir_module_destroy(ir);
       ccw_plan_free(rewrite_plan);
@@ -105,10 +106,10 @@ int main(void) {
                            &error) ||
         !ccw_sched_edge(scheduler, kernel_node, barrier_node, &error) ||
         !ccw_sched_seal(scheduler, &kernel_plan, &error) ||
-        !ccw_plan_apply_rewrites(kernel_plan, ir, CCW_MANIFEST_DIR,
-                                 ccw_oeuph_default_budget(),
-                                 CCW_COST_PERFORMANCE, NULL, 0, NULL,
-                                 &error)) {
+        !ccw_rewrite_scheme_apply(kernel_plan, ir, CCW_MANIFEST_DIR,
+                                   ccw_oeuph_default_budget(),
+                                   CCW_COST_PERFORMANCE, NULL, 0, NULL,
+                                   &error)) {
       fprintf(stderr, "kernel-only plan execution failed: %s\n",
               error.message);
       ccw_sched_free(scheduler);

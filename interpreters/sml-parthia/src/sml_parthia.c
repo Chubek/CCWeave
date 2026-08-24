@@ -14,6 +14,8 @@
 #include "kstring.h"
 #include "parthia_rt.h"
 #include "ccw_sched.h"
+#include "ccw_rewrite_scheme.h"
+#include "ccw_sema.h"
 
 #include <errno.h>
 #include <stdbool.h>
@@ -335,6 +337,25 @@ ccw_sml_parthia_load_plan (const char *level, const char *manifest_dir,
   return 1;
 }
 
+int
+ccw_sml_parthia_apply_rewrites (
+    const ccw_plan *plan, ccw_ir *ir, const char *manifest_dir,
+    ccw_oeuph_budget budget, ccw_cost_model model, ccw_oeuph_stats *stats,
+    size_t stats_capacity, size_t *stats_count, char **error_message)
+{
+  ccw_sched_error error = { 0 };
+  if (error_message != NULL)
+    *error_message = NULL;
+  if (!ccw_rewrite_scheme_apply (
+          plan, ir, manifest_dir, budget, model, stats, stats_capacity,
+          stats_count, &error))
+    {
+      set_error (error_message, error.message);
+      return 0;
+    }
+  return 1;
+}
+
 static bool
 append (kstring_t *out, const char *text)
 {
@@ -548,6 +569,39 @@ compile_expanded (const char *source, size_t source_len,
       set_error (error_message, "sml/parthia: out of memory");
       return NULL;
     }
+  {
+    static const char *const sema_rulesets[] = {
+      "sema.scope.bind", "sema.scope.resolution", "sema.type.misc",
+      "sema.fn.application"
+    };
+    ccw_ir *sema_ir
+        = ccw_ir_module_create ("sml-parthia-sema", CCW_PROFILE_ON1X);
+    char *sema_error = NULL;
+    if (sema_ir != NULL
+        && ccw_ir_attr_set (sema_ir, 0, "core-facts", program->core_ast)
+               != CCW_OK)
+      {
+        ccw_ir_module_destroy (sema_ir);
+        sema_ir = NULL;
+      }
+    if (sema_ir == NULL
+        || ccw_sema_analyze (
+               sema_ir, SML_PARTHIA_SEMA_SALVO_DIR, sema_rulesets,
+               sizeof sema_rulesets / sizeof sema_rulesets[0], NULL,
+               &sema_error)
+               != CCW_OK)
+      {
+        ccw_ir_module_destroy (sema_ir);
+        ccw_sml_parthia_program_destroy (program);
+        set_error (error_message, sema_error ? sema_error
+                                              : "sml/parthia: semantic analysis "
+                                                "failed");
+        free (sema_error);
+        return NULL;
+      }
+    ccw_ir_module_destroy (sema_ir);
+    free (sema_error);
+  }
   if (report != NULL)
     *report = program->report;
   return program;

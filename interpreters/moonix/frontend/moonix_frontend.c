@@ -1,6 +1,7 @@
 #include "moonix_frontend.h"
 #include "../runtime/moonix_internal.h"
 #include "ccw_swaff.h"
+#include "ccw_sema.h"
 #include "kstring.h"
 #include <stdlib.h>
 #include <string.h>
@@ -137,7 +138,13 @@ moonix_frontend_compile (moonix_state *state, const char *source,
             chunk->on1x_ir = ccw_ir_module_create (
                 chunk_name ? chunk_name : "moonix", CCW_PROFILE_ON1X);
             free (error);
-            return chunk->on1x_ir != NULL ? MOONIX_OK : MOONIX_ERR_OOM;
+            if (chunk->on1x_ir == NULL)
+              {
+                free (chunk->data);
+                chunk->data = NULL;
+                chunk->size = 0;
+                return MOONIX_ERR_OOM;
+              }
           }
         moonix_set_error (state, error ? error : "Lua Swaff lowering failed");
         free (error);
@@ -148,6 +155,41 @@ moonix_frontend_compile (moonix_state *state, const char *source,
       }
     free (error);
   }
+  {
+    static const char *const sema_rulesets[] = {
+      "sema.scope.bind", "sema.scope.capture", "sema.fn.application",
+      "sema.type.misc", "sema.call.linkage"
+    };
+    char *sema_error = NULL;
+    if (ccw_sema_analyze (
+            chunk->on1x_ir, MOONIX_SEMA_SALVO_DIR, sema_rulesets,
+            sizeof sema_rulesets / sizeof sema_rulesets[0], NULL,
+            &sema_error)
+        != CCW_OK)
+      {
+        moonix_set_error (state, sema_error ? sema_error
+                                            : "Moonix semantic analysis failed");
+        free (sema_error);
+        free (chunk->data);
+        chunk->data = NULL;
+        chunk->size = 0;
+        ccw_ir_module_destroy (chunk->on1x_ir);
+        chunk->on1x_ir = NULL;
+        return MOONIX_ERR_FRONTEND;
+      }
+    free (sema_error);
+  }
+  if (moonix_requested_tier (state) == MOONIX_TIER_T2
+      && moonix_jit_apply_rewrites (state, MOONIX_TIER_T2, chunk->on1x_ir)
+             != MOONIX_OK)
+    {
+      free (chunk->data);
+      chunk->data = NULL;
+      chunk->size = 0;
+      ccw_ir_module_destroy (chunk->on1x_ir);
+      chunk->on1x_ir = NULL;
+      return MOONIX_ERR_SCHED;
+    }
   return MOONIX_OK;
 }
 

@@ -25,7 +25,9 @@
 #include "../stdmodule/cephyr_stdmodule.h"
 
 #include "../../../ir/ccw_ir.h"
+#include "../../../oeuph/ccw_sema.h"
 #include "../../../sched/ccw_sched.h"
+#include "../../../sched/ccw_rewrite_scheme.h"
 #include "../../../swaff/ccw_swaff.h"
 #include "../../../third_party/ucpp/cpp.h"
 #include "../../../third_party/ucpp/tune.h"
@@ -1506,8 +1508,9 @@ run_sched_plan (ccw_ir *ir, const cephyr_options *opts)
   if (plan)
     {
       ccw_oeuph_budget budget = ccw_oeuph_default_budget ();
-      if (!ccw_plan_apply_rewrites (plan, ir, manifest_dir, budget,
-                                    CCW_COST_PERFORMANCE, NULL, 0, NULL, &err))
+      if (!ccw_rewrite_scheme_apply (
+              plan, ir, manifest_dir, budget, CCW_COST_PERFORMANCE, NULL, 0,
+              NULL, &err))
         {
           fprintf (stderr, "cephyr: rewrite error: %s\n", err.message);
           ccw_plan_free (plan);
@@ -1647,24 +1650,29 @@ cephyr_compile_inner (const cephyr_options *opts)
       return CEPHYR_ERR_PARSE;
     }
 
-  /* Step 4: Semantic analysis
-   * In v0.1, the Swaff C adapter already produces Weave IR directly.
-   * The sema layer operates on a typed AST; for v0.1 we validate
-   * the IR and report diagnostics. The full typed-AST pipeline is
-   * staged for v0.2, when the Swaff→IR lowering is completed. */
-  char *validate_err = NULL;
-  ccw_status validate_rc = ccw_ir_validate (ir, &validate_err);
-  if (validate_rc != CCW_OK)
-    {
-      fprintf (stderr, "cephyr: IR validation error: %s\n",
-               validate_err ? validate_err : "unknown");
-      free (validate_err);
-      ccw_ir_module_destroy (ir);
-      cephyr_cpp_result_free (&cpp_res);
-      free (source_text);
-      return CEPHYR_ERR_SEMA;
-    }
-
+  /* Step 4: semantic analysis is dispatched through Oeuph's sema-salvo. */
+  {
+    static const char *const sema_rulesets[] = {
+      "sema.scope.resolution", "sema.type.misc", "sema.mem.field",
+      "sema.call.abi"
+    };
+    ccw_sema_report sema_report;
+    char *sema_error = NULL;
+    ccw_status sema_rc = ccw_sema_analyze (
+        ir, CEPHYR_SEMA_SALVO_DIR, sema_rulesets,
+        sizeof sema_rulesets / sizeof sema_rulesets[0], &sema_report,
+        &sema_error);
+    if (sema_rc != CCW_OK)
+      {
+        fprintf (stderr, "cephyr: semantic analysis error: %s\n",
+                 sema_error ? sema_error : "unknown");
+        free (sema_error);
+        ccw_ir_module_destroy (ir);
+        cephyr_cpp_result_free (&cpp_res);
+        free (source_text);
+        return CEPHYR_ERR_SEMA;
+      }
+  }
   /* Step 5: Run the Sched plan */
   result = run_sched_plan (ir, opts);
 

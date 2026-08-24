@@ -38,7 +38,7 @@ ccw_vendored_target(ccw_lua)
 if(CCW_M_LIB)
   target_link_libraries(ccw_lua PUBLIC ${CCW_M_LIB})
 endif()
-add_library(ccw_sched STATIC sched.c sched_lua.c)
+add_library(ccw_sched STATIC sched.c sched_lua.c ccw_rewrite_scheme.c)
 target_include_directories(ccw_sched PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}
   ${CMAKE_SOURCE_DIR}/oeuph
