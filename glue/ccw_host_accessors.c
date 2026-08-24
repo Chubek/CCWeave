@@ -751,6 +751,7 @@ ccw_host_register_core_accessors (ccw_executor *ex)
     { "block-delete!", 1, 1, acc_block_delete },
     { "block-merge!", 2, 2, acc_block_merge },
     { "instr-opcode", 1, 1, acc_instr_opcode },
+    { "instr-terminator?", 1, 1, acc_instr_is_terminator },
     { "instr-operand-count", 1, 1, acc_instr_operand_count },
     { "instr-operand", 2, 2, acc_instr_operand },
     { "operand-const?", 1, 1, acc_operand_const },

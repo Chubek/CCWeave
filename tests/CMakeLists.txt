@@ -12,6 +12,9 @@ target_link_libraries(test_ir_roundtrip PRIVATE ccw_ir)
 ccw_add_test(test_ir_profiles test_ir_profiles.c)
 target_link_libraries(test_ir_profiles PRIVATE ccw_ir)
 
+ccw_add_test(test_ir_validate test_ir_validate.c)
+target_link_libraries(test_ir_validate PRIVATE ccw_ir)
+
 ccw_add_test(test_glue_executor test_glue_executor.c)
 target_link_libraries(test_glue_executor PRIVATE ccw_host_glue ccw_executor_s7)
 target_compile_definitions(test_glue_executor PRIVATE

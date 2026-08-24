@@ -68,6 +68,14 @@ extern "C"
 #define CCW_OP_IO_CLOSE "io.close"
 #define CCW_OP_IO_OPEN "io.open"
 
+/* Terminator opcodes (every block must end with one; §5.2). */
+#define CCW_OP_BR "br"
+#define CCW_OP_BR_COND "br.cond"
+#define CCW_OP_RET "ret"
+#define CCW_OP_SWITCH "switch"
+
+  bool ccw_ir_instr_is_terminator (const ccw_ir *ir, ccw_node ins);
+
   /* ---------- module lifecycle ---------- */
 
   ccw_ir *ccw_ir_module_create (const char *name, ccw_profile profile);

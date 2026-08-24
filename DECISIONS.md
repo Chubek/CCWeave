@@ -912,3 +912,60 @@ returned `luaL_checkstring` which yields `const char *`. This caused
 functions expecting `const char *` (e.g. `ccwld_expr_addr`,
 `ccwld_expr_loadaddr`, `ccwld_expr_sizeof`, `ccwld_expr_region_origin`,
 `ccwld_expr_region_length`). The return type was changed to `const char *`.
+
+## 2026-08-24 — IR validation strengthened: terminator, duplicate, and unreachable-block checks
+
+The IR validator was strengthened from a permissive stub to a comprehensive
+pass that enforces the §5.2/§5.3 structural invariants:
+
+**Validator additions (`ir/ccw_ir_validate.c`):**
+- **Duplicate function names** — the module-level scan rejects `@f` appearing
+  in more than one function header.
+- **Duplicate block names** — within a single function, `^name` must be unique.
+- **Terminator requirement** — every block must end with one of `br`, `ret`,
+  `br.cond`, or `switch`; a block whose last instruction is a non-terminator
+  (e.g. `iadd`) is rejected.
+- **Empty block rejection** — a block with zero instructions has no terminator
+  and is rejected.
+- **Undefined branch targets** — every block-operand in a terminator must
+  resolve to a block name declared in the same function.
+- **Unreachable blocks** — a non-entry block with zero predecessors (as
+  computed by the live CFG successor walk) is rejected.
+- **Duplicate parameter names** — `%%x` appearing twice in the same function's
+  `(params ...)` list is rejected.
+- **Return type consistency** — the operand type of a `ret` instruction must
+  match the function's declared result type (e.g. `f64` in a function typed
+  `i64` is rejected).
+- Profile-cross-contamination checks are retained from the original.
+
+**CFG analysis tightened (`ir/ccw_ir.c`):**
+- `ccw_ir_block_successors` now looks only at the last instruction (the
+  terminator) rather than scanning backwards for any instruction with block
+  operands. This prevents non-terminator instructions with block references
+  (e.g. hypothetical `phi`/`block-addr` ops) from contaminating the CFG.
+- `ccw_ir_block_successor_ref` uses a dynamically allocated buffer instead of
+  a fixed 16-element stack array, so `switch` instructions with many targets
+  work correctly.
+
+**New public API (`ir/ccw_ir.h`):**
+- `ccw_ir_instr_is_terminator` — returns `true` for `br`, `ret`, `br.cond`,
+  and `switch`, `false` for all other opcodes.
+- Terminator opcode constants: `CCW_OP_BR`, `CCW_OP_BR_COND`, `CCW_OP_RET`,
+  `CCW_OP_SWITCH`.
+
+**Glue accessor added (`glue/ccw_host_accessors.c`):**
+- `instr-terminator?` — Scheme-visible predicate so kernels can query whether
+  an instruction is a terminator without inspecting opcode strings.
+
+**Swaff adapters unified:**
+- All five Swaff adapters (C, Lua, SML, OCaml, Delphi) had identical
+  `block_terminated` static functions duplicated across files. Each was
+  replaced with a one-liner that delegates to `ccw_ir_instr_is_terminator`.
+
+**Tests (`tests/test_ir_validate.c`):**
+- New test file covering all the new checks listed above, plus a smoke test
+  for `ccw_ir_instr_is_terminator` and a validation round-trip (validate →
+  print → parse → validate).
+- `tests/test_ir_profiles.c` updated to add terminators to every block whose
+  validation was previously tested without them (the old tests happened to
+  pass because the validator didn't check for terminators).

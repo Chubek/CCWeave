@@ -693,28 +693,17 @@ ccw_ir_block_successors (const ccw_ir *ir, ccw_node blk, ccw_node *out,
   ccw_ir_node *block = ccw_ir_node_get_kind (ir, blk, CCW_NODE_BLOCK);
   if (block == NULL || block->children.count == 0)
     return 0;
-  ccw_ir_node *instruction = NULL;
-  for (int index = block->children.count - 1; index >= 0; index--)
-    {
-      ccw_ir_node *candidate = ccw_ir_node_get_kind (
-          ir, block->children.items[index], CCW_NODE_INSTR);
-      if (candidate == NULL)
-        continue;
-      for (int operand_index = 0; operand_index < candidate->children.count;
-           operand_index++)
-        {
-          if (ccw_ir_operand_kind (ir,
-                                   candidate->children.items[operand_index])
-              == CCW_OPND_BLOCK)
-            {
-              instruction = candidate;
-              break;
-            }
-        }
-      if (instruction != NULL)
-        break;
-    }
-  if (instruction == NULL)
+  /* §5.2: CFG successors are derived from the block's terminator
+   * instruction — the last instruction in a well-formed block.
+   * Only br, ret, br.cond, and switch are recognised terminators. */
+  ccw_ir_node *instruction = ccw_ir_node_get_kind (
+      ir, block->children.items[block->children.count - 1], CCW_NODE_INSTR);
+  if (instruction == NULL || instruction->opcode == NULL)
+    return 0;
+  if (strcmp (instruction->opcode, "br") != 0
+      && strcmp (instruction->opcode, "br.cond") != 0
+      && strcmp (instruction->opcode, "switch") != 0
+      && strcmp (instruction->opcode, "ret") != 0)
     return 0;
   int count = 0;
   for (int i = 0; i < instruction->children.count; i++)
@@ -752,14 +741,16 @@ ccw_ir_block_successor_count (const ccw_ir *ir, ccw_node blk)
 ccw_node
 ccw_ir_block_successor_ref (const ccw_ir *ir, ccw_node blk, int idx)
 {
-  ccw_node successors[16];
-  int count = ccw_ir_block_successors (
-      ir, blk, successors,
-      (int)(sizeof (successors) / sizeof (successors[0])));
-  return idx >= 0 && idx < count
-                 && idx < (int)(sizeof (successors) / sizeof (successors[0]))
-             ? successors[idx]
-             : 0;
+  int count = ccw_ir_block_successor_count (ir, blk);
+  if (idx < 0 || idx >= count)
+    return 0;
+  ccw_node *successors = (ccw_node *)calloc ((size_t)count, sizeof (ccw_node));
+  if (successors == NULL)
+    return 0;
+  int actual = ccw_ir_block_successors (ir, blk, successors, count);
+  ccw_node result = (idx < actual) ? successors[idx] : 0;
+  free (successors);
+  return result;
 }
 
 int
@@ -887,6 +878,17 @@ ccw_ir_instr_type (const ccw_ir *ir, ccw_node ins)
 {
   ccw_ir_node *n = ccw_ir_node_get_kind (ir, ins, CCW_NODE_INSTR);
   return n ? n->type : CCW_TY_VOID;
+}
+
+bool
+ccw_ir_instr_is_terminator (const ccw_ir *ir, ccw_node ins)
+{
+  const char *opcode = ccw_ir_instr_opcode (ir, ins);
+  if (opcode == NULL)
+    return false;
+  return strcmp (opcode, "br") == 0 || strcmp (opcode, "ret") == 0
+         || strcmp (opcode, "br.cond") == 0
+         || strcmp (opcode, "switch") == 0;
 }
 
 int

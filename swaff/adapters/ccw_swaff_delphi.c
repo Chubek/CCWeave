@@ -280,21 +280,15 @@ static bool
 terminated (const ccw_ir *ir, ccw_node block)
 {
   int n = ccw_ir_block_instr_count (ir, block);
-  if (!n)
-    return false;
-  const char *op
-      = ccw_ir_instr_opcode (ir, ccw_ir_block_instr_ref (ir, block, n - 1));
-  return op
-         && (!strcmp (op, "ret") || !strcmp (op, "br")
-             || !strcmp (op, "br.cond"));
-}
-
-static char *lower_expr (delphi_ctx *ctx, ccw_node block, TSNode n);
-
-static char *
-lower_identifier (delphi_ctx *ctx, ccw_node block, TSNode n)
+static bool
+block_terminated (const ccw_ir *ir, ccw_node block)
 {
-  char *name = text (ctx, n);
+  int count = ccw_ir_block_instr_count (ir, block);
+  if (count == 0)
+    return false;
+  ccw_node last = ccw_ir_block_instr_ref (ir, block, count - 1);
+  return ccw_ir_instr_is_terminator (ir, last);
+}
   if (name == NULL)
     {
       fail (ctx, "swaff Delphi: invalid identifier");

@@ -173,18 +173,15 @@ new_block_name (ccw_ocaml_lower *ctx, const char *stem)
 }
 
 static bool
+static bool
 block_terminated (const ccw_ir *ir, ccw_node block)
 {
   int count = ccw_ir_block_instr_count (ir, block);
   if (count == 0)
     return false;
-  const char *opcode = ccw_ir_instr_opcode (
-      ir, ccw_ir_block_instr_ref (ir, block, count - 1));
-  return opcode != NULL
-         && (strcmp (opcode, "ret") == 0 || strcmp (opcode, "br") == 0
-             || strcmp (opcode, "br.cond") == 0);
+  ccw_node last = ccw_ir_block_instr_ref (ir, block, count - 1);
+  return ccw_ir_instr_is_terminator (ir, last);
 }
-
 static void
 clear_function_names (ccw_ocaml_lower *ctx)
 {
