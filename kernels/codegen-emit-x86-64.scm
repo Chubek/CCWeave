@@ -37,7 +37,7 @@
                            (if (operand-const? operand)
                                (const-int-value operand)
                                (or (lookup known (operand-name operand)) 0))))
-                        (else (ins (+ ii 1)))))))))))
+                        (else (ins (+ ii 1) known))))))))))
 
     (define (emit-function fn)
       (let ((name (function-name fn))

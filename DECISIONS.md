@@ -1,5 +1,23 @@
 # Decisions
 
+## 2026-08-24 — Named-let recursion in kernels must thread every loop parameter
+
+Cephyr compilation failed at the final codegen stage with
+`kernel error: wrong-number-of-args: ins: not enough arguments: (+ ii 1)`.
+The `ret-value` walker in `kernels/codegen-emit-x86-64.scm` iterates with a
+named `let ins ((ii 0) (known known))`, but its `else` branch recursed as
+`(ins (+ ii 1))`, dropping the `known` alist of constant returns.  s7 binds
+a named let to a procedure of exact arity, so the first instruction that was
+neither a const-`iconst` nor an `x86-64.ret` raised the arity error; the
+`else` branch now threads `known` the way the `iconst` branch always did.
+Kernel writers should treat a named-let parameter list as an arity contract:
+every recursive call site must pass all parameters, including the ones the
+branch does not use.  The fix also confirmed two operational facts: kernel
+text is loaded from the manifest dir at compile time, so kernel repairs take
+effect without rebuilding the host compiler; and executor-side s7 errors
+surface verbatim as `kernel error`/`scheduler error` from the driver, which
+correctly localizes such defects to the kernel rather than the scheduler.
+
 ## 2026-08-24 — Compiler and interpreter backends are kernel-only
 
 Language implementations may own language-specific preprocessing, parsing,
