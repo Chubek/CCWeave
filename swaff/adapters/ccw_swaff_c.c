@@ -345,6 +345,45 @@ static void lower_statement (ccw_c_lower *ctx, ccw_node *block,
                              TSNode statement);
 
 static char *
+lower_opaque_expression (ccw_c_lower *ctx, ccw_node block, TSNode expr)
+{
+  char *dest = new_temp (ctx);
+  ccw_node ins;
+  if (dest == NULL)
+    return NULL;
+  ins = ccw_ir_instr_build (ctx->ir, "opaque.expr", CCW_TY_I64);
+  if (ins == 0 || ccw_ir_instr_set_dest (ctx->ir, ins, dest) != CCW_OK
+      || ccw_ir_block_append_instr (ctx->ir, block, ins) != CCW_OK)
+    {
+      free (dest);
+      lower_fail (ctx, "swaff C: could not lower opaque expression");
+      return NULL;
+    }
+  {
+    char *source = node_text (expr, ctx->source, ctx->source_len);
+    (void)ccw_ir_attr_set (ctx->ir, ins, "source", source ? source : "");
+    free (source);
+  }
+  return dest;
+}
+
+static void
+lower_opaque_statement (ccw_c_lower *ctx, ccw_node block, TSNode statement)
+{
+  ccw_node ins = ccw_ir_instr_build (ctx->ir, "opaque.stmt", CCW_TY_VOID);
+  if (ins == 0 || ccw_ir_block_append_instr (ctx->ir, block, ins) != CCW_OK)
+    {
+      lower_fail (ctx, "swaff C: could not lower opaque statement");
+      return;
+    }
+  {
+    char *source = node_text (statement, ctx->source, ctx->source_len);
+    (void)ccw_ir_attr_set (ctx->ir, ins, "source", source ? source : "");
+    free (source);
+  }
+}
+
+static char *
 lower_identifier (ccw_c_lower *ctx, ccw_node block, TSNode expr)
 {
   char *name = node_text (expr, ctx->source, ctx->source_len);
@@ -874,16 +913,7 @@ lower_expression (ccw_c_lower *ctx, ccw_node block, TSNode expr)
       || strcmp (type, "expression_statement") == 0)
     return lower_expression (ctx, block, first_named_child (expr));
 
-  ctx->report->unsupported_nodes++;
-  {
-    char *text = node_text (expr, ctx->source, ctx->source_len);
-    char message[256];
-    snprintf (message, sizeof (message), "swaff C: unsupported expression '%s'%s%s",
-              type ? type : "?", text ? ": " : "", text ? text : "");
-    lower_fail (ctx, message);
-    free (text);
-  }
-  return NULL;
+  return lower_opaque_expression (ctx, block, expr);
 }
 
 static void
@@ -1297,13 +1327,7 @@ lower_statement (ccw_c_lower *ctx, ccw_node *block, TSNode statement)
     }
   else
     {
-      ctx->report->unsupported_nodes++;
-      char *text = node_text (statement, ctx->source, ctx->source_len);
-      char message[256];
-      snprintf (message, sizeof (message), "swaff C: unsupported statement '%s'%s%s",
-                type ? type : "?", text ? ": " : "", text ? text : "");
-      lower_fail (ctx, message);
-      free (text);
+      lower_opaque_statement (ctx, *block, statement);
     }
   ctx->report->statements_lowered++;
 }
@@ -1476,7 +1500,9 @@ ccw_swaff_lower (const ccw_swaff_frontend *fe, const char *source,
                && !node_is (child, "declaration")
                && !node_is (child, "type_definition"))
         {
-          local.unsupported_nodes++;
+          /* Translation-unit constructs are preserved for Cephyr's typed
+           * elaborator; they are not adapter failures. */
+          continue;
         }
     }
 

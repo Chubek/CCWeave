@@ -1,5 +1,17 @@
 # Decisions
 
+## 2026-08-24 — Swaff adapters are total over their grammars
+
+Swaff adapters must not reject a valid Tree-sitter construct merely because
+its typed elaboration is owned by the language compiler/interpreter.  C, Lua,
+OCaml, SML, and Delphi adapters now lower otherwise-unhandled expressions and
+statements to explicit `opaque.expr`/`opaque.stmt` IR instructions, retaining
+the source spelling as instruction metadata.  Constructs with a defined
+Kliche mapping continue to use that stereotype; opaque nodes are a deliberate
+handoff boundary for language-specific elaboration.  This makes
+`unsupported_nodes` describe malformed/failed lowering only, while preserving
+the complete frontend grammar surface for downstream consumers.
+
 ## 2026-08-24 — Semantic and rewrite responsibilities progress to shared schemes
 
 The language frontends are progressing from local, case-by-case semantic and

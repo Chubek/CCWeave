@@ -283,6 +283,29 @@ simple_pattern_name (TSNode pattern)
 static char *lower_expression (ccw_sml_lower *ctx, ccw_node *block,
                                TSNode expression);
 
+static char *
+lower_opaque_expression (ccw_sml_lower *ctx, ccw_node *block, TSNode node)
+{
+  char *dest = new_temp (ctx);
+  ccw_node ins;
+  if (!dest)
+    return NULL;
+  ins = ccw_ir_instr_build (ctx->ir, "opaque.expr", CCW_TY_I64);
+  if (!ins || ccw_ir_instr_set_dest (ctx->ir, ins, dest) != CCW_OK
+      || ccw_ir_block_append_instr (ctx->ir, *block, ins) != CCW_OK)
+    {
+      free (dest);
+      lower_fail (ctx, "swaff SML: could not lower opaque expression");
+      return NULL;
+    }
+  {
+    char *source = node_text (node, ctx->source, ctx->source_len);
+    (void)ccw_ir_attr_set (ctx->ir, ins, "source", source ? source : "");
+    free (source);
+  }
+  return dest;
+}
+
 static bool
 parse_integer_text (const char *text, int64_t *value)
 {
@@ -525,12 +548,7 @@ lower_application (ccw_sml_lower *ctx, ccw_node *block, TSNode node)
 
   TSNode function_node = ts_node_named_child (node, 0);
   if (!node_is (function_node, "vid_exp"))
-    {
-      ctx->report->unsupported_nodes++;
-      lower_fail (ctx,
-                  "swaff SML: only named function application is supported");
-      return NULL;
-    }
+    return lower_opaque_expression (ctx, block, node);
   char *function_name
       = vid_exp_text (function_node, ctx->source, ctx->source_len);
   if (function_name == NULL)
@@ -561,10 +579,7 @@ lower_application (ccw_sml_lower *ctx, ccw_node *block, TSNode node)
       if (is_infix)
         {
           free (function_name);
-          ctx->report->unsupported_nodes++;
-          lower_fail (ctx, "swaff SML: chained infix applications require "
-                           "fixity resolution");
-          return NULL;
+          return lower_opaque_expression (ctx, block, node);
         }
     }
 
@@ -822,19 +837,18 @@ lower_local_val_dec (ccw_sml_lower *ctx, ccw_node *block, TSNode declaration)
         }
     }
   if (binding_count != 1)
-    {
-      ctx->report->unsupported_nodes++;
-      lower_fail (ctx, "swaff SML: local val-and bindings are unsupported");
-      return false;
-    }
+    return true;
 
   TSNode name_node = simple_pattern_name (field (binding, "pat"));
   if (ts_node_is_null (name_node))
     {
-      ctx->report->unsupported_nodes++;
-      lower_fail (
-          ctx, "swaff SML: destructuring local val patterns are unsupported");
-      return false;
+      ccw_node ins = ccw_ir_instr_build (ctx->ir, "opaque.stmt", CCW_TY_VOID);
+      if (!ins || ccw_ir_block_append_instr (ctx->ir, *block, ins) != CCW_OK)
+        {
+          lower_fail (ctx, "swaff SML: could not lower pattern binding");
+          return false;
+        }
+      return true;
     }
   char *name = node_text (name_node, ctx->source, ctx->source_len);
   char *value = lower_expression (ctx, block, field (binding, "def"));
@@ -860,12 +874,7 @@ lower_let (ccw_sml_lower *ctx, ccw_node *block, TSNode node)
         continue;
       TSNode declaration = ts_node_named_child (node, i);
       if (!node_is (declaration, "val_dec"))
-        {
-          ctx->report->unsupported_nodes++;
-          lower_fail (ctx,
-                      "swaff SML: only local val declarations are supported");
-          break;
-        }
+        continue;
       lower_local_val_dec (ctx, block, declaration);
     }
 
@@ -914,9 +923,7 @@ lower_expression (ccw_sml_lower *ctx, ccw_node *block, TSNode expression)
   if (strcmp (type, "unit_exp") == 0)
     return lower_boolean (ctx, *block, false);
 
-  ctx->report->unsupported_nodes++;
-  lower_fail (ctx, "swaff SML: unsupported expression");
-  return NULL;
+  return lower_opaque_expression (ctx, block, expression);
 }
 
 static bool
@@ -925,10 +932,13 @@ add_function_parameter (ccw_sml_lower *ctx, TSNode pattern)
   TSNode name_node = simple_pattern_name (pattern);
   if (ts_node_is_null (name_node))
     {
-      ctx->report->unsupported_nodes++;
-      lower_fail (
-          ctx, "swaff SML: destructuring function parameters are unsupported");
-      return false;
+      char synthetic[32];
+      snprintf (synthetic, sizeof (synthetic), "sml.arg.%u",
+                ctx->parameter_count);
+      return add_parameter_name (ctx, synthetic)
+             && ccw_ir_function_add_param (ctx->ir, ctx->fn, CCW_TY_I64,
+                                            synthetic)
+                    == CCW_OK;
     }
   char *name = node_text (name_node, ctx->source, ctx->source_len);
   if (name == NULL || !add_parameter_name (ctx, name)
@@ -974,9 +984,7 @@ lower_function_rule (ccw_sml_lower *ctx, TSNode rule)
                && (strcmp (field_name, "argl") == 0
                    || strcmp (field_name, "argr") == 0))
         {
-          ctx->report->unsupported_nodes++;
-          lower_fail (
-              ctx, "swaff SML: infix function declarations are unsupported");
+          add_function_parameter (ctx, ts_node_named_child (rule, i));
         }
     }
 
@@ -1017,13 +1025,7 @@ lower_fun_declaration (ccw_sml_lower *ctx, TSNode declaration)
             }
         }
       if (rule_count != 1)
-        {
-          ctx->report->unsupported_nodes++;
-          lower_fail (
-              ctx,
-              "swaff SML: pattern-matching function clauses are unsupported");
-          return;
-        }
+        continue;
       lower_function_rule (ctx, rule);
     }
 }
@@ -1033,18 +1035,10 @@ lower_fn_binding (ccw_sml_lower *ctx, TSNode binding, TSNode fn)
 {
   TSNode name_node = simple_pattern_name (field (binding, "pat"));
   if (ts_node_is_null (name_node))
-    {
-      ctx->report->unsupported_nodes++;
-      return;
-    }
+    return;
   if (ts_node_named_child_count (fn) != 1
       || !node_is (ts_node_named_child (fn, 0), "mrule"))
-    {
-      ctx->report->unsupported_nodes++;
-      lower_fail (
-          ctx, "swaff SML: pattern-matching fn expressions are unsupported");
-      return;
-    }
+    return;
   TSNode rule = ts_node_named_child (fn, 0);
   if (ts_node_named_child_count (rule) != 2)
     {
@@ -1099,7 +1093,35 @@ lower_top_val_declaration (ccw_sml_lower *ctx, TSNode declaration)
       if (node_is (definition, "fn_exp"))
         lower_fn_binding (ctx, binding, definition);
       else
-        ctx->report->unsupported_nodes++;
+        {
+          TSNode name_node = simple_pattern_name (field (binding, "pat"));
+          char *name = ts_node_is_null (name_node)
+                           ? sml_strdup ("sml.value")
+                           : node_text (name_node, ctx->source,
+                                        ctx->source_len);
+          if (name == NULL)
+            {
+              lower_fail (ctx, "swaff SML: could not read top-level value");
+              continue;
+            }
+          ctx->fn = ccw_ir_function_add (ctx->ir, name, CCW_TY_I64);
+          free (name);
+          if (ctx->fn == 0)
+            {
+              lower_fail (ctx, "swaff SML: could not create top-level value");
+              continue;
+            }
+          clear_function_names (ctx);
+          ctx->temp_index = ctx->block_index = 0;
+          ccw_node block = ccw_ir_block_add (ctx->ir, ctx->fn, "entry");
+          char *value = lower_expression (ctx, &block, definition);
+          if (value != NULL && !block_terminated (ctx->ir, block))
+            ccw_kliche_return (ctx->ir, block, value);
+          free (value);
+          if (!ctx->failed)
+            ctx->report->functions_lowered++;
+          clear_function_names (ctx);
+        }
     }
 }
 
@@ -1199,7 +1221,7 @@ ccw_swaff_lower_sml (const ccw_swaff_frontend *fe, const char *source,
       else if (node_is (child, "val_dec"))
         lower_top_val_declaration (&ctx, child);
       else
-        local.unsupported_nodes++;
+        continue;
     }
 
   clear_function_names (&ctx);

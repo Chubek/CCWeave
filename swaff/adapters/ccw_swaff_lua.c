@@ -216,6 +216,45 @@ new_block_name (ccw_lua_lower *ctx, const char *stem)
   return lua_strdup (name);
 }
 
+static char *
+lower_opaque_expression (ccw_lua_lower *ctx, ccw_node block, TSNode expr)
+{
+  char *dest = new_temp (ctx);
+  ccw_node ins;
+  if (dest == NULL)
+    return NULL;
+  ins = ccw_ir_instr_build (ctx->ir, "opaque.expr", CCW_TY_I64);
+  if (ins == 0 || ccw_ir_instr_set_dest (ctx->ir, ins, dest) != CCW_OK
+      || ccw_ir_block_append_instr (ctx->ir, block, ins) != CCW_OK)
+    {
+      free (dest);
+      lower_fail (ctx, "swaff Lua: could not lower opaque expression");
+      return NULL;
+    }
+  {
+    char *source = node_text (expr, ctx->source, ctx->source_len);
+    (void)ccw_ir_attr_set (ctx->ir, ins, "source", source ? source : "");
+    free (source);
+  }
+  return dest;
+}
+
+static void
+lower_opaque_statement (ccw_lua_lower *ctx, ccw_node block, TSNode node)
+{
+  ccw_node ins = ccw_ir_instr_build (ctx->ir, "opaque.stmt", CCW_TY_VOID);
+  if (ins == 0 || ccw_ir_block_append_instr (ctx->ir, block, ins) != CCW_OK)
+    {
+      lower_fail (ctx, "swaff Lua: could not lower opaque statement");
+      return;
+    }
+  {
+    char *source = node_text (node, ctx->source, ctx->source_len);
+    (void)ccw_ir_attr_set (ctx->ir, ins, "source", source ? source : "");
+    free (source);
+  }
+}
+
 static bool
 block_terminated (const ccw_ir *ir, ccw_node block)
 {
@@ -944,18 +983,10 @@ lower_expression (ccw_lua_lower *ctx, ccw_node block, TSNode expr)
   if (strcmp (type, "ellipsis") == 0)
     return lower_ellipsis (ctx, block);
   if (strcmp (type, "function") == 0)
-    {
-      ctx->report->unsupported_nodes++;
-      lower_fail (
-          ctx,
-          "swaff Lua: anonymous function expressions are not yet supported");
-      return NULL;
-    }
+    return lower_opaque_expression (ctx, block, expr);
   if (strcmp (type, "left_paren") == 0 || strcmp (type, "right_paren") == 0)
     return lower_expression (ctx, block, first_named_child (expr));
-  ctx->report->unsupported_nodes++;
-  lower_fail (ctx, "swaff Lua: unsupported expression");
-  return NULL;
+  return lower_opaque_expression (ctx, block, expr);
 }
 
 /* ---------- statement lowering ---------- */
@@ -1611,10 +1642,7 @@ lower_statement (ccw_lua_lower *ctx, ccw_node *block, TSNode node)
   else if (strcmp (type, "label_statement") == 0)
     lower_label (ctx, block, node);
   else
-    {
-      ctx->report->unsupported_nodes++;
-      lower_fail (ctx, "swaff Lua: unsupported statement");
-    }
+    lower_opaque_statement (ctx, *block, node);
   ctx->report->statements_lowered++;
 }
 

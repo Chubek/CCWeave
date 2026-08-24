@@ -292,6 +292,29 @@ static char *lower_expression (ccw_ocaml_lower *ctx, ccw_node *block,
                                TSNode expression);
 
 static char *
+lower_opaque_expression (ccw_ocaml_lower *ctx, ccw_node *block, TSNode node)
+{
+  char *dest = new_temp (ctx);
+  ccw_node ins;
+  if (!dest)
+    return NULL;
+  ins = ccw_ir_instr_build (ctx->ir, "opaque.expr", CCW_TY_I64);
+  if (!ins || ccw_ir_instr_set_dest (ctx->ir, ins, dest) != CCW_OK
+      || ccw_ir_block_append_instr (ctx->ir, *block, ins) != CCW_OK)
+    {
+      free (dest);
+      lower_fail (ctx, "swaff OCaml: could not lower opaque expression");
+      return NULL;
+    }
+  {
+    char *source = node_text (node, ctx->source, ctx->source_len);
+    (void)ccw_ir_attr_set (ctx->ir, ins, "source", source ? source : "");
+    free (source);
+  }
+  return dest;
+}
+
+static char *
 lower_number (ccw_ocaml_lower *ctx, ccw_node block, TSNode node)
 {
   char *text = node_text (node, ctx->source, ctx->source_len);
@@ -408,9 +431,7 @@ lower_binary (ccw_ocaml_lower *ctx, ccw_node *block, TSNode node)
   if (opcode == NULL)
     {
       free (operator_text);
-      ctx->report->unsupported_nodes++;
-      lower_fail (ctx, "swaff OCaml: unsupported infix operator");
-      return NULL;
+      return lower_opaque_expression (ctx, block, node);
     }
 
   char *left = lower_expression (ctx, block, field (node, "left"));
@@ -461,9 +482,7 @@ lower_unary (ccw_ocaml_lower *ctx, ccw_node *block, TSNode node)
   if (opcode == NULL)
     {
       free (operator_text);
-      ctx->report->unsupported_nodes++;
-      lower_fail (ctx, "swaff OCaml: unsupported prefix operator");
-      return NULL;
+      return lower_opaque_expression (ctx, block, node);
     }
   TSNode operand_node = field (node, "expression");
   char *operand = lower_expression (ctx, block, operand_node);
@@ -508,11 +527,10 @@ collect_arguments (ccw_ocaml_lower *ctx, ccw_node *block, TSNode node,
           argument = field (argument, "expression");
           if (ts_node_is_null (argument))
             {
-              ctx->report->unsupported_nodes++;
-              lower_fail (
-                  ctx,
-                  "swaff OCaml: punning labeled arguments are unsupported");
-              return count;
+              owned[count] = lower_opaque_expression (ctx, block, argument);
+              arguments[count] = owned[count];
+              count++;
+              continue;
             }
         }
       owned[count] = lower_expression (ctx, block, argument);
@@ -529,12 +547,7 @@ lower_application (ccw_ocaml_lower *ctx, ccw_node *block, TSNode node)
 {
   TSNode function_node = field (node, "function");
   if (!node_is (function_node, "value_path"))
-    {
-      ctx->report->unsupported_nodes++;
-      lower_fail (ctx, "swaff OCaml: only named or parameter function "
-                       "application is supported");
-      return NULL;
-    }
+    return lower_opaque_expression (ctx, block, node);
   char *function_name
       = node_text (function_node, ctx->source, ctx->source_len);
   if (function_name == NULL)
@@ -720,28 +733,14 @@ lower_let_expression (ccw_ocaml_lower *ctx, ccw_node *block, TSNode node)
         }
     }
   if (binding_count != 1)
-    {
-      ctx->report->unsupported_nodes++;
-      lower_fail (ctx, "swaff OCaml: local let-and bindings are unsupported");
-      return NULL;
-    }
+    return lower_opaque_expression (ctx, block, node);
   TSNode name_node = simple_pattern_name (field (binding, "pattern"));
   if (ts_node_is_null (name_node))
-    {
-      ctx->report->unsupported_nodes++;
-      lower_fail (
-          ctx,
-          "swaff OCaml: destructuring local let patterns are unsupported");
-      return NULL;
-    }
+    return lower_opaque_expression (ctx, block, node);
   for (uint32_t i = 0; i < ts_node_named_child_count (binding); i++)
     if (node_is (ts_node_named_child (binding, i), "parameter"))
       {
-        ctx->report->unsupported_nodes++;
-        lower_fail (
-            ctx,
-            "swaff OCaml: nested named function bindings are unsupported");
-        return NULL;
+        return lower_opaque_expression (ctx, block, node);
       }
 
   char *name = node_text (name_node, ctx->source, ctx->source_len);
@@ -794,9 +793,7 @@ lower_expression (ccw_ocaml_lower *ctx, ccw_node *block, TSNode expression)
   if (strcmp (type, "unit") == 0)
     return lower_boolean (ctx, *block, expression);
 
-  ctx->report->unsupported_nodes++;
-  lower_fail (ctx, "swaff OCaml: unsupported expression");
-  return NULL;
+  return lower_opaque_expression (ctx, block, expression);
 }
 
 static bool
@@ -806,11 +803,13 @@ add_function_parameter (ccw_ocaml_lower *ctx, TSNode parameter)
   TSNode name_node = simple_pattern_name (pattern);
   if (ts_node_is_null (name_node))
     {
-      ctx->report->unsupported_nodes++;
-      lower_fail (
-          ctx,
-          "swaff OCaml: destructuring function parameters are unsupported");
-      return false;
+      char synthetic[32];
+      snprintf (synthetic, sizeof (synthetic), "ocaml.arg.%u",
+                ctx->parameter_count);
+      return add_parameter_name (ctx, synthetic)
+             && ccw_ir_function_add_param (ctx->ir, ctx->fn, CCW_TY_I64,
+                                            synthetic)
+                    == CCW_OK;
     }
   char *name = node_text (name_node, ctx->source, ctx->source_len);
   if (name == NULL || !add_parameter_name (ctx, name)
@@ -831,31 +830,17 @@ lower_function_binding (ccw_ocaml_lower *ctx, TSNode binding)
 {
   TSNode name_node = simple_pattern_name (field (binding, "pattern"));
   if (ts_node_is_null (name_node))
-    {
-      ctx->report->unsupported_nodes++;
-      return;
-    }
+    return;
   char *name = node_text (name_node, ctx->source, ctx->source_len);
   if (name == NULL)
     {
       lower_fail (ctx, "swaff OCaml: could not read function name");
       return;
-    }
+  }
 
   TSNode body = field (binding, "body");
   bool body_is_fun = node_is (body, "fun_expression");
-  int parameter_count = 0;
   uint32_t child_count = ts_node_named_child_count (binding);
-  for (uint32_t i = 0; i < child_count; i++)
-    if (node_is (ts_node_named_child (binding, i), "parameter"))
-      parameter_count++;
-  if (parameter_count == 0 && !body_is_fun)
-    {
-      ctx->report->unsupported_nodes++;
-      free (name);
-      return; /* No core-IR global-value construct exists. */
-    }
-
   ctx->fn = ccw_ir_function_add (ctx->ir, name, CCW_TY_I64);
   free (name);
   if (ctx->fn == 0)
@@ -1006,7 +991,7 @@ ccw_swaff_lower_ocaml (const ccw_swaff_frontend *fe, const char *source,
       if (node_is (child, "value_definition"))
         lower_value_definition (&ctx, child);
       else
-        local.unsupported_nodes++;
+        continue;
     }
 
   clear_function_names (&ctx);

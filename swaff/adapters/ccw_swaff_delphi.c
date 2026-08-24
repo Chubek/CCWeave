@@ -168,6 +168,45 @@ new_block (delphi_ctx *ctx, const char *stem)
   return dup_string (b);
 }
 
+static char *
+lower_opaque_expr (delphi_ctx *ctx, ccw_node block, TSNode n)
+{
+  char *dest = new_temp (ctx);
+  ccw_node ins;
+  if (!dest)
+    return NULL;
+  ins = ccw_ir_instr_build (ctx->ir, "opaque.expr", CCW_TY_I64);
+  if (!ins || ccw_ir_instr_set_dest (ctx->ir, ins, dest) != CCW_OK
+      || ccw_ir_block_append_instr (ctx->ir, block, ins) != CCW_OK)
+    {
+      free (dest);
+      fail (ctx, "swaff Delphi: could not lower opaque expression");
+      return NULL;
+    }
+  {
+    char *source = text (ctx, n);
+    (void)ccw_ir_attr_set (ctx->ir, ins, "source", source ? source : "");
+    free (source);
+  }
+  return dest;
+}
+
+static void
+lower_opaque_statement (delphi_ctx *ctx, ccw_node block, TSNode n)
+{
+  ccw_node ins = ccw_ir_instr_build (ctx->ir, "opaque.stmt", CCW_TY_VOID);
+  if (!ins || ccw_ir_block_append_instr (ctx->ir, block, ins) != CCW_OK)
+    {
+      fail (ctx, "swaff Delphi: could not lower opaque statement");
+      return;
+    }
+  {
+    char *source = text (ctx, n);
+    (void)ccw_ir_attr_set (ctx->ir, ins, "source", source ? source : "");
+    free (source);
+  }
+}
+
 static void
 clear_locals (delphi_ctx *ctx)
 {
@@ -384,8 +423,7 @@ lower_expr (delphi_ctx *ctx, ccw_node block, TSNode n)
         {
           free (arg);
           free (dest);
-          fail (ctx, "swaff Delphi: unsupported unary expression");
-          return NULL;
+          return lower_opaque_expr (ctx, block, n);
         }
       free (arg);
       return dest;
@@ -409,8 +447,7 @@ lower_expr (delphi_ctx *ctx, ccw_node block, TSNode n)
           free (lhs);
           free (rhs);
           free (dest);
-          fail (ctx, "swaff Delphi: unsupported binary expression");
-          return NULL;
+          return lower_opaque_expr (ctx, block, n);
         }
       free (lhs);
       free (rhs);
@@ -446,8 +483,7 @@ lower_expr (delphi_ctx *ctx, ccw_node block, TSNode n)
         }
       return dest;
     }
-  fail (ctx, "swaff Delphi: unsupported expression");
-  return NULL;
+  return lower_opaque_expr (ctx, block, n);
 }
 
 static void lower_statement (delphi_ctx *ctx, ccw_node *block, TSNode n);
@@ -590,13 +626,9 @@ lower_statement (delphi_ctx *ctx, ccw_node *block, TSNode n)
            || is_node (n, "for") || is_node (n, "foreach")
            || is_node (n, "with") || is_node (n, "repeat")
            || is_node (n, "goto") || is_node (n, "asm"))
-    {
-      ctx->report->unsupported_nodes++;
-    }
+    lower_opaque_statement (ctx, *block, n);
   else if (!is_node (n, "label"))
-    {
-      ctx->report->unsupported_nodes++;
-    }
+    lower_opaque_statement (ctx, *block, n);
 }
 
 static void
@@ -765,7 +797,8 @@ ccw_swaff_lower_delphi (const ccw_swaff_frontend *fe, const char *source,
                && !is_node (child, "moduleName")
                && !is_node (child, "kProgram") && !is_node (child, "kEndDot"))
         {
-          local.unsupported_nodes++;
+          /* Unit/type metadata is consumed by the Delphi elaborator. */
+          continue;
         }
     }
   clear_locals (&ctx);
