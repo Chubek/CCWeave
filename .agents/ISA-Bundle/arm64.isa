@@ -1,0 +1,792 @@
+arch arm64 {
+    word_size = 64;
+    addr_size = 64;
+    endian    = little;
+    align     = 8;
+}
+
+
+regclass GPR {
+    R0(64)=0,
+    R1(64)=1,
+    R2(64)=2,
+    R3(64)=3,
+    R4(64)=4,
+    R5(64)=5,
+    R6(64)=6,
+    R7(64)=7,
+    R8(64)=8,
+    R9(64)=9,
+    R10(64)=10,
+    R11(64)=11,
+    R12(64)=12,
+    R13(64)=13,
+    R14(64)=14,
+    R15(64)=15,
+    IP0(64)=16,
+    IP1(64)=17,
+    R18(64)=18,
+    R19(64)=19,
+    R20(64)=20,
+    R21(64)=21,
+    R22(64)=22,
+    R23(64)=23,
+    R24(64)=24,
+    R25(64)=25,
+    R26(64)=26,
+    R27(64)=27,
+    R28(64)=28,
+    FP(64)=29,
+    LR(64)=30,
+    SP(64)=31,
+}
+
+regclass FPR {
+    V0(128)=0,
+    V1(128)=1,
+    V2(128)=2,
+    V3(128)=3,
+    V4(128)=4,
+    V5(128)=5,
+    V6(128)=6,
+    V7(128)=7,
+    V8(128)=8,
+    V9(128)=9,
+    V10(128)=10,
+    V11(128)=11,
+    V12(128)=12,
+    V13(128)=13,
+    V14(128)=14,
+    V15(128)=15,
+    V16(128)=16,
+    V17(128)=17,
+    V18(128)=18,
+    V19(128)=19,
+    V20(128)=20,
+    V21(128)=21,
+    V22(128)=22,
+    V23(128)=23,
+    V24(128)=24,
+    V25(128)=25,
+    V26(128)=26,
+    V27(128)=27,
+    V28(128)=28,
+    V29(128)=29,
+    V30(128)=30,
+}
+
+
+alias x0 = R0;
+
+alias w0 = R0;
+
+alias x1 = R1;
+
+alias w1 = R1;
+
+alias x2 = R2;
+
+alias w2 = R2;
+
+alias x3 = R3;
+
+alias w3 = R3;
+
+alias x4 = R4;
+
+alias w4 = R4;
+
+alias x5 = R5;
+
+alias w5 = R5;
+
+alias x6 = R6;
+
+alias w6 = R6;
+
+alias x7 = R7;
+
+alias w7 = R7;
+
+alias x8 = R8;
+
+alias w8 = R8;
+
+alias x9 = R9;
+
+alias w9 = R9;
+
+alias x10 = R10;
+
+alias w10 = R10;
+
+alias x11 = R11;
+
+alias w11 = R11;
+
+alias x12 = R12;
+
+alias w12 = R12;
+
+alias x13 = R13;
+
+alias w13 = R13;
+
+alias x14 = R14;
+
+alias w14 = R14;
+
+alias x15 = R15;
+
+alias w15 = R15;
+
+alias x18 = R18;
+
+alias w18 = R18;
+
+alias x19 = R19;
+
+alias w19 = R19;
+
+alias x20 = R20;
+
+alias w20 = R20;
+
+alias x21 = R21;
+
+alias w21 = R21;
+
+alias x22 = R22;
+
+alias w22 = R22;
+
+alias x23 = R23;
+
+alias w23 = R23;
+
+alias x24 = R24;
+
+alias w24 = R24;
+
+alias x25 = R25;
+
+alias w25 = R25;
+
+alias x26 = R26;
+
+alias w26 = R26;
+
+alias x27 = R27;
+
+alias w27 = R27;
+
+alias x28 = R28;
+
+alias w28 = R28;
+
+alias s0 = V0;
+
+alias d0 = V0;
+
+alias s1 = V1;
+
+alias d1 = V1;
+
+alias s2 = V2;
+
+alias d2 = V2;
+
+alias s3 = V3;
+
+alias d3 = V3;
+
+alias s4 = V4;
+
+alias d4 = V4;
+
+alias s5 = V5;
+
+alias d5 = V5;
+
+alias s6 = V6;
+
+alias d6 = V6;
+
+alias s7 = V7;
+
+alias d7 = V7;
+
+alias s8 = V8;
+
+alias d8 = V8;
+
+alias s9 = V9;
+
+alias d9 = V9;
+
+alias s10 = V10;
+
+alias d10 = V10;
+
+alias s11 = V11;
+
+alias d11 = V11;
+
+alias s12 = V12;
+
+alias d12 = V12;
+
+alias s13 = V13;
+
+alias d13 = V13;
+
+alias s14 = V14;
+
+alias d14 = V14;
+
+alias s15 = V15;
+
+alias d15 = V15;
+
+alias s16 = V16;
+
+alias d16 = V16;
+
+alias s17 = V17;
+
+alias d17 = V17;
+
+alias s18 = V18;
+
+alias d18 = V18;
+
+alias s19 = V19;
+
+alias d19 = V19;
+
+alias s20 = V20;
+
+alias d20 = V20;
+
+alias s21 = V21;
+
+alias d21 = V21;
+
+alias s22 = V22;
+
+alias d22 = V22;
+
+alias s23 = V23;
+
+alias d23 = V23;
+
+alias s24 = V24;
+
+alias d24 = V24;
+
+alias s25 = V25;
+
+alias d25 = V25;
+
+alias s26 = V26;
+
+alias d26 = V26;
+
+alias s27 = V27;
+
+alias d27 = V27;
+
+alias s28 = V28;
+
+alias d28 = V28;
+
+alias s29 = V29;
+
+alias d29 = V29;
+
+alias s30 = V30;
+
+alias d30 = V30;
+
+alias xzr = SP;
+
+alias wzr = SP;
+
+
+flags NZCV { N, Z, C, V }
+
+
+encoding BR {
+    opcode : 11;
+    opcode2 : 6;
+    Rn : 5;
+    opcode3 : 10;
+}
+
+encoding DP_RI {
+    sf : 1;
+    opcode : 7;
+    imm : 12;
+    Rn : 5;
+    Rd : 5;
+}
+
+encoding DP_RR {
+    sf : 1;
+    opcode2 : 7;
+    Rm : 5;
+    opcode : 6;
+    Rn : 5;
+    Rd : 5;
+}
+
+encoding FP_CVT {
+    opcode : 17;
+    Rn : 5;
+    Rd : 5;
+}
+
+encoding FP_SCALAR {
+    opcode : 12;
+    Rm : 5;
+    opcode2 : 6;
+    Rn : 5;
+    Rd : 5;
+}
+
+encoding LS {
+    size : 2;
+    opcode : 6;
+    imm : 9;
+    Rn : 5;
+    Rt : 5;
+}
+
+
+op add {
+    class     = arithmetic;
+    encoding  = DP_RR;
+    operands  = rd: reg(GPR), rs1: reg(GPR), rs2: reg(GPR);
+    syntax    = "add %=, %0, %1";
+}
+
+op add {
+    class     = arithmetic;
+    encoding  = DP_RR;
+    operands  = rd: reg(GPR), rs1: reg(GPR), rs2: reg(GPR);
+    syntax    = "fadd %=, %0, %1";
+}
+
+op sub {
+    class     = arithmetic;
+    encoding  = DP_RR;
+    operands  = rd: reg(GPR), rs1: reg(GPR), rs2: reg(GPR);
+    syntax    = "sub %=, %0, %1";
+}
+
+op sub {
+    class     = arithmetic;
+    encoding  = DP_RR;
+    operands  = rd: reg(GPR), rs1: reg(GPR), rs2: reg(GPR);
+    syntax    = "fsub %=, %0, %1";
+}
+
+op neg {
+    class     = misc;
+    encoding  = DP_RR;
+    operands  = rd: reg(GPR), rs1: reg(GPR);
+    syntax    = "neg %=, %0";
+}
+
+op neg {
+    class     = misc;
+    encoding  = DP_RR;
+    operands  = rd: reg(GPR), rs1: reg(GPR);
+    syntax    = "fneg %=, %0";
+}
+
+op and {
+    class     = arithmetic;
+    encoding  = DP_RR;
+    operands  = rd: reg(GPR), rs1: reg(GPR), rs2: reg(GPR);
+    syntax    = "and %=, %0, %1";
+}
+
+op or {
+    class     = arithmetic;
+    encoding  = DP_RR;
+    operands  = rd: reg(GPR), rs1: reg(GPR), rs2: reg(GPR);
+    syntax    = "orr %=, %0, %1";
+}
+
+op xor {
+    class     = arithmetic;
+    encoding  = DP_RR;
+    operands  = rd: reg(GPR), rs1: reg(GPR), rs2: reg(GPR);
+    syntax    = "eor %=, %0, %1";
+}
+
+op sar {
+    class     = arithmetic;
+    encoding  = DP_RR;
+    operands  = rd: reg(GPR), rs1: reg(GPR), rs2: reg(GPR);
+    syntax    = "asr %=, %0, %1";
+}
+
+op shr {
+    class     = arithmetic;
+    encoding  = DP_RR;
+    operands  = rd: reg(GPR), rs1: reg(GPR), rs2: reg(GPR);
+    syntax    = "lsr %=, %0, %1";
+}
+
+op shl {
+    class     = arithmetic;
+    encoding  = DP_RR;
+    operands  = rd: reg(GPR), rs1: reg(GPR), rs2: reg(GPR);
+    syntax    = "lsl %=, %0, %1";
+}
+
+op mul {
+    class     = arithmetic;
+    encoding  = DP_RR;
+    operands  = rd: reg(GPR), rs1: reg(GPR), rs2: reg(GPR);
+    syntax    = "mul %=, %0, %1";
+}
+
+op mul {
+    class     = arithmetic;
+    encoding  = DP_RR;
+    operands  = rd: reg(GPR), rs1: reg(GPR), rs2: reg(GPR);
+    syntax    = "fmul %=, %0, %1";
+}
+
+op div {
+    class     = arithmetic;
+    encoding  = DP_RR;
+    operands  = rd: reg(GPR), rs1: reg(GPR), rs2: reg(GPR);
+    syntax    = "sdiv %=, %0, %1";
+}
+
+op div {
+    class     = arithmetic;
+    encoding  = DP_RR;
+    operands  = rd: reg(GPR), rs1: reg(GPR), rs2: reg(GPR);
+    syntax    = "fdiv %=, %0, %1";
+}
+
+op udiv {
+    class     = arithmetic;
+    encoding  = DP_RR;
+    operands  = rd: reg(GPR), rs1: reg(GPR), rs2: reg(GPR);
+    syntax    = "udiv %=, %0, %1";
+}
+
+op rem {
+    class     = arithmetic;
+    encoding  = DP_RR;
+    operands  = rs1: reg(GPR), rs2: reg(GPR), rd: reg(GPR), rs2: reg(GPR), rs1: reg(GPR);
+    syntax    = "sdiv %?, %0, %1\n\tmsub\t%=, %?, %1, %0";
+}
+
+op urem {
+    class     = arithmetic;
+    encoding  = DP_RR;
+    operands  = rs1: reg(GPR), rs2: reg(GPR), rd: reg(GPR), rs2: reg(GPR), rs1: reg(GPR);
+    syntax    = "udiv %?, %0, %1\n\tmsub\t%=, %?, %1, %0";
+}
+
+op copy {
+    class     = misc;
+    encoding  = DP_RI;
+    operands  = rd: reg(GPR), rs1: reg(GPR);
+    syntax    = "mov %=, %0";
+}
+
+op copy {
+    class     = misc;
+    encoding  = DP_RI;
+    operands  = rd: reg(GPR), rs1: reg(GPR);
+    syntax    = "fmov %=, %0";
+}
+
+op swap {
+    class     = misc;
+    encoding  = DP_RR;
+    operands  = rs1: reg(GPR), rs1: reg(GPR), rs2: reg(GPR), rs2: reg(GPR);
+    syntax    = "mov %?, %0\n\tmov\t%0, %1\n\tmov\t%1, %?";
+}
+
+op swap {
+    class     = misc;
+    encoding  = DP_RR;
+    operands  = rs1: reg(GPR), rs1: reg(GPR), rs2: reg(GPR), rs2: reg(GPR);
+    syntax    = "fmov %?, %0\n\tfmov\t%0, %1\n\tfmov\t%1, %?";
+}
+
+op storeb {
+    class     = store;
+    encoding  = LS;
+    operands  = rs1: reg(GPR), rs2: mem(GPR);
+    syntax    = "strb %W0, %M1";
+}
+
+op storeh {
+    class     = store;
+    encoding  = LS;
+    operands  = rs1: reg(GPR), rs2: mem(GPR);
+    syntax    = "strh %W0, %M1";
+}
+
+op storew {
+    class     = store;
+    encoding  = LS;
+    operands  = rs1: reg(GPR), rs2: mem(GPR);
+    syntax    = "str %W0, %M1";
+}
+
+op storel {
+    class     = store;
+    encoding  = LS;
+    operands  = rs1: reg(GPR), rs2: mem(GPR);
+    syntax    = "str %L0, %M1";
+}
+
+op stores {
+    class     = store;
+    encoding  = LS;
+    operands  = rs1: reg(GPR), rs2: mem(GPR);
+    syntax    = "str %S0, %M1";
+}
+
+op stored {
+    class     = store;
+    encoding  = LS;
+    operands  = rs1: reg(GPR), rs2: mem(GPR);
+    syntax    = "str %D0, %M1";
+}
+
+op loadsb {
+    class     = load;
+    encoding  = LS;
+    operands  = rd: reg(GPR), rs1: mem(GPR);
+    syntax    = "ldrsb %=, %M0";
+}
+
+op loadub {
+    class     = load;
+    encoding  = LS;
+    operands  = rd: reg(GPR), rs1: mem(GPR);
+    syntax    = "ldrb %W=, %M0";
+}
+
+op loadsh {
+    class     = load;
+    encoding  = LS;
+    operands  = rd: reg(GPR), rs1: mem(GPR);
+    syntax    = "ldrsh %=, %M0";
+}
+
+op loaduh {
+    class     = load;
+    encoding  = LS;
+    operands  = rd: reg(GPR), rs1: mem(GPR);
+    syntax    = "ldrh %W=, %M0";
+}
+
+op loadsw {
+    class     = load;
+    encoding  = LS;
+    operands  = rd: reg(GPR), rs1: mem(GPR);
+    syntax    = "ldr %=, %M0";
+}
+
+op loadsw {
+    class     = load;
+    encoding  = LS;
+    operands  = rd: reg(GPR), rs1: mem(GPR);
+    syntax    = "ldrsw %=, %M0";
+}
+
+op loaduw {
+    class     = load;
+    encoding  = LS;
+    operands  = rd: reg(GPR), rs1: mem(GPR);
+    syntax    = "ldr %W=, %M0";
+}
+
+op load {
+    class     = load;
+    encoding  = LS;
+    operands  = rd: reg(GPR), rs1: mem(GPR);
+    syntax    = "ldr %=, %M0";
+}
+
+op extsb {
+    class     = convert;
+    encoding  = DP_RR;
+    operands  = rd: reg(GPR), rs1: reg(GPR);
+    syntax    = "sxtb %=, %W0";
+}
+
+op extub {
+    class     = convert;
+    encoding  = DP_RR;
+    operands  = rd: reg(GPR), rs1: reg(GPR);
+    syntax    = "uxtb %W=, %W0";
+}
+
+op extsh {
+    class     = convert;
+    encoding  = DP_RR;
+    operands  = rd: reg(GPR), rs1: reg(GPR);
+    syntax    = "sxth %=, %W0";
+}
+
+op extuh {
+    class     = convert;
+    encoding  = DP_RR;
+    operands  = rd: reg(GPR), rs1: reg(GPR);
+    syntax    = "uxth %W=, %W0";
+}
+
+op extsw {
+    class     = convert;
+    encoding  = DP_RR;
+    operands  = rd: reg(GPR), rs1: reg(GPR);
+    syntax    = "sxtw %L=, %W0";
+}
+
+op extuw {
+    class     = convert;
+    encoding  = DP_RR;
+    operands  = rd: reg(GPR), rs1: reg(GPR);
+    syntax    = "mov %W=, %W0";
+}
+
+op exts {
+    class     = convert;
+    encoding  = FP_CVT;
+    operands  = rd: reg(GPR), rs1: reg(GPR);
+    syntax    = "fcvt %=, %S0";
+}
+
+op truncd {
+    class     = convert;
+    encoding  = FP_CVT;
+    operands  = rd: reg(GPR), rs1: reg(GPR);
+    syntax    = "fcvt %=, %D0";
+}
+
+op cast {
+    class     = convert;
+    encoding  = FP_CVT;
+    operands  = rd: reg(GPR), rs1: reg(GPR);
+    syntax    = "fmov %=, %S0";
+}
+
+op cast {
+    class     = convert;
+    encoding  = FP_CVT;
+    operands  = rd: reg(GPR), rs1: reg(GPR);
+    syntax    = "fmov %=, %D0";
+}
+
+op cast {
+    class     = convert;
+    encoding  = FP_CVT;
+    operands  = rd: reg(GPR), rs1: reg(GPR);
+    syntax    = "fmov %=, %W0";
+}
+
+op cast {
+    class     = convert;
+    encoding  = FP_CVT;
+    operands  = rd: reg(GPR), rs1: reg(GPR);
+    syntax    = "fmov %=, %L0";
+}
+
+op stosi {
+    class     = convert;
+    encoding  = FP_CVT;
+    operands  = rd: reg(GPR), rs1: reg(GPR);
+    syntax    = "fcvtzs %=, %S0";
+}
+
+op stoui {
+    class     = convert;
+    encoding  = FP_CVT;
+    operands  = rd: reg(GPR), rs1: reg(GPR);
+    syntax    = "fcvtzu %=, %S0";
+}
+
+op dtosi {
+    class     = convert;
+    encoding  = FP_CVT;
+    operands  = rd: reg(GPR), rs1: reg(GPR);
+    syntax    = "fcvtzs %=, %D0";
+}
+
+op dtoui {
+    class     = convert;
+    encoding  = FP_CVT;
+    operands  = rd: reg(GPR), rs1: reg(GPR);
+    syntax    = "fcvtzu %=, %D0";
+}
+
+op swtof {
+    class     = convert;
+    encoding  = FP_CVT;
+    operands  = rd: reg(GPR), rs1: reg(GPR);
+    syntax    = "scvtf %=, %W0";
+}
+
+op uwtof {
+    class     = convert;
+    encoding  = FP_CVT;
+    operands  = rd: reg(GPR), rs1: reg(GPR);
+    syntax    = "ucvtf %=, %W0";
+}
+
+op sltof {
+    class     = convert;
+    encoding  = FP_CVT;
+    operands  = rd: reg(GPR), rs1: reg(GPR);
+    syntax    = "scvtf %=, %L0";
+}
+
+op ultof {
+    class     = convert;
+    encoding  = FP_CVT;
+    operands  = rd: reg(GPR), rs1: reg(GPR);
+    syntax    = "ucvtf %=, %L0";
+}
+
+op call {
+    class     = branch;
+    encoding  = BR;
+    operands  = rs1: reg(GPR);
+    syntax    = "blr %L0";
+}
+
+op acmp {
+    class     = compare;
+    encoding  = DP_RR;
+    operands  = rs1: reg(GPR), rs2: reg(GPR);
+    syntax    = "cmp %0, %1";
+}
+
+op acmn {
+    class     = compare;
+    encoding  = DP_RR;
+    operands  = rs1: reg(GPR), rs2: reg(GPR);
+    syntax    = "cmn %0, %1";
+}
+
+op afcmp {
+    class     = compare;
+    encoding  = FP_SCALAR;
+    operands  = rs1: reg(GPR), rs2: reg(GPR);
+    syntax    = "fcmpe %0, %1";
+}
+
