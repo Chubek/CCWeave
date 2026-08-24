@@ -1,5 +1,26 @@
 # Decisions
 
+## 2026-08-24 — Cephyr schedules terminate at `codegen.sched-list` capability
+
+The Swaff+C issue resolution exposed a manifest drift in Cephyr’s `O0.lua`,
+`O1.lua`, and `O2.lua`: they required the retired `codegen.emit-x86-64`
+capability, which is no longer produced by `Kernel.yaml` after the emit kernel
+was retired and assembly emission moved back under `codegen.sched-list` +
+host-side fallback (`emit_target_assembly` when the kernel-supplied artifact is
+absent).
+
+The scripts now only require capabilities present in the live manifest and end
+their codegen chain at `codegen.sched-list`:
+
+- `compilers/cephyr/sched/O0.lua`
+- `compilers/cephyr/sched/O1.lua`
+- `compilers/cephyr/sched/O2.lua`
+
+This preserves the same execution model (`S:require` for mandatory capabilities,
+no host-side op switching), but aligns sched requirements with actual manifest
+contents so `compilers/cephyr` can reach a sealing pass and execute the Dijkstra
+command-line repro successfully.
+
 ## 2026-08-24 — Vendored bridges use typed APIs, not a generic dispatcher
 
 `glue/vendored-bridge.h` centralizes the existing C-callable SIMDe, utf8proc,
