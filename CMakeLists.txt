@@ -31,7 +31,6 @@ endif()
 include(GNUInstallDirs)
 
 set(CCWEAVE_THIRD_PARTY ${CMAKE_CURRENT_SOURCE_DIR}/third_party)
-set(CCWEAVE_SWAFF_GRAMMARS ${CMAKE_CURRENT_SOURCE_DIR}/swaff/grammars)
 
 # --- vendored ISL ---------------------------------------------------------
 find_path(CCWEAVE_GMP_INCLUDE_DIR gmp.h REQUIRED)
@@ -181,136 +180,7 @@ endif()
 find_package(Threads REQUIRED)
 target_link_libraries(ccw_s7 PUBLIC Threads::Threads ${CMAKE_DL_LIBS})
 
-# --- vendored Tree-sitter runtime and C grammar ---------------------------
-# Build the checked-in generated sources directly. In particular, do not
-# add_subdirectory(swaff/grammars/tree-sitter-c): its upstream CMake project
-# may regenerate parser.c with a host `tree-sitter` CLI, violating the
 # repository's no-generation/no-fetch-at-build-time rule.
-if(CCWEAVE_ENABLE_TREESITTER)
-  add_library(ccw_tree_sitter STATIC
-    ${CCWEAVE_THIRD_PARTY}/tree-sitter/lib/src/lib.c)
-  target_include_directories(ccw_tree_sitter
-    PUBLIC ${CCWEAVE_THIRD_PARTY}/tree-sitter/lib/include
-    PRIVATE ${CCWEAVE_THIRD_PARTY}/tree-sitter/lib/src)
-  target_compile_definitions(ccw_tree_sitter PRIVATE
-    _POSIX_C_SOURCE=200112L
-    _DEFAULT_SOURCE
-    _DARWIN_C_SOURCE)
-  set_target_properties(ccw_tree_sitter PROPERTIES
-    C_STANDARD 11
-    C_STANDARD_REQUIRED ON
-    POSITION_INDEPENDENT_CODE ON)
-  ccw_vendored_target(ccw_tree_sitter)
-
-  add_library(ccw_tree_sitter_c STATIC
-    ${CCWEAVE_SWAFF_GRAMMARS}/tree-sitter-c/src/parser.c)
-  target_include_directories(ccw_tree_sitter_c
-    PUBLIC ${CCWEAVE_SWAFF_GRAMMARS}/tree-sitter-c/bindings/c
-    PRIVATE ${CCWEAVE_SWAFF_GRAMMARS}/tree-sitter-c/src)
-  set_target_properties(ccw_tree_sitter_c PROPERTIES
-    C_STANDARD 11
-    C_STANDARD_REQUIRED ON
-    POSITION_INDEPENDENT_CODE ON)
-  ccw_vendored_target(ccw_tree_sitter_c)
-
-  # --- vendored Tree-sitter assembly grammar (ccwas reader) ----------
-  # Same vendored-source rule as the Swaff grammars above, but consumed
-  # by the ccwas parse pass (toolchain/ccwas) rather than a Swaff
-  # adapter. It is a generic assembly grammar and is never the ccwas
-  # dialect authority; see DECISIONS.md 2026-08-23.
-  add_library(ccw_tree_sitter_asm STATIC
-    ${CCWEAVE_THIRD_PARTY}/tree-sitter-asm/src/parser.c)
-  target_include_directories(ccw_tree_sitter_asm
-    PUBLIC ${CCWEAVE_THIRD_PARTY}/tree-sitter-asm/bindings/c
-    PRIVATE ${CCWEAVE_THIRD_PARTY}/tree-sitter-asm/src)
-  set_target_properties(ccw_tree_sitter_asm PROPERTIES
-    C_STANDARD 11
-    C_STANDARD_REQUIRED ON
-    POSITION_INDEPENDENT_CODE ON)
-  ccw_vendored_target(ccw_tree_sitter_asm)
-
-  # --- vendored Tree-sitter Lua grammar -------------------------------
-  add_library(ccw_tree_sitter_lua STATIC
-    ${CCWEAVE_SWAFF_GRAMMARS}/tree-sitter-lua/src/parser.c
-    ${CCWEAVE_SWAFF_GRAMMARS}/tree-sitter-lua/src/scanner.c)
-  target_include_directories(ccw_tree_sitter_lua
-    PUBLIC ${CCWEAVE_SWAFF_GRAMMARS}/tree-sitter-lua/bindings/c
-    PRIVATE ${CCWEAVE_SWAFF_GRAMMARS}/tree-sitter-lua/src)
-  set_target_properties(ccw_tree_sitter_lua PROPERTIES
-    C_STANDARD 11
-    C_STANDARD_REQUIRED ON
-    POSITION_INDEPENDENT_CODE ON)
-  ccw_vendored_target(ccw_tree_sitter_lua)
-
-  # --- vendored Tree-sitter Standard ML grammar ----------------------
-  add_library(ccw_tree_sitter_sml STATIC
-    ${CCWEAVE_SWAFF_GRAMMARS}/tree-sitter-sml/src/parser.c
-    ${CCWEAVE_SWAFF_GRAMMARS}/tree-sitter-sml/src/scanner.c)
-  target_include_directories(ccw_tree_sitter_sml
-    PUBLIC ${CCWEAVE_SWAFF_GRAMMARS}/tree-sitter-sml/bindings/c
-    PRIVATE ${CCWEAVE_SWAFF_GRAMMARS}/tree-sitter-sml/src)
-  set_target_properties(ccw_tree_sitter_sml PROPERTIES
-    C_STANDARD 11
-    C_STANDARD_REQUIRED ON
-    POSITION_INDEPENDENT_CODE ON)
-  ccw_vendored_target(ccw_tree_sitter_sml)
-
-  # --- vendored Delphi/Pascal grammar -------------------------------
-  add_library(ccw_tree_sitter_pascal STATIC
-    ${CCWEAVE_SWAFF_GRAMMARS}/tree-sitter-pascal/src/parser.c)
-  target_include_directories(ccw_tree_sitter_pascal
-    PUBLIC ${CCWEAVE_SWAFF_GRAMMARS}/tree-sitter-pascal/bindings/c
-    PRIVATE ${CCWEAVE_SWAFF_GRAMMARS}/tree-sitter-pascal/src)
-  set_target_properties(ccw_tree_sitter_pascal PROPERTIES
-    C_STANDARD 11
-    C_STANDARD_REQUIRED ON
-    POSITION_INDEPENDENT_CODE ON)
-  ccw_vendored_target(ccw_tree_sitter_pascal)
-
-  # --- vendored Tree-sitter OCaml grammar (three sub-languages) ----------
-  # ocaml (implementation files: .ml)
-  add_library(ccw_tree_sitter_ocaml STATIC
-    ${CCWEAVE_SWAFF_GRAMMARS}/tree-sitter-ocaml/grammars/ocaml/src/parser.c
-    ${CCWEAVE_SWAFF_GRAMMARS}/tree-sitter-ocaml/grammars/ocaml/src/scanner.c)
-  target_include_directories(ccw_tree_sitter_ocaml
-    PUBLIC ${CCWEAVE_SWAFF_GRAMMARS}/tree-sitter-ocaml/bindings/c
-    PRIVATE ${CCWEAVE_SWAFF_GRAMMARS}/tree-sitter-ocaml/grammars/ocaml/src
-    PRIVATE ${CCWEAVE_SWAFF_GRAMMARS}/tree-sitter-ocaml/common)
-  set_target_properties(ccw_tree_sitter_ocaml PROPERTIES
-    C_STANDARD 11
-    C_STANDARD_REQUIRED ON
-    POSITION_INDEPENDENT_CODE ON)
-  ccw_vendored_target(ccw_tree_sitter_ocaml)
-
-  # ocaml-interface (interface files: .mli)
-  add_library(ccw_tree_sitter_ocaml_interface STATIC
-    ${CCWEAVE_SWAFF_GRAMMARS}/tree-sitter-ocaml/grammars/interface/src/parser.c
-    ${CCWEAVE_SWAFF_GRAMMARS}/tree-sitter-ocaml/grammars/interface/src/scanner.c)
-  target_include_directories(ccw_tree_sitter_ocaml_interface
-    PUBLIC ${CCWEAVE_SWAFF_GRAMMARS}/tree-sitter-ocaml/bindings/c
-    PRIVATE ${CCWEAVE_SWAFF_GRAMMARS}/tree-sitter-ocaml/grammars/interface/src
-    PRIVATE ${CCWEAVE_SWAFF_GRAMMARS}/tree-sitter-ocaml/common)
-  set_target_properties(ccw_tree_sitter_ocaml_interface PROPERTIES
-    C_STANDARD 11
-    C_STANDARD_REQUIRED ON
-    POSITION_INDEPENDENT_CODE ON)
-  ccw_vendored_target(ccw_tree_sitter_ocaml_interface)
-
-  # ocaml-type (type expressions)
-  add_library(ccw_tree_sitter_ocaml_type STATIC
-    ${CCWEAVE_SWAFF_GRAMMARS}/tree-sitter-ocaml/grammars/type/src/parser.c
-    ${CCWEAVE_SWAFF_GRAMMARS}/tree-sitter-ocaml/grammars/type/src/scanner.c)
-  target_include_directories(ccw_tree_sitter_ocaml_type
-    PUBLIC ${CCWEAVE_SWAFF_GRAMMARS}/tree-sitter-ocaml/bindings/c
-    PRIVATE ${CCWEAVE_SWAFF_GRAMMARS}/tree-sitter-ocaml/grammars/type/src
-    PRIVATE ${CCWEAVE_SWAFF_GRAMMARS}/tree-sitter-ocaml/common)
-  set_target_properties(ccw_tree_sitter_ocaml_type PROPERTIES
-    C_STANDARD 11
-    C_STANDARD_REQUIRED ON
-    POSITION_INDEPENDENT_CODE ON)
-  ccw_vendored_target(ccw_tree_sitter_ocaml_type)
-endif()
-
 add_subdirectory(third_party/utf8proc EXCLUDE_FROM_ALL)
 ccw_vendored_target(utf8proc)
 
@@ -319,8 +189,6 @@ add_subdirectory(ir)
 add_subdirectory(executors/s7)
 add_subdirectory(oeuph)
 add_subdirectory(sched)
-add_subdirectory(kliche)
-add_subdirectory(swaff)
 add_subdirectory(frontmx)
 add_subdirectory(toolchain/ccwas)
 
