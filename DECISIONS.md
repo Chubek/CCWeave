@@ -1,5 +1,19 @@
 # Decisions
 
+## 2026-08-25 — CCWmk variable expansion follows GNU Make-style assignment timing
+
+The initial CCWmk variable engine treats `=` bindings as recursively expanded
+and `:=` bindings as simply expanded. Simply expanded values are resolved at
+assignment time against the then-current variable context; recursively expanded
+values are resolved at use time. Automatic recipe variables `$@`, `$<`, and
+`$^` are available only through the explicit recipe expansion context, and `$$`
+collapses to a literal `$`. Recursive self-reference is a hard error rather
+than an infinite expansion loop.
+
+This is the smallest behavior set that matches GNU Make's observable
+assignment model for the cases exercised so far, while keeping the expansion
+engine isolated from the grammar and executor work that will consume it later.
+
 ## 2026-08-25 — CCWmk is scaffolded and wired into the repo build
 
 `toolchain/ccwmk` now exists as a standalone subtree with top-level CMake

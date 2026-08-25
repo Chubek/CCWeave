@@ -7,6 +7,7 @@ add_library(ccwmk STATIC
   src/lua.c
   src/parse.c
   src/plugin.c
+  src/vars.c
   src/scan-c.c
   src/lua/lccwmk.c)
 target_include_directories(ccwmk PUBLIC
@@ -23,4 +24,3 @@ add_executable(ccwmk-bin ccw-ccwmk.c)
 set_target_properties(ccwmk-bin PROPERTIES OUTPUT_NAME ccwmk ENABLE_EXPORTS ON)
 target_link_libraries(ccwmk-bin PRIVATE ccwmk)
 target_compile_definitions(ccwmk-bin PRIVATE _POSIX_C_SOURCE=200809L)
-
