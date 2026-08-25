@@ -1,5 +1,19 @@
 # Decisions
 
+## 2026-08-25 — CCWmk is scaffolded and wired into the repo build
+
+`toolchain/ccwmk` now exists as a standalone subtree with top-level CMake
+integration, a public `ccw-ccwmk.h`, a CLI driver stub, `Weavefile`, and
+`bootstrap.py`. The subtree builds and the bootstrap path works using only the
+plain-Make subset, which keeps the first working artifact aligned with the
+bootstrap strategy in `.agents/CCWMK.md`.
+
+The implementation is still a scaffold: the load/build entry points, graph and
+registry types, and vendored dependency wiring are in place, but the parser,
+grammar, graph semantics, and executor remain to be filled in next. No new
+third-party code was added; the subtree uses the vendored `mpc`, Lua, and
+`ucpp` already present in `third_party/`.
+
 ## 2026-08-25 — FrontMX replaces the Swaff/Kliche frontend boundary
 
 FrontMX is now the forward frontend integration point described by

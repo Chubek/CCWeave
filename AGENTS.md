@@ -11,6 +11,13 @@ So far, we have implemented compilers and/or interpreters for the following lang
 - `interpreters/moonix` -> Lua
 - `interpreters/sml-parthia` -> Standard ML '97
 
+## Build Tools So Far
+
+So far, we have implemented or started the following build/orchestration tools:
+- `toolchain/ccwmk` -> CCWmk, the graph-first Make superset for CCWeave.
+  - Spec: `.agents/CCWMK.md`
+  - Current state: scaffolded subtree with `ccw-ccwmk.h`, `Weavefile`, `bootstrap.py`, and a buildable driver stub.
+
 ## Salvos
 
 We have three salvos so far:
@@ -39,6 +46,7 @@ We have three salvos so far:
 9. `.agents/SML-PARTHIA.md` -- the complete, normative specs for `interpreters/sml-parthia`, an ahead-of-time/just-in-time compiler and interpreter for SML, using the FrontMX frontend for SML
 10. `.agents/SIMDKERN.md` -- the complete, normative specs for SIMD-related kernels and libc intrinsics using `third_party/simd-everywhere`
 11. `.agents/FRONTMX-SPECS.md` -- the complete, normative specs for the `frontmx` frontend and its `.fmx` grammar descriptions
+12. `.agents/CCWMK.md` -- the complete, normative specs for `toolchain/ccwmk`, the CCWeave build orchestrator
 
 If this file and the specs conflict, the specs win. If the two specs
 conflict, `GLUESTD_H.md` wins for anything ABI-related. Do not invent

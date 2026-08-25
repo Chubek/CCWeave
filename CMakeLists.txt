@@ -189,6 +189,7 @@ add_subdirectory(ir)
 add_subdirectory(executors/s7)
 add_subdirectory(oeuph)
 add_subdirectory(sched)
+add_subdirectory(toolchain/ccwmk)
 add_subdirectory(frontmx)
 add_subdirectory(toolchain/ccwas)
 
