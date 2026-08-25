@@ -36,8 +36,9 @@ We have three salvos so far:
 6. `.agents/CCWAS.md` and `.agents/LCCWAS.md` -- the complete, normative specs for `toolchain/ccwas` and `toolchain/ccwas/lccwas`, respectively
 7. `.agents/CCWLD.md` and `.agents/LCCWLD.md` -- the complete, normative specs for `toolchain/ccwld` and `toolchain/ccwld/lccwld`, respectively
 8. `.agents/DELPHIA.md` -- the complete, normative specs for `compilers/dephia`, a Delphi compiler similar to Cephyr's C compiler, but an OOP language
-9. `.agents/SML-PARTHIA.md` -- the complete, normative specs for `interpreters/sml-parthia`, an ahead-of-time/just-in-time compiler and interpreter for SML, using the Swaff frontned for SML
+9. `.agents/SML-PARTHIA.md` -- the complete, normative specs for `interpreters/sml-parthia`, an ahead-of-time/just-in-time compiler and interpreter for SML, using the FrontMX frontend for SML
 10. `.agents/SIMDKERN.md` -- the complete, normative specs for SIMD-related kernels and libc intrinsics using `third_party/simd-everywhere`
+11. `.agents/FRONTMX-SPECS.md` -- the complete, normative specs for the `frontmx` frontend and its `.fmx` grammar descriptions
 
 If this file and the specs conflict, the specs win. If the two specs
 conflict, `GLUESTD_H.md` wins for anything ABI-related. Do not invent
@@ -64,8 +65,8 @@ ccweave/
   manifests/            # GENERATED ONLY — never hand-edit
   stdlib-salvo          # Collection of standard libraries for languages
   ir/                   # Weave IR core + tilly/ + on1x/ profiles
-  kliche/               # functional/, imperative/, oop/ stereotypes
-  swaff/                # grammars/ + adapters/
+  frontmx/              # GLR grammar frontend, AST/attributes, and generator
+  fmx-salvo/            # Cephyr/Moonix/Delphia/SML-Parthia .fmx grammars
   oeuph/                # e-graph engine
   sema-salvo            # semantic rulesets
   rewrite-salvo/        # rewrite rulesets
@@ -118,8 +119,10 @@ the next begins; later stages depend on earlier ones.
    per capability domain you need for testing.
 8. **Oeuph** (`oeuph/`), **sema-salvo** and **rewrite-salvo**: e-graph engine over the canonical in-memory IR, with budgets, determinism, per-ruleset
    diagnostics.
-9. **Kliche** stereotypes, then **Swaff** frontends (Tree-sitter
-   grammar + lowering adapter) last.
+9. **FrontMX** frontend (`frontmx/`) and its `.fmx` salvo declarations
+   (`fmx-salvo/`) last. FrontMX replaces the former Kliche/Swaff boundary;
+   new frontend grammar work must use SFSExp and RE2 as specified by
+   `.agents/FRONTMX-SPECS.md`.
 10. **stdlib-salvo**, collection of standard libraries for the supported 
    compilers and interpreters.
 
@@ -165,8 +168,14 @@ the next begins; later stages depend on earlier ones.
   `third_party/VERSIONS.lock`. Never fetch dependencies at build time;
   never bump a version without updating the lock file in the same
   commit.
-- **Only Swaff adapters may reference Tree-sitter node types.** Nothing
-  in `kliche/`, `ir/`, or below may include Tree-sitter headers.
+- **FrontMX is the active frontend boundary.** `.fmx` files are grammar
+  descriptions parsed with SFSExp; terminal regexes use the vendored RE2
+  engine. FrontMX owns grammar metadata, ambiguity/AST/attribute boundaries,
+  and generated frontend artifacts. The retired Swaff/Kliche directories and
+  legacy files must not gain new capabilities or registrations.
+- **Tree-sitter isolation remains mandatory for legacy code.** Only legacy
+  Swaff adapters may reference Tree-sitter node types; nothing in `frontmx/`,
+  `ir/`, or below may include Tree-sitter headers.
 
 ## Conventions
 
