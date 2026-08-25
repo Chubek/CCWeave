@@ -1,13 +1,9 @@
 # CCWld Specification v0.1
 
 CCWld (`ccwld`) is the CCWeave linker. It consumes a **link description** in one of two
-surfaces — ld-script (via `third_party/mpc`) or Lua (via `lccwld` + `third_party/sol2`) —
-lowers both to a single immutable **link-plan IR**, runs a fixed phase pipeline over it, and
-emits an object via `third_party/LIEF`. It lives at `toolchain/ccwld/`.
+surfaces — ld-script (via `third_party/mpc`) or Lua (via `lccwld` + `third_party/sol2`) —lowers both to a single immutable **link-plan IR**, runs a fixed phase pipeline over it, and emits an object via `third_party/LIEF`. It lives at `toolchain/ccwld/`.
 
-This document specifies the linker: the plan IR, the phase pipeline, the LTO and plugin C
-ABIs, emission, caching, and determinism. The Lua surface is specified separately in the
-lccwld doc (D-0034–D-0038); this doc is the consumer of that contract.
+This document specifies the linker: the plan IR, the phase pipeline, the LTO and plugin C ABIs, emission, caching, and determinism. The Lua surface is specified separately in the lccwld doc (D-0034–D-0038); this doc is the consumer of that contract.
 
 ## 1. Position in the toolchain
 
@@ -18,8 +14,7 @@ lccwld doc (D-0034–D-0038); this doc is the consumer of that contract.
                                                      └──── LTO C ABI ─────┤
                                                      └──── plugin C ABI ──┘
 ```
-- **Input**: object files and archives from `ccwas`/external toolchains, plus a link
-  description. CCWld does not assemble; `ccwas` (D-0025–D-0033) does.
+- **Input**: object files and archives from `ccwas`/external toolchains, plus a link  description. CCWld does not assemble; `ccwas` (D-0025–D-0033) does.
 - **Output**: `exe` / `dso` / `reloc` / `pie` in `elf` / `pe` / `macho`, written by LIEF.
 - CCWld is the *conflict authority*: where a Lua hook and a plugin both claim a phase
   artifact (lccwld §4.12), CCWld resolves and reports it.

@@ -13,10 +13,12 @@ Parsing itself is delegated to `third_party/mpc` — the Weavefile grammar (targ
 Despite the C/C++-flavored dependency scanning, `ccwmk` is not C/C++-specific. It is the build orchestrator for every language CCWeave supports (anything with a `frontmx` grammar and a backend under `ccweave`). Language-specific dependency scanning (like the `ucpp` include scan) is one plugin among several; other languages register their own scanner.
 
 ## 2. Files and their contract
-
+```
 toolchain/ccwmk/
   ccw-ccwmk.c
   ccw-ccwmk.h
+  Weavefile        # bootstrapped builder for CCWmk
+  bootstrap.py     # the bootstrapper for `Weavefile`
   src/
     parse.c        # drives third_party/mpc over the Weavefile grammar
     grammar.c       # the Weavefile grammar (targets, vars, rules, directives)
@@ -30,7 +32,7 @@ toolchain/ccwmk/
   lua/
     lccwmk.c
     lccwmk.h
-
+```
 
 | File | Contract |
 |---|---|
@@ -46,6 +48,8 @@ toolchain/ccwmk/
 | `src/plugin.c` | Loads plugins (shared objects implementing the `ccw-ccwmk.h` extension ABI) — this is how non-C/C++ languages register their own dependency scanner in place of `scan-c.c`. |
 | `src/lua.c` | Embeds Lua and exposes the `ccwmk` graph/target API to Lua scripts, backing the `lccwmk` library. |
 | `lua/lccwmk.c` / `lua/lccwmk.h` | The `lccwmk` library proper: a Lua module that lets a `Weavefile` (or a companion `.lua` file) drive `ccwmk` from Lua, mirroring how `lccwld` drives `ccwld`. |
+| `Weavefile` | The bootstrapped build specs for CCWmk |
+| `bootstrap.py` | The bootstrapper for `Weavefile` |
 
 ## 3. The Weavefile language
 
@@ -177,3 +181,7 @@ end
   `parse.c` recognizes a `lua ... end` block as a directive and hands its body to `src/lua.c` for execution against the current graph, the same way `mk` blocks are optional escape hatches in some Make variants.
 
 The split of responsibility is: `ccwmk` (C coy) rsing, the graph, scanning, fetching, and execution; `lccwmk` (Lua library) is a thin binding so a `Weavefile` — or a `.lua` build script entirely — can drive that same core.
+
+## Boostrapping
+
+We build CCWmk using `bootstrap.py` and the file it bootstraps, `Weavefile`. It only uses a small subset of CCWmk. This is used to build CCWmk, so we can build the CCWeave project using the actual CCWmk, with `Weavefile`s that usse the whole spectrum of CCWmk tools.
