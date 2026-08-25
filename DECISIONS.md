@@ -1,5 +1,29 @@
 # Decisions
 
+## 2026-08-25 — FrontMX replaces the Swaff/Kliche frontend boundary
+
+FrontMX is now the forward frontend integration point described by
+`.agents/FRONTMX-SPECS.md`.  It combines grammar parsing and attribute/action
+metadata into one opaque C API under `frontmx/`, while keeping the specified
+subsystem boundaries (`sppf`, `gss`, `grammar`, `ast`, `attr`, `diamb`,
+`rewrite`, and `generate`) explicit for subsequent GLR and salvo-backed
+implementations.
+
+The initial implementation parses `.fmx` files as S-Expressions through the
+vendored SFSExp library, validates the required schema keys and cardinalities,
+retains terminals, productions, limitations, semantic actions, rewrites, and
+the entry node, and verifies that file-based grammars use a language name
+matching the `.fmx` basename.  Terminal regular expressions are compiled and
+matched with the vendored RE2 dependency, rather than introducing a second
+regex engine or a host-side lexer.
+
+FrontMX is registered as `ccw_frontmx` in the global CMake build and has a
+focused regression test covering parsing, metadata navigation, and terminal
+matching.  The first `fmx-salvo` grammar declarations for Cephyr, Moonix,
+Delphia, and SML-Parthia establish the new source format.  Generated frontend
+artifacts are emitted only through `frontmx_generate`; the salvo and manifest
+directories remain source/generated boundaries and are not hand-edited.
+
 ## 2026-08-24 — Cephyr schedules terminate at `codegen.sched-list` capability
 
 The Swaff+C issue resolution exposed a manifest drift in Cephyr’s `O0.lua`,
