@@ -2,7 +2,7 @@
 
 ## 1. Model
 
-`ccwmk` is a `make` superset for CCWeave. It parses the ordinary Makefile language plus a set of extensions that pull it toward CMake's feature set: typed variables, `target`/`dependency` declarations that aren't just file paths, package/dependency fetching, and multi-language build graphs. Where GNU Make treats everything as files and shell recipes, `ccwmk` treats the graph as first-class: translation units, programs, libraries, and fetched packages are all nodes with typed edges, not just filesystem timestamps.
+`ccwmk` is a `make` superset for CCWeave, implemented under `toolchain/ccwmk`. It parses the ordinary Makefile language plus a set of extensions that pull it toward CMake's feature set: typed variables, `target`/`dependency` declarations that aren't just file paths, package/dependency fetching, and multi-language build graphs. Where GNU Make treats everything as files and shell recipes, `ccwmk` treats the graph as first-class: translation units, programs, libraries, and fetched packages are all nodes with typed edges, not just filesystem timestamps.
 
 The file it reads is called a `Weavefile` (not `Makefile`), so a project directory has a `Weavefile` the way it would have a `Makefile`.
 
