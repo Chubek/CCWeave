@@ -1,0 +1,1 @@
+/* AST storage boundary reserved for generated frontends. */

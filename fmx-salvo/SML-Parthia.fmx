@@ -1,0 +1,6 @@
+(frontmx
+  (language SML-Parthia)
+  (grammar-version 1)
+  (productions
+    (rule (name program.empty) (lhs program) (rhs)))
+  (entry (node program)))

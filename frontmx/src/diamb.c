@@ -1,0 +1,1 @@
+/* Ambiguity resolution boundary reserved for generated frontends. */

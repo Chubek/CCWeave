@@ -1,0 +1,6 @@
+(frontmx
+  (language Delphia)
+  (grammar-version 1)
+  (productions
+    (rule (name unit.empty) (lhs unit) (rhs)))
+  (entry (node unit)))

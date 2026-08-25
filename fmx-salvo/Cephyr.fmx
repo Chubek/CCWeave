@@ -1,0 +1,6 @@
+(frontmx
+  (language Cephyr)
+  (grammar-version 1)
+  (productions
+    (rule (name translation-unit.empty) (lhs translation-unit) (rhs)))
+  (entry (node translation-unit)))

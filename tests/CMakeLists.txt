@@ -9,6 +9,9 @@ endfunction()
 ccw_add_test(test_ir_roundtrip test_ir_roundtrip.c)
 target_link_libraries(test_ir_roundtrip PRIVATE ccw_ir)
 
+ccw_add_test(test_frontmx test_frontmx.c)
+target_link_libraries(test_frontmx PRIVATE ccw_frontmx)
+
 ccw_add_test(test_ir_profiles test_ir_profiles.c)
 target_link_libraries(test_ir_profiles PRIVATE ccw_ir)
 

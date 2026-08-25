@@ -1,0 +1,11 @@
+(frontmx
+  (language Moonix)
+  (grammar-version 1)
+  (terminals
+    (int (regex "[0-9]+"))
+    (ident (regex "[A-Za-z_][A-Za-z0-9_]*"))
+    (plus (regex "\+")))
+  (productions
+    (rule (name expr.int) (lhs expr) (rhs (int $v)))
+    (rule (name expr.add) (lhs expr) (rhs (expr $l plus expr $r))))
+  (entry (node expr)))

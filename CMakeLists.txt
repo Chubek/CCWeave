@@ -321,6 +321,7 @@ add_subdirectory(oeuph)
 add_subdirectory(sched)
 add_subdirectory(kliche)
 add_subdirectory(swaff)
+add_subdirectory(frontmx)
 add_subdirectory(toolchain/ccwas)
 
 if(CCWEAVE_ENABLE_LIEF)
